@@ -43,6 +43,11 @@ create table if not exists public.entitlements (
   current_period_end timestamptz,
   updated_at         timestamptz not null default now()
 );
+-- ขั้นที่ 2: current_period_end = สิทธิ์จากการทดลอง/สมัครตัดบัตร, prepaid_until = สิทธิ์ที่จ่ายล่วงหน้า (PromptPay)
+alter table public.entitlements add column if not exists source text;   -- trial | stripe_subscription | promptpay | manual
+alter table public.entitlements add column if not exists stripe_subscription_id text;
+alter table public.entitlements add column if not exists cancel_at_period_end boolean not null default false;
+alter table public.entitlements add column if not exists prepaid_until timestamptz;
 alter table public.entitlements enable row level security;
 drop policy if exists "read own entitlement" on public.entitlements;
 create policy "read own entitlement" on public.entitlements
@@ -70,8 +75,10 @@ as $$
     or exists (
       select 1 from entitlements e
       where e.user_id = auth.uid()
-        and e.status in ('active', 'trialing')
-        and (e.current_period_end is null or e.current_period_end > now())
+        and (
+          (e.status in ('active', 'trialing') and (e.current_period_end is null or e.current_period_end > now()))
+          or e.prepaid_until > now()
+        )
     )
   );
 $$;
@@ -149,6 +156,14 @@ begin
   if auth.uid() is null then
     raise exception 'not authenticated' using errcode = '28000';
   end if;
+  -- สมัครแบบตัดบัตรอัตโนมัติอยู่ → ต้องยกเลิกก่อน ไม่งั้น Stripe จะตัดเงินต่อทั้งที่ไม่มีบัญชีแล้ว
+  if exists (
+    select 1 from entitlements
+    where user_id = auth.uid() and source = 'stripe_subscription'
+      and status in ('active', 'trialing', 'past_due') and not cancel_at_period_end
+  ) then
+    raise exception 'active subscription' using errcode = 'P0001', hint = 'cancel_subscription_first';
+  end if;
   delete from records where owner_id = auth.uid();
   delete from auth.users where id = auth.uid();
 end;
@@ -160,3 +175,66 @@ revoke all on function public.delete_my_account() from public, anon;
 grant execute on function public.can_sync() to authenticated;
 grant execute on function public.push_records(jsonb) to authenticated;
 grant execute on function public.delete_my_account() to authenticated;
+
+-- ============================================================
+-- ขั้นที่ 2: สมาชิกและการชำระเงิน (Stripe)
+-- ตารางเหล่านี้เขียนได้เฉพาะ Edge Function ที่ใช้ service role เท่านั้น
+-- ============================================================
+
+
+create table if not exists public.billing_customers (
+  user_id            uuid primary key references auth.users (id) on delete cascade,
+  stripe_customer_id text not null unique,
+  created_at         timestamptz not null default now()
+);
+alter table public.billing_customers enable row level security;
+revoke all on public.billing_customers from anon, authenticated;
+
+-- กันประมวลผล webhook ซ้ำ (Stripe ส่งซ้ำได้)
+create table if not exists public.stripe_events (
+  id          text primary key,
+  type        text not null,
+  received_at timestamptz not null default now()
+);
+alter table public.stripe_events enable row level security;
+revoke all on public.stripe_events from anon, authenticated;
+
+insert into public.app_config (key, value) values ('trial_days', '30')
+  on conflict (key) do nothing;
+
+-- ผู้ใช้ใหม่ได้ทดลองใช้ฟรีทันทีตามจำนวนวันใน app_config.trial_days
+create or replace function public.start_trial()
+returns trigger
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  days int := coalesce((select (value #>> '{}')::int from app_config where key = 'trial_days'), 0);
+begin
+  if days > 0 then
+    insert into entitlements (user_id, plan, status, current_period_end, source)
+      values (new.id, 'trial', 'trialing', now() + make_interval(days => days), 'trial')
+      on conflict (user_id) do nothing;
+  end if;
+  return new;
+end;
+$$;
+revoke all on function public.start_trial() from public, anon, authenticated;
+
+drop trigger if exists on_auth_user_created_trial on auth.users;
+create trigger on_auth_user_created_trial
+  after insert on auth.users
+  for each row execute function public.start_trial();
+
+-- ผู้ใช้ที่สมัครก่อนมีระบบทดลอง ได้ทดลองนับจากวันที่รันไฟล์นี้ครั้งแรก
+insert into public.entitlements (user_id, plan, status, current_period_end, source)
+  select u.id, 'trial', 'trialing',
+         now() + make_interval(days => coalesce((select (value #>> '{}')::int from public.app_config where key = 'trial_days'), 30)),
+         'trial'
+  from auth.users u
+  on conflict (user_id) do nothing;
+
+-- Edge Functions ใช้ service role อ่าน/เขียนสิทธิ์สมาชิก (ให้แบบระบุเอง เผื่อปิด auto-expose ไว้)
+grant usage on schema public to service_role;
+grant select, insert, update, delete on public.entitlements, public.billing_customers, public.stripe_events to service_role;
+grant select on public.app_config to service_role;

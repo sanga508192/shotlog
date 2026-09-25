@@ -44,6 +44,34 @@ Service Worker ต้องใช้ HTTPS หรือ localhost การเ�
 `update app_config set value = 'false' where key = 'open_beta';`
 หลังจากนั้นเฉพาะบัญชีที่มีสิทธิ์ในตาราง `entitlements` จึงซิงก์ได้ ส่วนข้อมูลในเครื่องของทุกคนยังใช้งานได้ตามเดิม
 
+## สมาชิกและการชำระเงิน (Stripe)
+
+- **ราคา:** 59 บาท/เดือน หรือ 590 บาท/ปี จ่ายด้วยบัตรแบบต่ออายุอัตโนมัติ หรือ PromptPay 590 บาท จ่ายครั้งเดียวใช้ได้ 1 ปี
+- **ทดลองใช้ฟรี:** ผู้ใช้ใหม่ได้ 30 วันอัตโนมัติ ปรับได้ที่ `app_config.trial_days`
+- **สมัครระหว่างทดลองหรือยังมีสิทธิ์เหลือ:** ไม่เสียวันที่เหลือ แบบบัตรเริ่มตัดเงินเมื่อสิทธิ์เดิมหมด ส่วน PromptPay นับปีต่อจากวันที่หมด
+- **การเปิดสิทธิ์:** Stripe แจ้งผ่าน webhook ไปที่ `supabase/functions/stripe-webhook` แล้วระบบบันทึกสิทธิ์ลงตาราง `entitlements` ส่วนการตรวจสิทธิ์ซิงก์ทำที่ `can_sync()` บนเซิร์ฟเวอร์
+- **ลบบัญชี:** ต้องยกเลิกการต่ออายุก่อน ระบบจะไม่ให้ลบบัญชีทั้งที่ Stripe ยังตัดเงินต่อ
+
+ขั้นตอนตั้งค่า:
+
+1. รัน `supabase/schema.sql` ใน SQL Editor อีกครั้ง (รันซ้ำได้)
+2. ใน Stripe (Test mode) สร้าง Product "ShotLog Plus" แล้วเพิ่มราคาแบบ Recurring 2 ราคา คือ 59 THB/เดือน และ 590 THB/ปี
+3. เปิด PromptPay ที่ Settings → Payment methods
+4. เปิด Customer portal ที่ Settings → Billing → Customer portal โดยให้ยกเลิกได้ เปลี่ยนบัตรได้ และดูใบเสร็จได้
+5. ตั้ง Secrets ใน Supabase ที่ Edge Functions → Secrets:
+   - `STRIPE_SECRET_KEY`
+   - `STRIPE_WEBHOOK_SECRET`
+   - `STRIPE_PRICE_MONTHLY`
+   - `STRIPE_PRICE_YEARLY`
+   - `APP_URL=https://sanga508192.github.io/shotlog/`
+6. Deploy ฟังก์ชัน: `npx supabase login` แล้วตามด้วย `npx supabase functions deploy billing stripe-webhook --project-ref erycbfpvfhehhsskxtrf`
+7. ใน Stripe เพิ่ม Webhook endpoint `https://erycbfpvfhehhsskxtrf.supabase.co/functions/v1/stripe-webhook` แล้วเลือกเหตุการณ์ `checkout.session.completed`, `checkout.session.async_payment_succeeded` และ `customer.subscription.created/updated/deleted`
+8. ตั้ง `BILLING_ENABLED = true` ใน `js/config.js`
+9. เมื่อพร้อมเก็บเงินจริง ให้สลับ Stripe เป็น Live mode แล้วทำข้อ 2–7 ซ้ำด้วยคีย์ Live จากนั้นปิดช่วงทดลองฟรี:
+   `update app_config set value = 'false' where key = 'open_beta';`
+
+ทดสอบฝั่ง Edge Functions ด้วย `npm run test:functions` (ใช้ Deno ที่ติดตั้งผ่าน npm)
+
 ### ทดสอบบนเครื่องโดยไม่ต้องมี Supabase
 
 ```bash

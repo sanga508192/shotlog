@@ -82,3 +82,16 @@ export const pull = (cursor, limit) =>
   req(`/rest/v1/records?select=store,id,data,deleted,rev,seq&seq=gt.${Number(cursor) || 0}&order=seq.asc&limit=${limit}`);
 export const canSync = () => req('/rest/v1/rpc/can_sync', { method: 'POST', body: {} });
 export const deleteAccount = () => req('/rest/v1/rpc/delete_my_account', { method: 'POST', body: {} });
+
+// ---------- สมาชิก ----------
+
+export async function entitlement() {
+  const rows = await req('/rest/v1/entitlements?select=plan,status,current_period_end,prepaid_until,source,cancel_at_period_end');
+  return rows?.[0] ?? null;
+}
+
+// action: 'checkout' (plan: monthly | yearly | promptpay_year) หรือ 'portal' → คืน { url }
+export async function billing(action, extra = {}) {
+  const appUrl = globalThis.location ? location.origin + location.pathname : undefined;
+  return req('/functions/v1/billing', { method: 'POST', body: { action, app_url: appUrl, ...extra } });
+}

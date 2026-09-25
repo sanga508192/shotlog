@@ -2,6 +2,8 @@ import * as st from '../state.js';
 import * as cloud from '../cloud.js';
 import * as sync from '../sync.js';
 import { esc, header, toast, fmtDate } from '../ui.js';
+import { accessSummary } from '../logic.js';
+import { BILLING_ENABLED, PRICE_TEXT } from '../config.js';
 
 const STORE_TH = {
   rounds: 'รอบ', holes: 'หลุม', shots: 'ช็อต', penalties: 'สโตรกปรับ', clubs: 'ไม้',
@@ -76,6 +78,68 @@ function conflictCard(c) {
   </div>`;
 }
 
+// ---------- สมาชิก ShotLog Plus ----------
+
+const plan = { userId: null, ent: undefined, loadedAt: 0, loading: false, confirming: false, buying: false };
+const thDate = (ms) => new Date(ms).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+
+async function loadPlan() {
+  if (plan.loading) return;
+  plan.loading = true;
+  const userId = cloud.session()?.user.id;
+  try {
+    const ent = await cloud.entitlement();
+    if (cloud.session()?.user.id !== userId) return;   // เปลี่ยนบัญชีระหว่างโหลด
+    plan.ent = ent;
+    plan.loadedAt = Date.now();
+  } finally {
+    plan.loading = false;
+  }
+}
+
+function planHtml() {
+  if (plan.ent === undefined) return '<h2>ShotLog Plus</h2><div class="card small muted">กำลังโหลดสถานะสมาชิก…</div>';
+  const s = accessSummary(plan.ent);
+  let status;
+  let buy = true;
+  const portal = plan.ent?.source === 'stripe_subscription';
+  switch (s.kind) {
+    case 'trial':
+      status = `ทดลองใช้ฟรี เหลือ <b>${s.daysLeft} วัน</b> (ถึง ${thDate(s.until)})`;
+      break;
+    case 'subscription':
+      buy = false;
+      status = s.pastDue ? '⚠ ตัดบัตรรอบล่าสุดไม่สำเร็จ กรุณาอัปเดตบัตรที่ปุ่มจัดการการสมัคร'
+        : s.renews ? `สมาชิก${s.plan === 'yearly' ? 'รายปี' : 'รายเดือน'} · ต่ออายุอัตโนมัติ ${thDate(s.periodEnd)}`
+          : `ยกเลิกการต่ออายุแล้ว · ใช้ได้ถึง ${thDate(s.until)}`;
+      break;
+    case 'prepaid':
+      status = `ชำระแบบ PromptPay · ใช้ได้ถึง <b>${thDate(s.until)}</b> (เหลือ ${s.daysLeft} วัน)`;
+      break;
+    case 'trial_expired':
+      status = 'ช่วงทดลองใช้ฟรีหมดแล้ว ข้อมูลบนคลาวด์ยังอยู่ครบ สมัครสมาชิกเพื่อซิงก์ต่อ';
+      break;
+    case 'expired':
+      status = 'สมาชิกหมดอายุแล้ว ข้อมูลบนคลาวด์ยังอยู่ครบ สมัครเพื่อซิงก์ต่อ';
+      break;
+    default:
+      status = 'ยังไม่ได้เป็นสมาชิก';
+  }
+  const keepDays = s.active && (s.kind === 'trial' || s.kind === 'prepaid')
+    ? '<p class="note">สมัครตอนนี้ไม่เสียวันที่เหลือ: แบบบัตรเริ่มตัดเงินเมื่อสิทธิ์ปัจจุบันหมด ส่วน PromptPay นับปีต่อจากวันที่หมด</p>' : '';
+  const btn = (p, title, sub) => `<button type="button" class="plan-btn" data-act="buy" data-plan="${p}" ${plan.buying ? 'disabled' : ''}>
+      <b>${title}</b><span>${sub}</span></button>`;
+  return `<h2>ShotLog Plus</h2>
+    <div class="card">${plan.confirming ? '⟳ กำลังยืนยันการชำระเงิน…' : status}</div>
+    ${buy ? `<div class="plans">
+      ${btn('yearly', `รายปี ${esc(PRICE_TEXT.yearly)}`, 'บัตร · ต่ออายุอัตโนมัติ · คุ้มกว่า')}
+      ${btn('monthly', `รายเดือน ${esc(PRICE_TEXT.monthly)}`, 'บัตร · ต่ออายุอัตโนมัติ')}
+      ${btn('promptpay_year', `PromptPay ${esc(PRICE_TEXT.yearly)}`, 'สแกนจ่ายครั้งเดียว ใช้ได้ 1 ปี ไม่ตัดเงินอัตโนมัติ')}
+    </div>${keepDays}
+    <p class="note">ชำระผ่าน Stripe แอปไม่เห็นข้อมูลบัตร · ยกเลิกได้ทุกเมื่อ ใช้ได้ถึงสิ้นรอบที่จ่ายแล้ว · จดในเครื่องใช้ฟรีตลอด</p>` : ''}
+    ${portal ? '<button type="button" class="btn block" data-act="portal">จัดการการสมัคร / เปลี่ยนบัตร / ใบเสร็จ</button>' : ''}`;
+}
+
 // ---------- หน้าบัญชี ----------
 
 const form = { step: 'email', email: '', consent: false, busy: false };
@@ -120,6 +184,7 @@ function signedInHtml(s) {
       <div class="small muted">รอส่งขึ้นคลาวด์ ${s.pending} รายการ · ซิงก์ล่าสุด ${s.lastSync ? esc(new Date(s.lastSync).toLocaleString('th-TH')) : '–'}</div>
     </div>
     <button type="button" class="btn primary block" data-act="syncNow">ซิงก์ตอนนี้</button>
+    ${BILLING_ENABLED ? planHtml() : ''}
     ${conflicts.length ? `<h2>ข้อมูลที่แก้ชนกัน (${conflicts.length})</h2>
       <p class="note">รายการเหล่านี้ถูกแก้ทั้งในเครื่องนี้และจากอีกเครื่อง ระบบยังไม่เขียนทับฝั่งใด เลือกว่าจะใช้ฉบับไหน</p>
       ${conflicts.map(conflictCard).join('')}` : ''}
@@ -132,8 +197,17 @@ function signedInHtml(s) {
     <p class="note">ข้อมูลในเครื่องนี้ยังอยู่ และใช้แบบไม่มีบัญชีต่อได้</p>`;
 }
 
-export function accountView(_p, ctx) {
+export function accountView([query], ctx) {
   const s = sync.status();
+  // สถานะสมาชิกผูกกับบัญชีที่เข้าสู่ระบบ เปลี่ยนบัญชีแล้วต้องโหลดใหม่
+  const uid = cloud.session()?.user.id ?? null;
+  if (plan.userId !== uid) Object.assign(plan, { userId: uid, ent: undefined, loadedAt: 0 });
+  if (BILLING_ENABLED && cloud.enabled() && uid) {
+    if (new URLSearchParams(query || '').get('paid') === '1' && !plan.confirming) confirmPayment(ctx);
+    else if ((plan.ent === undefined || Date.now() - plan.loadedAt > 60000) && !plan.loading && !plan.confirming) {
+      loadPlan().then(() => ctx.rerender()).catch(() => {});
+    }
+  }
   let body;
   if (!cloud.enabled()) {
     body = '<div class="card">บริการสำรองบนคลาวด์ยังไม่เปิดในรุ่นนี้ ข้อมูลของคุณเก็บในเครื่องนี้ และส่งออกเป็นไฟล์สำรองได้ที่หน้าตั้งค่า</div>';
@@ -148,7 +222,7 @@ export function accountView(_p, ctx) {
     try { await fn(); } catch (err) { toast(thaiError(err)); } finally { form.busy = false; ctx.rerender(); }
   };
 
-  const unsubscribe = sync.onStatus(() => { if (location.hash === '#/account') ctx.rerender(); });
+  const unsubscribe = sync.onStatus(() => { if (location.hash.startsWith('#/account')) ctx.rerender(); });
 
   return {
     html: `${header('บัญชีและคลาวด์')}<div class="page">${body}</div>`,
@@ -177,6 +251,29 @@ export function accountView(_p, ctx) {
         toast('เข้าสู่ระบบแล้ว กำลังซิงก์…');
         await sync.link(sess.user.id).catch(() => {});
       }),
+      buy: async (el) => {
+        if (plan.buying) return;
+        plan.buying = true;
+        ctx.rerender();
+        try {
+          const { url } = await cloud.billing('checkout', { plan: el.dataset.plan });
+          location.href = url;   // ไปหน้าชำระเงินของ Stripe
+        } catch (err) {
+          toast(thaiError(err));
+          if (err.status === 409) plan.ent = undefined;
+        } finally {
+          plan.buying = false;
+          ctx.rerender();
+        }
+      },
+      portal: async () => {
+        try {
+          const { url } = await cloud.billing('portal');
+          location.href = url;
+        } catch (err) {
+          toast(thaiError(err));
+        }
+      },
       syncNow: async () => {
         try { await sync.syncNow(); toast('ซิงก์แล้ว'); } catch (err) { toast(thaiError(err)); }
       },
@@ -219,6 +316,28 @@ export function thaiError(err) {
   if (/token.*(expired|invalid)|otp_expired|invalid.*otp/i.test(m + (err?.code || ''))) return 'รหัสไม่ถูกต้องหรือหมดอายุ ขอรหัสใหม่';
   if (err?.status === 429 || /rate limit|security purposes/i.test(m)) return 'ขอรหัสถี่เกินไป รอสักครู่แล้วลองใหม่';
   if (err?.status === 504 || /timeout|sending.*(email|magic link)|smtp/i.test(m)) return 'ส่งอีเมลรหัสไม่สำเร็จ ลองใหม่อีกครั้งในอีกสักครู่';
+  if (/active subscription/i.test(m)) return 'ยกเลิกการต่ออายุสมาชิกก่อน (ปุ่ม "จัดการการสมัคร") แล้วค่อยลบบัญชี';
+  if (/already_subscribed/.test(m)) return 'คุณเป็นสมาชิกแบบตัดบัตรอยู่แล้ว จัดการได้ที่ปุ่ม "จัดการการสมัคร"';
+  if (/no_customer/.test(m)) return 'ยังไม่มีประวัติการชำระเงิน';
   if (err?.status === 403) return 'ต้องเป็นสมาชิกจึงจะใช้บริการคลาวด์ได้';
   return `ไม่สำเร็จ: ${m}`;
+}
+
+// กลับจากหน้าชำระเงิน: รอ webhook เปิดสิทธิ์ (ปกติไม่กี่วินาที) แล้วซิงก์ต่อ
+async function confirmPayment(ctx) {
+  plan.confirming = true;
+  history.replaceState(null, '', '#/account');
+  let ok = false;
+  for (let i = 0; i < 15 && !ok; i++) {
+    try {
+      await loadPlan();
+      const s = accessSummary(plan.ent);
+      ok = (s.kind === 'subscription' || s.kind === 'prepaid') && (s.active || s.pastDue === false);
+    } catch { /* ลองใหม่ */ }
+    if (!ok) await new Promise((r) => setTimeout(r, 2000));
+  }
+  plan.confirming = false;
+  toast(ok ? 'ชำระเงินสำเร็จ ขอบคุณที่สมัคร ShotLog Plus' : 'ยังไม่ได้รับการยืนยันการชำระเงิน ถ้าชำระแล้ว สถานะจะอัปเดตภายในไม่กี่นาที');
+  if (ok) sync.syncNow().catch(() => {});
+  if (location.hash.startsWith('#/account')) ctx.rerender();
 }

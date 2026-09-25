@@ -154,6 +154,7 @@ test('ซิงก์ครบวงจร', async (t) => {
     await freshDevice();
     await sync.link(A);
     await pg.exec(`update public.app_config set value = 'false' where key = 'open_beta'`);
+    await pg.exec(`update public.entitlements set current_period_end = now() - interval '1 day'`);   // ทดลองหมดอายุ
     await st.put('rounds', { ...st.S.rounds.get('r1'), note: 'หลังหมดสิทธิ์' });
     const forbidden = { ...fakeApi(pg, () => uid) };
     const push = forbidden.push;

@@ -1,0 +1,9 @@
+# ตั้งค่าสำหรับ Supabase CLI (ใช้ตอน deploy Edge Functions)
+project_id = "erycbfpvfhehhsskxtrf"
+
+# ทั้งสองฟังก์ชันตรวจสิทธิ์เอง: billing ตรวจ token กับ Supabase Auth, stripe-webhook ตรวจลายเซ็น Stripe
+[functions.billing]
+verify_jwt = false
+
+[functions.stripe-webhook]
+verify_jwt = false

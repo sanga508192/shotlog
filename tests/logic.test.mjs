@@ -164,3 +164,24 @@ test('ข้อเสนอหัวข้อซ้อมตามอากา�
   const t = { dim: 'contact', shot_type: 'chip', club_label: 'SW' };
   assert.match(practiceSuggestion(t).topic, /SW ชิพ: ความสม่ำเสมอ/);
 });
+
+test('สรุปสถานะสมาชิกสำหรับแสดงผล', async () => {
+  const { accessSummary } = await import('../js/logic.js');
+  const now = Date.parse('2026-10-01T00:00:00Z');
+  const d = (n) => new Date(now + n * 86400000).toISOString();
+  assert.deepEqual(accessSummary(null, now), { kind: 'none', active: false });
+  const trial = accessSummary({ source: 'trial', status: 'trialing', current_period_end: d(12) }, now);
+  assert.deepEqual([trial.kind, trial.active, trial.daysLeft], ['trial', true, 12]);
+  assert.equal(accessSummary({ source: 'trial', status: 'trialing', current_period_end: d(-1) }, now).kind, 'trial_expired');
+  const sub = accessSummary({ source: 'stripe_subscription', status: 'active', plan: 'monthly', current_period_end: d(20), cancel_at_period_end: true }, now);
+  assert.deepEqual([sub.kind, sub.renews, sub.daysLeft], ['subscription', false, 20]);
+  const due = accessSummary({ source: 'stripe_subscription', status: 'past_due', current_period_end: d(3) }, now);
+  assert.deepEqual([due.pastDue, due.active], [true, false]);
+  const pp = accessSummary({ source: 'promptpay', status: 'none', prepaid_until: d(300) }, now);
+  assert.deepEqual([pp.kind, pp.daysLeft], ['prepaid', 300]);
+  // ยกเลิกตัดบัตรแล้ว แต่ยังมี PromptPay เหลือ
+  assert.equal(accessSummary({ source: 'stripe_subscription', status: 'canceled', current_period_end: d(-5), prepaid_until: d(40) }, now).kind, 'prepaid');
+  // ทดลองอยู่แต่จ่าย PromptPay แล้ว (ยาวกว่า) → แสดงเป็นจ่ายแล้ว
+  assert.equal(accessSummary({ source: 'trial', status: 'trialing', current_period_end: d(5), prepaid_until: d(370) }, now).kind, 'prepaid');
+  assert.equal(accessSummary({ source: 'promptpay', status: 'none', prepaid_until: d(-1) }, now).kind, 'expired');
+});

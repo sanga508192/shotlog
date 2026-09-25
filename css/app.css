@@ -233,3 +233,13 @@ details summary { cursor: pointer; min-height: 32px; }
 label.check.consent { align-items: flex-start; font-size: .85rem; }
 label.check.consent input { margin-top: 3px; flex: none; }
 .diff { margin: 6px 0; padding-left: 18px; overflow-wrap: anywhere; }
+
+.plans { display: flex; flex-direction: column; gap: 8px; }
+.plan-btn {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;
+  min-height: 56px; padding: 10px 14px; border-radius: 12px; cursor: pointer;
+  border: 2px solid var(--brand); background: var(--brand-soft); color: var(--text); font: inherit;
+}
+.plan-btn b { color: var(--brand); font-size: 1.05rem; }
+.plan-btn span { font-size: .82rem; color: var(--muted); }
+.plan-btn:disabled { opacity: .5; }

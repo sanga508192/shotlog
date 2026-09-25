@@ -1,6 +1,6 @@
 // เก็บไฟล์แอปทั้งหมดไว้ในเครื่อง เพื่อเปิดใช้ได้เมื่อไม่มีสัญญาณ
 // เปลี่ยน VERSION ทุกครั้งที่แก้ไฟล์ในรายการ เพื่อให้เครื่องผู้ใช้ได้รุ่นใหม่
-const VERSION = 'shotlog-v0.3.0-1';
+const VERSION = 'shotlog-v0.4.0';
 const ASSETS = [
   './',
   './index.html',
@@ -38,11 +38,17 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// ตอนพัฒนาบนเครื่อง ใช้ไฟล์ล่าสุดจากเซิร์ฟเวอร์ก่อน (เว็บจริงยังเปิดจากแคชเพื่อใช้ออฟไลน์)
+const DEV = ['localhost', '127.0.0.1'].includes(location.hostname);
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
   event.respondWith((async () => {
     const cache = await caches.open(VERSION);
+    if (DEV) {
+      try { return await fetch(req, { cache: 'no-store' }); } catch { /* ออฟไลน์ → ใช้แคช */ }
+    }
     const hit = await cache.match(req, { ignoreSearch: true });
     if (hit) return hit;
     try {

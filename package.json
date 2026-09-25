@@ -6,10 +6,12 @@
   "description": "ShotLog — จดกอล์ฟรายช็อตเพื่อวางแผนฝึกซ้อม (PWA ออฟไลน์)",
   "scripts": {
     "start": "node scripts/serve.mjs",
-    "test": "node --test tests/"
+    "test": "node --test tests/",
+    "test:functions": "cd supabase/functions && deno check billing/index.ts stripe-webhook/index.ts && deno test --allow-env tests/"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
+    "deno": "^2.9.6",
     "fake-indexeddb": "^6.2.5"
   }
 }

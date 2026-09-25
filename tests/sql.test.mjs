@@ -78,6 +78,7 @@ test('ตรวจข้อมูลไม่ถูกต้อง', async () =>
 
 test('ปิด open_beta แล้วต้องมีสิทธิ์สมาชิกจึงซิงก์ได้', async () => {
   const db = await makeDb();
+  await db.exec(`update public.app_config set value = '0' where key = 'trial_days'`);
   await addUser(db, A);
   await db.exec(`update public.app_config set value = 'false' where key = 'open_beta'`);
   await assert.rejects(push(db, A, [{ store: 'rounds', id: 'r', base_rev: null, data: { id: 'r' } }]), /subscription required/);

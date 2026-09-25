@@ -300,3 +300,34 @@ function csvCell(v) {
 export function toCSV(header, rows) {
   return [header, ...rows].map((r) => r.map(csvCell).join(',')).join('\r\n');
 }
+
+// ---------- สถานะสมาชิก (แสดงผลเท่านั้น สิทธิ์จริงตรวจที่เซิร์ฟเวอร์) ----------
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export function accessSummary(e, now = Date.now()) {
+  if (!e) return { kind: 'none', active: false };
+  const t = (v) => (v ? Date.parse(v) : null);
+  const periodEnd = t(e.current_period_end);
+  const prepaid = t(e.prepaid_until);
+  const prepaidAlive = prepaid && prepaid > now ? prepaid : null;
+  const periodAlive = ['active', 'trialing', 'past_due'].includes(e.status) && (!periodEnd || periodEnd > now);
+  const days = (until) => (until ? Math.max(0, Math.ceil((until - now) / DAY_MS)) : null);
+
+  if (e.source === 'stripe_subscription' && periodAlive) {
+    const until = Math.max(periodEnd || 0, prepaidAlive || 0) || null;
+    return {
+      kind: 'subscription', plan: e.plan, active: e.status !== 'past_due' || !!prepaidAlive,
+      pastDue: e.status === 'past_due', renews: !e.cancel_at_period_end, periodEnd, until, daysLeft: days(until),
+    };
+  }
+  if (e.source === 'trial' && periodAlive && !(prepaidAlive && prepaidAlive > periodEnd)) {
+    return { kind: 'trial', active: true, until: periodEnd, daysLeft: days(periodEnd), prepaidAfter: prepaidAlive };
+  }
+  if (prepaidAlive) return { kind: 'prepaid', active: true, until: prepaidAlive, daysLeft: days(prepaidAlive) };
+  return {
+    kind: e.source === 'trial' ? 'trial_expired' : 'expired',
+    active: false,
+    until: Math.max(periodEnd || 0, prepaid || 0) || null,
+  };
+}

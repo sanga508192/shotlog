@@ -21,7 +21,7 @@ const routes = [
   [/^#\/practice$/, practiceView],
   [/^#\/practice\/new(?:\?(.*))?$/, practiceNewView],
   [/^#\/settings$/, settingsView],
-  [/^#\/account$/, accountView],
+  [/^#\/account(?:\?(.*))?$/, accountView],
 ];
 
 const root = document.getElementById('app');
