@@ -218,6 +218,7 @@ export function thaiError(err) {
   if (err instanceof TypeError || /fetch|network/i.test(m)) return 'เชื่อมต่อไม่ได้ ตรวจสอบสัญญาณแล้วลองใหม่';
   if (/token.*(expired|invalid)|otp_expired|invalid.*otp/i.test(m + (err?.code || ''))) return 'รหัสไม่ถูกต้องหรือหมดอายุ ขอรหัสใหม่';
   if (err?.status === 429 || /rate limit|security purposes/i.test(m)) return 'ขอรหัสถี่เกินไป รอสักครู่แล้วลองใหม่';
+  if (err?.status === 504 || /timeout|sending.*(email|magic link)|smtp/i.test(m)) return 'ส่งอีเมลรหัสไม่สำเร็จ ลองใหม่อีกครั้งในอีกสักครู่';
   if (err?.status === 403) return 'ต้องเป็นสมาชิกจึงจะใช้บริการคลาวด์ได้';
   return `ไม่สำเร็จ: ${m}`;
 }
