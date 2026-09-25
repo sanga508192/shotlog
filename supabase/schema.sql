@@ -9,6 +9,9 @@
 -- * สิทธิ์ซิงก์ตรวจที่เซิร์ฟเวอร์ใน can_sync(): ช่วงทดลองเปิดให้ทุกคน (open_beta)
 --   ขั้นที่ 2 จะปิด open_beta แล้วใช้ตาราง entitlements ที่อัปเดตจากระบบรับเงิน
 
+-- ให้สิทธิ์แบบระบุเองทั้งหมด จึงใช้ได้แม้ปิด "Automatically expose new tables" ตอนสร้างโปรเจกต์
+grant usage on schema public to authenticated;
+
 create sequence if not exists public.records_seq;
 
 create table if not exists public.records (
