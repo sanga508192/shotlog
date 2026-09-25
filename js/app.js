@@ -1,4 +1,5 @@
 import * as st from './state.js';
+import * as db from './db.js';
 import { toast } from './ui.js';
 import { homeView, historyView, coursesView, newRoundView } from './views/main.js';
 import { holeView, scorecardView } from './views/round.js';
@@ -96,6 +97,9 @@ sync.onStatus(paintSync);
 window.addEventListener('offline', updateOnline);
 
 async function start() {
+  db.events.blocked = () => {
+    root.innerHTML = '<div class="page"><div class="card warn">กำลังอัปเดตแอป — ShotLog รุ่นเก่ายังเปิดอยู่ในแท็บหรือหน้าต่างอื่น ปิดหน้านั้นแล้วแอปจะเปิดต่อเอง ข้อมูลไม่หาย</div></div>';
+  };
   try {
     await st.load();
   } catch (err) {

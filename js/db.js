@@ -20,6 +20,7 @@ const SCHEMA = {
 };
 
 let dbPromise;
+export const events = { blocked: null };
 
 export function open() {
   if (dbPromise) return dbPromise;
@@ -39,7 +40,8 @@ export function open() {
       resolve(req.result);
     };
     req.onerror = () => reject(req.error);
-    req.onblocked = () => reject(new Error('ฐานข้อมูลถูกเปิดค้างในแท็บอื่น'));
+    // แอปรุ่นเก่ายังเปิดอยู่ในแท็บอื่น: ไม่ใช่ข้อผิดพลาด คำขอจะรอจนแท็บนั้นปิดแล้วทำต่อเอง
+    req.onblocked = () => events.blocked?.();
   });
   return dbPromise;
 }
