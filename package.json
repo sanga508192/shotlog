@@ -1,0 +1,11 @@
+{
+  "name": "shotlog",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "ShotLog — จดกอล์ฟรายช็อตเพื่อวางแผนฝึกซ้อม (PWA ออฟไลน์)",
+  "scripts": {
+    "start": "node scripts/serve.mjs",
+    "test": "node --test tests/"
+  }
+}
