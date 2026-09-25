@@ -31,8 +31,8 @@ Service Worker ต้องใช้ HTTPS หรือ localhost การเ�
 1. สมัครที่ supabase.com แล้วสร้าง Project โดยเลือก Region เป็น **Southeast Asia (Singapore)**
 2. ไปที่ **SQL Editor** วางไฟล์ `supabase/schema.sql` ทั้งไฟล์แล้วกด Run (รันซ้ำได้)
 3. ไปที่ **Authentication → Sign In / Providers → Email** แล้วเปิด Email
-4. ไปที่ **Authentication → Emails → Magic Link** แล้วแก้เนื้อหาอีเมลให้มีรหัส `{{ .Token }}` เช่น
-   `รหัสเข้าสู่ระบบ ShotLog ของคุณคือ {{ .Token }}`
+4. ไปที่ **Authentication → Emails** แล้วแก้เนื้อหาอีเมลทั้ง **Magic Link** และ **Confirm signup** ให้มีรหัส `{{ .Token }}` (ผู้ใช้ใหม่อาจได้รับอีเมลแบบ Confirm signup) เช่น
+   `<h2>รหัสเข้าสู่ระบบ ShotLog</h2><p>กรอกรหัสนี้ในแอป: <strong>{{ .Token }}</strong></p><p>ถ้าคุณไม่ได้ขอรหัสนี้ ไม่ต้องทำอะไร</p>`
    แอปใช้การกรอกรหัสแทนการกดลิงก์ เพราะบน iPhone ลิงก์จะเปิดใน Safari ไม่ใช่ในแอปที่ติดตั้งไว้
 5. ไปที่ **Authentication → URL Configuration** แล้วตั้ง Site URL เป็น `https://sanga508192.github.io/shotlog/`
 6. นำ **Project URL** และ **anon / publishable key** จาก Project Settings → API มาใส่ใน `js/config.js` **ห้ามใช้ service_role key**
