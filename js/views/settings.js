@@ -2,6 +2,8 @@ import * as st from '../state.js';
 import { esc, header, chips, toast, download, fmtDate } from '../ui.js';
 import { CLUB_CATEGORIES, UNITS, APP_VERSION } from '../constants.js';
 import { buildExport, parseImport, toCSV } from '../logic.js';
+import * as cloud from '../cloud.js';
+import { linkedOwner } from '../sync.js';
 
 const stamp = () => st.todayLocal();
 
@@ -71,6 +73,7 @@ export function settingsView(_p, ctx) {
       <textarea class="input" rows="5" data-change="phrases" placeholder="หนึ่งบรรทัดต่อหนึ่งคำ">${esc(st.setting('phrases', []).join('\n'))}</textarea>
 
       <h2>สำรองและกู้คืนข้อมูล</h2>
+      ${cloud.enabled() ? `<a class="btn block" href="#/account">☁️ ${cloud.session() ? 'บัญชีและการซิงก์' : 'เข้าสู่ระบบเพื่อสำรองบนคลาวด์'}</a>` : ''}
       <div class="card small">${counts}<br>${lastExport ? `ส่งออกไฟล์สำรองล่าสุด ${esc(fmtDate(lastExport))}` : 'ยังไม่เคยส่งออกไฟล์สำรอง'}<br><span id="persist" class="muted"></span></div>
       <button type="button" class="btn primary block" data-act="exportJson">ส่งออกไฟล์สำรอง (JSON)</button>
       <div class="row gap">
@@ -138,6 +141,10 @@ export function settingsView(_p, ctx) {
         const file = el.files?.[0];
         el.value = '';
         if (!file) return;
+        if (linkedOwner()) {
+          toast('เครื่องนี้ผูกกับบัญชีคลาวด์อยู่ ออกจากระบบแบบลบข้อมูลในเครื่องก่อน แล้วค่อยกู้คืนจากไฟล์');
+          return;
+        }
         let data;
         try {
           data = parseImport(await file.text());

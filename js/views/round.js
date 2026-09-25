@@ -170,7 +170,7 @@ export function holeView([roundId, numStr], ctx) {
         <a class="mini" href="#/round/${roundId}/card">สกอร์การ์ด</a>
       </div>
       <div class="score-line">ตี <b>${sc.strokes}</b> + ปรับ <b>${sc.penalties}</b> = <b>${sc.total}</b>
-        ${sc.par != null ? `<span class="topar">(${fmtToPar(sc.toPar)})</span>` : ''}
+        ${sc.par != null && hole.status === 'done' ? `<span class="topar">(${fmtToPar(sc.toPar)})</span>` : ''}
         ${sc.notCounted ? `<span class="muted small">· ไม่นับ ${sc.notCounted} ช็อต</span>` : ''}
         <span class="badge ${hole.status === 'done' ? 'good' : hole.status === 'incomplete' ? 'bad' : 'none'}">${esc(label(HOLE_STATUS, hole.status))}${hole.finish ? ` · ${esc(label(HOLE_FINISH, hole.finish))}` : ''}</span>
       </div>
@@ -384,7 +384,7 @@ export function scorecardView([roundId], ctx) {
     if (un) flags.push(`ไม่ประเมิน ${un}`);
     return `<tr data-act="goHole" data-n="${h.number}" class="${flags.length ? 'flag' : ''}">
       <td>${h.number}</td><td>${h.par ?? '–'}</td><td>${sc.strokes || ''}</td><td>${sc.penalties || ''}</td>
-      <td><b>${sc.started ? sc.total : ''}</b></td><td>${sc.started ? fmtToPar(sc.toPar) : ''}</td>
+      <td><b>${sc.started ? sc.total : ''}</b></td><td>${sc.started && h.status === 'done' ? fmtToPar(sc.toPar) : ''}</td>
       <td class="small">${esc(flags.join(' · '))}</td></tr>`;
   }).join('');
   const incomplete = holes.filter((h) => h.status !== 'done').length;

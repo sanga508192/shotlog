@@ -7,5 +7,9 @@
   "scripts": {
     "start": "node scripts/serve.mjs",
     "test": "node --test tests/"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "fake-indexeddb": "^6.2.5"
   }
 }

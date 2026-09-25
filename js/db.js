@@ -1,6 +1,6 @@
 // IndexedDB แบบบาง ๆ ทุกการเขียนรอให้ transaction สำเร็จก่อนคืนค่า
 const DB_NAME = 'shotlog';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 const SCHEMA = {
   rounds: { keyPath: 'id' },
@@ -12,6 +12,11 @@ const SCHEMA = {
   userCourses: { keyPath: 'id' },
   favorites: { keyPath: 'course_id' },
   settings: { keyPath: 'key' },
+  // ระบบซิงก์ (ไม่รวมในไฟล์สำรอง)
+  meta: { keyPath: 'key' },       // session, linked_owner, pull_cursor, last_sync
+  outbox: { keyPath: 'key' },     // รายการที่แก้ในเครื่องแต่ยังไม่ขึ้นคลาวด์
+  syncrev: { keyPath: 'key' },    // rev ล่าสุดบนคลาวด์ที่เครื่องนี้รู้จัก
+  conflicts: { keyPath: 'key' },  // รายการที่แก้ชนกัน รอผู้ใช้เลือก
 };
 
 let dbPromise;
@@ -28,7 +33,11 @@ export function open() {
         for (const idx of def.indexes || []) os.createIndex(idx, idx);
       }
     };
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => {
+      // แท็บอื่นเปิดรุ่นใหม่กว่า: ปิดตัวเองเพื่อไม่ขวางการอัปเกรด
+      req.result.onversionchange = () => { req.result.close(); globalThis.location?.reload(); };
+      resolve(req.result);
+    };
     req.onerror = () => reject(req.error);
     req.onblocked = () => reject(new Error('ฐานข้อมูลถูกเปิดค้างในแท็บอื่น'));
   });
@@ -79,3 +88,11 @@ export async function replaceAll(data) {
 }
 
 export const STORE_NAMES = Object.keys(SCHEMA);
+
+// สำหรับทดสอบ: ปิดการเชื่อมต่อ เพื่อลบหรือเปิดฐานข้อมูลใหม่ได้
+export async function close() {
+  if (!dbPromise) return;
+  const db = await dbPromise.catch(() => null);
+  db?.close();
+  dbPromise = null;
+}

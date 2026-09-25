@@ -220,3 +220,16 @@ label.check input { width: 20px; height: 20px; }
 .toast button { background: none; border: 0; color: #8fe0b4; font: inherit; font-weight: 700; cursor: pointer; min-height: 36px; }
 .net { background: var(--warn-soft); text-align: center; font-size: .85rem; padding: 4px 8px; }
 details summary { cursor: pointer; min-height: 32px; }
+
+.grid4 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 8px; }
+.sync-pill {
+  margin-left: auto; flex: none; font-size: .78rem; padding: 4px 10px; border-radius: 999px;
+  background: var(--none-soft); color: var(--text); text-decoration: none; white-space: nowrap;
+}
+.sync-pill.ok { background: var(--good-soft); color: var(--good); }
+.sync-pill.warn { background: var(--bad-soft); color: var(--bad); }
+.sync-pill[hidden] { display: none; }
+.input.code { font-size: 1.4rem; letter-spacing: .3em; text-align: center; }
+label.check.consent { align-items: flex-start; font-size: .85rem; }
+label.check.consent input { margin-top: 3px; flex: none; }
+.diff { margin: 6px 0; padding-left: 18px; overflow-wrap: anywhere; }

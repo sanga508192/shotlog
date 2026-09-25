@@ -4,6 +4,9 @@ import { homeView, historyView, coursesView, newRoundView } from './views/main.j
 import { holeView, scorecardView } from './views/round.js';
 import { summaryView, practiceView, practiceNewView } from './views/insights.js';
 import { settingsView } from './views/settings.js';
+import { accountView, paintSync } from './views/account.js';
+import * as sync from './sync.js';
+import * as cloud from './cloud.js';
 
 const routes = [
   [/^#?\/?$/, homeView],
@@ -17,6 +20,7 @@ const routes = [
   [/^#\/practice$/, practiceView],
   [/^#\/practice\/new(?:\?(.*))?$/, practiceNewView],
   [/^#\/settings$/, settingsView],
+  [/^#\/account$/, accountView],
 ];
 
 const root = document.getElementById('app');
@@ -40,9 +44,11 @@ function render(scrollTop) {
   }
   if (!view) { location.hash = '#/'; return; }
   const y = window.scrollY;
+  current?.unmount?.();
   current = view(params, ctx);
   root.innerHTML = current.html;
   current.mount?.(root);
+  paintSync();
   if (scrollTop || hash !== lastHash) window.scrollTo(0, 0);
   else window.scrollTo(0, y);
   lastHash = hash;
@@ -83,7 +89,10 @@ window.addEventListener('hashchange', () => render(true));
 function updateOnline() {
   document.getElementById('net').hidden = navigator.onLine;
 }
-window.addEventListener('online', updateOnline);
+window.addEventListener('online', () => { updateOnline(); sync.schedule(500); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') sync.schedule(500); });
+setInterval(() => { if (st.S.outbox.size) sync.schedule(0); }, 5 * 60 * 1000);
+sync.onStatus(paintSync);
 window.addEventListener('offline', updateOnline);
 
 async function start() {
@@ -95,6 +104,7 @@ async function start() {
   }
   updateOnline();
   render(true);
+  if (cloud.enabled() && cloud.session() && sync.linkedOwner()) sync.syncNow().catch(() => {});
   if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('./sw.js').catch((e) => console.warn('SW', e));

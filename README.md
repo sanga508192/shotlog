@@ -24,6 +24,34 @@ Service Worker ต้องใช้ HTTPS หรือ localhost การเ�
 
 ทุกครั้งที่แก้ไฟล์ของแอป ให้เปลี่ยน `VERSION` ใน `sw.js` เพื่อให้เครื่องผู้ใช้ได้รับรุ่นใหม่ ถ้าเพิ่มไฟล์ใหม่ ให้เพิ่มชื่อไฟล์ใน `ASSETS` ด้วย
 
+## เปิดบริการสำรอง/ซิงก์บนคลาวด์ (Supabase)
+
+ถ้า `js/config.js` ยังว่าง แอปจะทำงานแบบเก็บข้อมูลในเครื่องอย่างเดียว และไม่แสดงเมนูบัญชี
+
+1. สมัครที่ supabase.com แล้วสร้าง Project โดยเลือก Region เป็น **Southeast Asia (Singapore)**
+2. ไปที่ **SQL Editor** วางไฟล์ `supabase/schema.sql` ทั้งไฟล์แล้วกด Run (รันซ้ำได้)
+3. ไปที่ **Authentication → Sign In / Providers → Email** แล้วเปิด Email
+4. ไปที่ **Authentication → Emails → Magic Link** แล้วแก้เนื้อหาอีเมลให้มีรหัส `{{ .Token }}` เช่น
+   `รหัสเข้าสู่ระบบ ShotLog ของคุณคือ {{ .Token }}`
+   แอปใช้การกรอกรหัสแทนการกดลิงก์ เพราะบน iPhone ลิงก์จะเปิดใน Safari ไม่ใช่ในแอปที่ติดตั้งไว้
+5. ไปที่ **Authentication → URL Configuration** แล้วตั้ง Site URL เป็น `https://sanga508192.github.io/shotlog/`
+6. นำ **Project URL** และ **anon / publishable key** จาก Project Settings → API มาใส่ใน `js/config.js` **ห้ามใช้ service_role key**
+7. เปลี่ยน `VERSION` ใน `sw.js` แล้ว push ขึ้น GitHub
+
+ก่อนเปิดให้คนทั่วไปใช้ ให้ตั้ง **Custom SMTP** ที่ Authentication → Emails เช่น Resend หรือ Brevo เพราะบริการส่งอีเมลในตัวของ Supabase ส่งได้เพียงไม่กี่ฉบับต่อชั่วโมง
+
+ช่วงทดลองเปิดให้ทุกบัญชีซิงก์ได้ (`open_beta`) เมื่อทำขั้นที่ 2 (รับเงิน) เสร็จ ให้ปิดด้วยคำสั่ง
+`update app_config set value = 'false' where key = 'open_beta';`
+หลังจากนั้นเฉพาะบัญชีที่มีสิทธิ์ในตาราง `entitlements` จึงซิงก์ได้ ส่วนข้อมูลในเครื่องของทุกคนยังใช้งานได้ตามเดิม
+
+### ทดสอบบนเครื่องโดยไม่ต้องมี Supabase
+
+```bash
+node scripts/mock-supabase.mjs
+```
+
+ตั้ง `js/config.js` เป็น `http://localhost:54321` ใส่ key เป็นค่าใดก็ได้ รหัสจากอีเมลคือ `123456` และต้องคืนค่า config ก่อน commit
+
 ## โครงสร้าง
 
 | ไฟล์ | หน้าที่ |
@@ -33,6 +61,10 @@ Service Worker ต้องใช้ HTTPS หรือ localhost การเ�
 | `js/logic.js` | ฟังก์ชันคำนวณล้วน: สกอร์ สถิติ หัวข้อฝึก การส่งออก/กู้คืน และ CSV |
 | `js/db.js`, `js/state.js` | IndexedDB และข้อมูลในหน่วยความจำ เขียนลงเครื่องทุกครั้งที่บันทึก |
 | `js/views/*.js` | หน้าจอ: หน้าแรก เลือกสนาม บันทึกหลุม สกอร์การ์ด สรุป ฝึกซ้อม และตั้งค่า |
+| `js/cloud.js`, `js/sync.js` | เข้าสู่ระบบด้วยรหัสทางอีเมล และซิงก์ข้อมูล โดยจดลงเครื่องก่อน แล้วส่งขึ้นเมื่อมีสัญญาณ ถ้าข้อมูลชนกันให้ผู้ใช้เลือกเอง |
+| `js/views/account.js` | หน้าบัญชี ป้ายสถานะซิงก์ แก้ข้อมูลที่ชนกัน ออกจากระบบ และลบบัญชี |
+| `supabase/schema.sql` | ฐานข้อมูลคลาวด์ สิทธิ์ RLS และฟังก์ชัน push_records / delete_my_account |
+| `scripts/mock-supabase.mjs` | Supabase จำลองสำหรับทดสอบบนเครื่อง |
 | `sw.js` | เก็บไฟล์แอปไว้ในเครื่องเพื่อใช้ออฟไลน์ |
 | `scripts/make_icons.py` | สร้างไอคอน PNG (ใช้ Pillow) |
 

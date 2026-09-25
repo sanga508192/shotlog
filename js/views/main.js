@@ -3,6 +3,7 @@ import { esc, header, fmtDate, toast, chips } from '../ui.js';
 import { ISAN_PROVINCES, searchCourses, findDuplicateCourse } from '../courses.js';
 import { UNITS, label, ROUND_STATUS } from '../constants.js';
 import { roundScore, fmtToPar } from '../logic.js';
+import { enabled as cloudEnabled, session as cloudSession } from '../cloud.js';
 
 // ---------- หน้าแรก ----------
 
@@ -32,18 +33,19 @@ export function homeView() {
   const lastExport = st.setting('last_export_at');
   return {
     html: `<div class="page">
-      <header class="hero"><h1>ShotLog</h1><p class="muted">จดรายช็อต ดูรูปแบบที่พลาด เลือกเรื่องซ้อม</p></header>
+      <header class="hero"><div class="row between"><h1>ShotLog</h1><a href="#/account" class="sync-pill" data-sync hidden></a></div><p class="muted">จดรายช็อต ดูรูปแบบที่พลาด เลือกเรื่องซ้อม</p></header>
       <a class="btn primary big block" href="#/courses">＋ เริ่มรอบใหม่</a>
       ${playing.length ? `<h2>รอบที่ยังเล่นค้าง</h2>${playing.map((r) => roundCard(r, resumeHref(r))).join('')}` : ''}
-      <nav class="grid3">
+      <nav class="grid${cloudEnabled() ? '4' : '3'}">
         <a class="tile" href="#/summary"><span>📊</span>สรุปการเล่น</a>
         <a class="tile" href="#/practice"><span>🎯</span>ฝึกซ้อม</a>
+        ${cloudEnabled() ? '<a class="tile" href="#/account"><span>☁️</span>บัญชี / สำรอง</a>' : ''}
         <a class="tile" href="#/settings"><span>⚙️</span>ตั้งค่า</a>
       </nav>
       <h2>รอบล่าสุด</h2>
       ${past.length ? past.map((r) => roundCard(r, `#/round/${r.id}/card`)).join('') : '<p class="muted">ยังไม่มีรอบที่จบ</p>'}
       ${all.length > 5 ? '<a class="btn block" href="#/history">ดูประวัติทั้งหมด</a>' : ''}
-      <p class="note">ข้อมูลเก็บในเครื่องนี้เท่านั้น ${lastExport ? `· สำรองล่าสุด ${esc(fmtDate(lastExport))}` : '· ยังไม่เคยส่งออกไฟล์สำรอง'} — <a href="#/settings">ส่งออก/กู้คืน</a></p>
+      ${cloudSession() ? '' : `<p class="note">ข้อมูลเก็บในเครื่องนี้เท่านั้น ${lastExport ? `· สำรองล่าสุด ${esc(fmtDate(lastExport))}` : '· ยังไม่เคยส่งออกไฟล์สำรอง'} — <a href="#/settings">ส่งออก/กู้คืน</a>${cloudEnabled() ? ' หรือ <a href="#/account">สำรองบนคลาวด์</a>' : ''}</p>`}
     </div>`,
   };
 }

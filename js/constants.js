@@ -1,6 +1,6 @@
 // ค่าตัวเลือกทั้งหมดของแอป ค่าที่ไม่ได้เลือกเก็บเป็น null = "ยังไม่ระบุ" เสมอ
 
-export const APP_VERSION = '0.1.0';
+export const APP_VERSION = '0.2.0';
 export const SCHEMA_VERSION = 1;
 export const UNKNOWN_TH = 'ยังไม่ระบุ';
 

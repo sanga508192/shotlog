@@ -2,7 +2,7 @@
 import * as db from './db.js';
 import { CURATED_COURSES } from './courses.js';
 import { DEFAULT_CLUBS, DEFAULT_PHRASES } from './constants.js';
-import { STORE_KEYS } from './logic.js';
+import { STORE_KEYS, DATA_STORES } from './logic.js';
 
 export const S = {};
 for (const name of db.STORE_NAMES) S[name] = new Map();
@@ -40,18 +40,24 @@ export async function load() {
   if (seed.length) await commit(seed);
 }
 
+// sync.js ต่อเข้ามาตรงนี้: outboxFor คืนรายการ outbox ที่ต้องเขียนใน transaction เดียวกัน
+export const hooks = { outboxFor: null, afterCommit: null };
+const NO_STAMP = new Set(['settings', 'favorites', 'meta', 'outbox', 'syncrev', 'conflicts']);
+
 // เขียนหลายรายการใน transaction เดียว แล้วค่อยอัปเดตหน่วยความจำเมื่อสำเร็จ
-export async function commit(ops) {
-  const stamped = ops.map((op) => {
-    if (!('put' in op)) return op;
-    const obj = op.store === 'settings' || op.store === 'favorites' ? op.put : { ...op.put, updated_at: nowIso() };
-    return { store: op.store, put: obj };
+// raw: เขียนตามที่ได้รับ (ใช้ตอนรับข้อมูลจากคลาวด์) ไม่ประทับเวลาและไม่เข้าคิวซิงก์
+export async function commit(ops, { raw = false } = {}) {
+  let all = raw ? ops : ops.map((op) => {
+    if (!('put' in op) || NO_STAMP.has(op.store)) return op;
+    return { store: op.store, put: { ...op.put, updated_at: nowIso() } };
   });
-  await db.write(stamped);
-  for (const op of stamped) {
+  if (!raw && hooks.outboxFor) all = [...all, ...hooks.outboxFor(all)];
+  await db.write(all);
+  for (const op of all) {
     if ('put' in op) S[op.store].set(keyOf(op.store, op.put), op.put);
     else S[op.store].delete(op.del);
   }
+  if (!raw) hooks.afterCommit?.();
 }
 
 export const put = (store, obj) => commit([{ store, put: obj }]);
@@ -62,11 +68,14 @@ export async function replaceAll(data) {
   await load();
 }
 
+// เฉพาะข้อมูลการเล่น ไม่รวม session หรือสถานะซิงก์
 export function dumpAll() {
   const out = {};
-  for (const name of db.STORE_NAMES) out[name] = [...S[name].values()];
+  for (const name of DATA_STORES) out[name] = [...S[name].values()];
   return out;
 }
+
+export const meta = (key, fallback = null) => S.meta.get(key)?.value ?? fallback;
 
 // ---------- ตัวเลือกข้อมูล ----------
 

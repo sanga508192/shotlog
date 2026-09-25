@@ -248,7 +248,20 @@ export function pct(n, d) {
 // ---------- ส่งออก / กู้คืน ----------
 
 export const DATA_STORES = ['rounds', 'holes', 'shots', 'penalties', 'clubs', 'practice', 'userCourses', 'favorites', 'settings'];
-export const STORE_KEYS = { favorites: 'course_id', settings: 'key' };
+export const STORE_KEYS = {
+  favorites: 'course_id', settings: 'key', meta: 'key', outbox: 'key', syncrev: 'key', conflicts: 'key',
+};
+
+// เปรียบเทียบข้อมูลโดยไม่สนลำดับคีย์ (jsonb บนเซิร์ฟเวอร์เรียงคีย์ใหม่)
+export function stableStringify(v) {
+  if (Array.isArray(v)) return `[${v.map(stableStringify).join(',')}]`;
+  if (v && typeof v === 'object') {
+    return `{${Object.keys(v).filter((k) => v[k] !== undefined).sort()
+      .map((k) => `${JSON.stringify(k)}:${stableStringify(v[k])}`).join(',')}}`;
+  }
+  return JSON.stringify(v ?? null);
+}
+export const sameData = (a, b) => stableStringify(a) === stableStringify(b);
 
 export function buildExport(data, now = new Date().toISOString()) {
   const out = {};
