@@ -1,7 +1,6 @@
 import * as st from '../state.js';
 import { esc, header, fmtDate, toast, chips } from '../ui.js';
 import { ISAN_PROVINCES, searchCourses, findDuplicateCourse, sortByDistance, fmtKm, prefillFromScorecard, teeTotal } from '../courses.js';
-import { SCORECARDS } from '../scorecards.js';
 import { getPosition, lastPosition } from '../geo.js';
 import { UNITS } from '../constants.js';
 import { enabled as cloudEnabled, session as cloudSession } from '../cloud.js';
@@ -163,7 +162,7 @@ function courseListHtml() {
       <button type="button" class="course-main" data-act="pick" data-id="${esc(c.id)}">
         <strong>${esc(c.display_name_th)}</strong>
         <span class="small muted">${esc(c.name_en || '')}</span>
-        <span class="small"><span class="tag">${esc(c.province)}</span>${c.origin === 'user' ? '<span class="tag user">เพิ่มเอง</span>' : ''}${SCORECARDS[c.id] ? '<span class="tag">มีสกอร์การ์ด</span>' : ''}</span>
+        <span class="small"><span class="tag">${esc(c.province)}</span>${c.origin === 'user' ? '<span class="tag user">เพิ่มเอง</span>' : ''}${st.scorecard(c.id) ? '<span class="tag">มีสกอร์การ์ด</span>' : ''}</span>
         ${here ? `<span class="km${c.km == null ? ' none' : ''}">📍 ${esc(fmtKm(c))}</span>` : ''}
       </button>
       <button type="button" class="star${favs.has(c.id) ? ' on' : ''}" data-act="fav" data-id="${esc(c.id)}" aria-label="สนามโปรด" aria-pressed="${favs.has(c.id)}">${favs.has(c.id) ? '★' : '☆'}</button>
@@ -212,7 +211,10 @@ export function coursesView(_p, ctx) {
         <datalist id="prov">${ISAN_PROVINCES.map((p) => `<option value="${esc(p)}">`).join('')}</datalist>
         <label class="check"><input type="checkbox" name="here"> 📍 ใช้ตำแหน่งปัจจุบันเป็นตำแหน่งสนาม (ติ๊กเมื่ออยู่ที่สนาม)</label>
         <div class="row gap"><button class="btn primary">เพิ่มและเลือก</button><button type="button" class="btn" data-act="hideAdd">ยกเลิก</button></div>
-      </form>` : '<button type="button" class="btn block" data-act="showAdd">＋ ไม่พบสนาม? เพิ่มสนามเอง</button>'}
+      </form>` : `<div class="add-course">
+        <a class="btn block primary" href="#/scan">📷 เพิ่มสนามจากรูปสกอร์การ์ด</a>
+        <button type="button" class="btn block" data-act="showAdd">＋ เพิ่มสนามเอง (ชื่ออย่างเดียว)</button>
+      </div>`}
       <p class="note">รายชื่อเริ่มต้น 10 สนาม ตรวจชื่อและจังหวัด ณ 25 ก.ย. 2569 ไม่ได้ยืนยันเวลาเปิดบริการหรือราคา · ระยะทางเป็นเส้นตรง ตำแหน่งของคุณใช้ในเครื่องเท่านั้น · พิกัดบางส่วน © OpenStreetMap contributors</p>
     </div>`,
     actions: {
@@ -277,12 +279,12 @@ let nr = null;
 export function newRoundView([courseId], ctx) {
   const c = st.course(courseId);
   if (!c) return { html: `${header('ไม่พบสนาม', { back: '#/courses' })}<div class="page"><p>ไม่พบสนามนี้</p></div>` };
-  const sc = SCORECARDS[courseId] ?? null;
+  const sc = st.scorecard(courseId);
   if (!nr || nr.courseId !== courseId) {
     const card = courseCard(courseId);
     const pre = prefillFromScorecard(sc, null, card);
     nr = {
-      courseId, date: st.todayLocal(), holes: 18, custom: '', tee: '', teeId: null, unit: st.setting('distance_unit', 'm'), note: '',
+      courseId, date: st.todayLocal(), holes: sc?.par.length === 9 ? 9 : 18, custom: '', tee: '', teeId: null, unit: st.setting('distance_unit', 'm'), note: '',
       pars: pre.pars, hc: pre.hc, dist: {}, fromCard: !!card,
       mates: [], mateName: '', shotLogging: st.setting('default_shot_logging', true),
     };
@@ -300,17 +302,19 @@ export function newRoundView([courseId], ctx) {
         <div><span class="tag" id="picked-province">${esc(c.province)}</span>${c.origin === 'user' ? '<span class="tag user">เพิ่มเอง</span>' : ''}</div>
       </div>
       ${sc ? `<div class="card">
-        <div class="row between"><b>📋 สกอร์การ์ดของสนามนี้</b><span class="small muted">พาร์ 72 · 18 หลุม</span></div>
+        <div class="row between"><b>📋 สกอร์การ์ดของสนามนี้</b><span class="small muted">พาร์ ${sc.par.reduce((a, b) => a + (b || 0), 0)} · ${sc.par.length} หลุม</span></div>
         <div class="lbl">เลือกแท่นที (เติมระยะรายหลุมให้)</div>
         <div class="chips tees">${sc.tees.map((t) => `<button type="button" class="chip tee${nr.teeId === t.id ? ' on' : ''}" data-act="pickTee" data-v="${t.id}">
           <i style="background:${t.color}"></i>${esc(t.name)}${teeTotal(t) ? ` <small>${teeTotal(t).toLocaleString('th-TH')}</small>` : ''}</button>`).join('')}</div>
         <details class="small muted"><summary>ที่มาของข้อมูล</summary>
-          <ul>${sc.sources.map((x) => `<li>${esc(x)}</li>`).join('')}<li>ตรวจ ณ ${esc(sc.checked_at)} · หน่วยหลา</li></ul>
+          <ul>${sc.sources.map((x) => `<li>${esc(x)}</li>`).join('')}<li>ตรวจ ณ ${esc(sc.checked_at)} · หน่วย${sc.unit === 'm' ? 'เมตร' : 'หลา'}</li></ul>
           ${sc.note ? `<p>${esc(sc.note)}</p>` : ''}
-          <p>ข้อมูลจากฐานข้อมูลออนไลน์ อาจต่างจากสกอร์การ์ดล่าสุดของสนาม แก้พาร์/HC ในรอบได้ แอปจะจำค่าของคุณแทน</p>
+          ${sc.origin === 'user' ? '' : '<p>ข้อมูลจากฐานข้อมูลออนไลน์ อาจต่างจากสกอร์การ์ดล่าสุดของสนาม แก้พาร์/HC ในรอบได้ แอปจะจำค่าของคุณแทน</p>'}
         </details>
-      </div>` : nr.fromCard ? `<div class="card ok small">✓ ใช้พาร์/HC ที่คุณเคยกรอกไว้ของสนามนี้ (${parsSet} หลุม) แก้ได้ด้านล่าง</div>`
-    : '<div class="card warn small">ยังไม่มีพาร์ของสนามนี้ กรอกด้านล่างหรือระหว่างเล่นก็ได้ แอปจะจำไว้ใช้รอบหน้า</div>'}
+        <a class="mini" href="#/scan/${encodeURIComponent(courseId)}">📷 ${sc.origin === 'user' ? 'แก้ / ถ่ายสกอร์การ์ดใหม่' : 'ถ่ายสกอร์การ์ดจริงของสนามมาแทน'}</a>
+      </div>` : `${nr.fromCard ? `<div class="card ok small">✓ ใช้พาร์/HC ที่คุณเคยกรอกไว้ของสนามนี้ (${parsSet} หลุม) แก้ได้ด้านล่าง</div>`
+    : '<div class="card warn small">ยังไม่มีสกอร์การ์ดของสนามนี้</div>'}
+      <a class="btn block" href="#/scan/${encodeURIComponent(courseId)}">📷 ถ่ายรูปสกอร์การ์ดเพื่อเติมพาร์ / HC / ระยะ</a>`}
       ${needsGeo ? `<button type="button" class="linklike small" data-act="saveGeo">📍 ${c.geo ? 'ตำแหน่งสนามนี้เป็นค่าโดยประมาณ' : 'ยังไม่มีตำแหน่งสนามนี้'} — กดบันทึกตำแหน่งตอนอยู่ที่สนาม</button>` : ''}
 
       <h2>ใครเล่นด้วย</h2>
@@ -418,7 +422,7 @@ export function newRoundView([courseId], ctx) {
         for (let n = 1; n <= count; n++) {
           ops.push({ store: 'holes', put: {
             id: st.uid(), round_id: roundId, number: n, par: nr.pars[n] ?? null, hc_index: nr.hc[n] ?? null,
-            distance: nr.dist[n] ?? null, distance_unit: nr.dist[n] != null ? 'yd' : null,
+            distance: nr.dist[n] ?? null, distance_unit: nr.dist[n] != null ? (sc?.unit === 'm' ? 'm' : 'yd') : null,
             status: 'playing', finish: null, logging_complete: false, note: '',
           } });
         }

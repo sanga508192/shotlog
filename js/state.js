@@ -1,6 +1,7 @@
 // ข้อมูลทั้งหมดโหลดเข้าหน่วยความจำตอนเปิดแอป แล้วเขียนผ่านลง IndexedDB ทุกครั้ง
 import * as db from './db.js';
 import { CURATED_COURSES } from './courses.js';
+import { SCORECARDS } from './scorecards.js';
 import { DEFAULT_CLUBS, DEFAULT_PHRASES } from './constants.js';
 import { STORE_KEYS, DATA_STORES } from './logic.js';
 
@@ -97,6 +98,9 @@ export const course = (id) => {
   return c ? withGeo(c) : S.userCourses.get(id) ?? null;
 };
 export const favoriteSet = () => new Set(S.favorites.keys());
+
+// สกอร์การ์ดของสนาม: ที่ผู้ใช้ถ่าย/แก้เองมาก่อนข้อมูลที่เตรียมไว้
+export const scorecard = (id) => S.settings.get(`course_scorecard:${id}`)?.value ?? S.userCourses.get(id)?.scorecard ?? SCORECARDS[id] ?? null;
 
 export const rounds = () => [...S.rounds.values()].sort((a, b) =>
   b.played_at.localeCompare(a.played_at) || (b.created_at || '').localeCompare(a.created_at || ''));

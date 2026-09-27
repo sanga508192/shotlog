@@ -7,6 +7,7 @@ import { summaryView, practiceView, practiceNewView } from './views/insights.js'
 import { settingsView } from './views/settings.js';
 import { accountView, paintSync } from './views/account.js';
 import { setupView, gamesView, parsView } from './views/group.js';
+import { scanView } from './views/scan.js';
 import { resumeHref } from './views/main.js';
 import * as sync from './sync.js';
 import * as cloud from './cloud.js';
@@ -26,6 +27,7 @@ const routes = [
   [/^#\/practice$/, practiceView],
   [/^#\/practice\/new(?:\?(.*))?$/, practiceNewView],
   [/^#\/settings$/, settingsView],
+  [/^#\/scan(?:\/([^/?]+))?$/, scanView],
   [/^#\/account(?:\?(.*))?$/, accountView],
 ];
 
