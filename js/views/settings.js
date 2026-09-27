@@ -51,6 +51,20 @@ export function settingsView(_p, ctx) {
 
   return {
     html: `${header('ตั้งค่า')}<div class="page">
+      <h2>ข้อมูลของฉัน</h2>
+      <div class="player-row">
+        <input class="input" value="${esc(st.setting('my_name', 'ฉัน'))}" data-change="myName" aria-label="ชื่อของฉัน" placeholder="ชื่อที่แสดงในสกอร์การ์ด">
+        <input class="input hc" type="number" inputmode="numeric" min="0" max="54" placeholder="HC" value="${st.setting('my_handicap', '') ?? ''}" data-change="myHc" aria-label="แต้มต่อของฉัน">
+      </div>
+      <p class="note">ชื่อและแต้มต่อ (HC) ใช้ในสกอร์การ์ดก๊วนและเกม เริ่มใช้กับรอบใหม่</p>
+
+      <h2>เพื่อนในก๊วน</h2>
+      ${st.setting('friends', []).length ? `<div class="players-edit">${st.setting('friends', []).map((f, i) => `<div class="player-row">
+          <input class="input" value="${esc(f.name)}" data-change="fName" data-i="${i}" aria-label="ชื่อเพื่อน">
+          <input class="input hc" type="number" inputmode="numeric" min="0" max="54" placeholder="HC" value="${f.handicap ?? ''}" data-change="fHc" data-i="${i}" aria-label="แต้มต่อ">
+          <button type="button" class="mini danger" data-act="fDel" data-i="${i}" aria-label="ลบ">✕</button></div>`).join('')}</div>`
+    : '<p class="muted small">เพื่อนที่เพิ่มในรอบจะถูกจำไว้ที่นี่ เลือกได้เร็วในรอบถัดไป</p>'}
+
       <h2>กระเป๋าไม้</h2>
       <p class="note">ไม้ที่ติ๊ก “ในกระเป๋า” จะแสดงในแถวเลือกไม้ตอนจด เรียงตามลำดับนี้</p>
       <div class="clubs-edit">
@@ -124,6 +138,33 @@ export function settingsView(_p, ctx) {
         ctx.rerender();
       },
       unit: async (el) => { await st.setSetting('distance_unit', el.dataset.v); ctx.rerender(); },
+      myName: async (el) => {
+        const v = el.value.trim();
+        if (v) await st.setSetting('my_name', v); else ctx.rerender();
+      },
+      myHc: async (el) => {
+        const n = el.value === '' ? null : Math.max(0, Math.min(54, Math.round(Number(el.value))));
+        await st.setSetting('my_handicap', Number.isFinite(n) ? n : null);
+      },
+      fName: async (el) => {
+        const list = [...st.setting('friends', [])];
+        const v = el.value.trim();
+        if (!v) { ctx.rerender(); return; }
+        list[Number(el.dataset.i)] = { ...list[Number(el.dataset.i)], name: v };
+        await st.setSetting('friends', list);
+      },
+      fHc: async (el) => {
+        const list = [...st.setting('friends', [])];
+        const n = el.value === '' ? null : Math.max(0, Math.min(54, Math.round(Number(el.value))));
+        list[Number(el.dataset.i)] = { ...list[Number(el.dataset.i)], handicap: Number.isFinite(n) ? n : null };
+        await st.setSetting('friends', list);
+      },
+      fDel: async (el) => {
+        const list = [...st.setting('friends', [])];
+        list.splice(Number(el.dataset.i), 1);
+        await st.setSetting('friends', list);
+        ctx.rerender();
+      },
       phrases: async (el) => {
         await st.setSetting('phrases', el.value.split('\n').map((s) => s.trim()).filter(Boolean));
         toast('บันทึกคำที่ใช้บ่อยแล้ว');

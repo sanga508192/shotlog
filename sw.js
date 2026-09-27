@@ -1,6 +1,6 @@
 // เก็บไฟล์แอปทั้งหมดไว้ในเครื่อง เพื่อเปิดใช้ได้เมื่อไม่มีสัญญาณ
 // เปลี่ยน VERSION ทุกครั้งที่แก้ไฟล์ในรายการ เพื่อให้เครื่องผู้ใช้ได้รุ่นใหม่
-const VERSION = 'shotlog-v0.4.0';
+const VERSION = 'shotlog-v0.5.0';
 const ASSETS = [
   './',
   './index.html',
@@ -9,11 +9,22 @@ const ASSETS = [
   './icons/icon.svg',
   './icons/icon-192.png',
   './icons/icon-512.png',
+  './fonts/plex-thai-thai-400.woff2',
+  './fonts/plex-thai-latin-400.woff2',
+  './fonts/plex-thai-thai-500.woff2',
+  './fonts/plex-thai-latin-500.woff2',
+  './fonts/plex-thai-thai-600.woff2',
+  './fonts/plex-thai-latin-600.woff2',
+  './fonts/plex-thai-thai-700.woff2',
+  './fonts/plex-thai-latin-700.woff2',
   './js/app.js',
   './js/cloud.js',
   './js/config.js',
   './js/sync.js',
   './js/views/account.js',
+  './js/group.js',
+  './js/share.js',
+  './js/views/group.js',
   './js/constants.js',
   './js/courses.js',
   './js/db.js',

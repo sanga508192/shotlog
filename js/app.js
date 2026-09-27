@@ -6,6 +6,8 @@ import { holeView, scorecardView } from './views/round.js';
 import { summaryView, practiceView, practiceNewView } from './views/insights.js';
 import { settingsView } from './views/settings.js';
 import { accountView, paintSync } from './views/account.js';
+import { setupView, gamesView, parsView } from './views/group.js';
+import { resumeHref } from './views/main.js';
 import * as sync from './sync.js';
 import * as cloud from './cloud.js';
 
@@ -16,6 +18,9 @@ const routes = [
   [/^#\/new\/([^/?]+)$/, newRoundView],
   [/^#\/round\/([^/]+)\/hole\/(\d+)$/, holeView],
   [/^#\/round\/([^/]+)\/card$/, scorecardView],
+  [/^#\/round\/([^/]+)\/setup$/, setupView],
+  [/^#\/round\/([^/]+)\/games$/, gamesView],
+  [/^#\/round\/([^/]+)\/pars$/, parsView],
   [/^#\/round\/([^/]+)\/summary$/, summaryView],
   [/^#\/summary$/, summaryView],
   [/^#\/practice$/, practiceView],
@@ -50,6 +55,7 @@ function render(scrollTop) {
   root.innerHTML = current.html;
   current.mount?.(root);
   paintSync();
+  updateNav(hash);
   if (scrollTop || hash !== lastHash) window.scrollTo(0, 0);
   else window.scrollTo(0, y);
   lastHash = hash;
@@ -78,6 +84,10 @@ for (const type of ['input', 'change']) {
     if (el) dispatch(el.dataset[type], el, ev);
   });
 }
+root.addEventListener('keydown', (ev) => {
+  const el = ev.target.closest('[data-enter]');
+  if (el && ev.key === 'Enter') { ev.preventDefault(); dispatch(el.dataset.enter, el, ev); }
+});
 root.addEventListener('submit', (ev) => {
   const form = ev.target.closest('form[data-submit]');
   if (!form) return;
@@ -86,6 +96,21 @@ root.addEventListener('submit', (ev) => {
 });
 
 window.addEventListener('hashchange', () => render(true));
+
+// แถบเมนูล่าง: ปุ่มกลางพาไปรอบที่กำลังเล่น ถ้าไม่มีก็เริ่มรอบใหม่
+function updateNav(hash) {
+  const tab = hash === '#/' || hash === '' || hash.startsWith('#/history') ? 'home'
+    : hash.startsWith('#/summary') || /\/summary$/.test(hash) ? 'summary'
+      : hash.startsWith('#/practice') ? 'practice'
+        : hash.startsWith('#/settings') || hash.startsWith('#/account') ? 'me'
+          : 'play';
+  document.querySelectorAll('#tabbar a').forEach((a) => a.classList.toggle('on', a.dataset.tab === tab));
+  const playing = st.rounds().find((r) => r.status === 'playing');
+  const fab = document.querySelector('#tabbar [data-tab="play"]');
+  fab.href = playing ? resumeHref(playing) : '#/courses';
+  document.getElementById('fab-label').textContent = playing ? 'จดต่อ' : 'เริ่มรอบ';
+  document.body.dataset.screen = /^#\/round\/[^/]+\/hole\//.test(hash) ? 'hole' : '';
+}
 
 function updateOnline() {
   document.getElementById('net').hidden = navigator.onLine;

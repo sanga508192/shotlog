@@ -5,6 +5,11 @@ import {
   LIES, START_LIES, TARGETS, MEASURE_METHODS, UNITS, PENALTY_REASONS, HOLE_FINISH, HOLE_STATUS, label,
 } from '../constants.js';
 import { holeScore, roundScore, fmtToPar, suggestShotType, shiftForInsert, resequence } from '../logic.js';
+import {
+  groupEntryHtml, setGroupScore, groupTableHtml, countsTableHtml, gridOf, isGroupRound, shotLogging,
+  rememberCourseCard, shareRoundImage,
+} from './group.js';
+import { playersOf } from '../group.js';
 
 // ---------- สถานะฟอร์มจดช็อต (อยู่ข้ามการ render) ----------
 
@@ -158,6 +163,8 @@ export function holeView([roundId, numStr], ctx) {
   const prevN = num > 1 ? num - 1 : null;
   const nextN = num < holes.length ? num + 1 : null;
   const parOpts = [3, 4, 5, 6].map((p) => ({ v: p, th: String(p) }));
+  const logShots = shotLogging(round);
+  const group = isGroupRound(round);
 
   const html = `${header(`หลุม ${num} / ${holes.length}`, {
     back: `#/round/${roundId}/card`,
@@ -165,18 +172,21 @@ export function holeView([roundId, numStr], ctx) {
   })}
   <div class="page">
     <div class="card hole-head">
-      <div class="row between">
-        <div class="par-pick"><span class="lbl inline">พาร์</span>${chips('par', 'par', parOpts, hole.par, { cls: 'tight inline' })}${hole.par == null ? '<span class="muted small">ยังไม่ระบุ</span>' : ''}</div>
-        <a class="mini" href="#/round/${roundId}/card">สกอร์การ์ด</a>
-      </div>
-      <div class="score-line">ตี <b>${sc.strokes}</b> + ปรับ <b>${sc.penalties}</b> = <b>${sc.total}</b>
-        ${sc.par != null && hole.status === 'done' ? `<span class="topar">(${fmtToPar(sc.toPar)})</span>` : ''}
-        ${sc.notCounted ? `<span class="muted small">· ไม่นับ ${sc.notCounted} ช็อต</span>` : ''}
-        <span class="badge ${hole.status === 'done' ? 'good' : hole.status === 'incomplete' ? 'bad' : 'none'}">${esc(label(HOLE_STATUS, hole.status))}${hole.finish ? ` · ${esc(label(HOLE_FINISH, hole.finish))}` : ''}</span>
+      <div class="hole-num"><span>หลุม</span><b>${num}</b><small>/ ${holes.length}</small></div>
+      <div class="hole-meta">
+        <div class="par-pick"><span class="lbl inline">พาร์</span>${chips('par', 'par', parOpts, hole.par, { cls: 'tight inline' })}</div>
+        ${hole.hc_index ? `<div class="small muted">HC ${hole.hc_index}</div>` : ''}
+        ${logShots ? `<div class="score-line">ตี <b>${sc.strokes}</b> + ปรับ <b>${sc.penalties}</b> = <b>${sc.total}</b>
+          ${sc.par != null && hole.status === 'done' ? `<span class="topar">(${fmtToPar(sc.toPar)})</span>` : ''}
+          ${sc.notCounted ? `<span class="muted small">· ไม่นับ ${sc.notCounted} ช็อต</span>` : ''}
+          <span class="badge ${hole.status === 'done' ? 'good' : hole.status === 'incomplete' ? 'bad' : 'none'}">${esc(label(HOLE_STATUS, hole.status))}${hole.finish ? ` · ${esc(label(HOLE_FINISH, hole.finish))}` : ''}</span>
+        </div>` : ''}
       </div>
     </div>
 
-    <div class="shots">${shots.length ? shots.map((s) => shotCard(s, mode === 'edit' ? F.id : null)).join('') : '<p class="muted center">ยังไม่มีช็อต</p>'}</div>
+    ${group ? groupEntryHtml(round, hole) : ''}
+
+    ${logShots ? `<div class="shots">${shots.length ? shots.map((s) => shotCard(s, mode === 'edit' ? F.id : null)).join('') : '<p class="muted center">ยังไม่มีช็อต</p>'}</div>
     ${penaltySection(hole, shots)}
 
     ${shotForm(bag, phrases)}
@@ -192,10 +202,12 @@ export function holeView([roundId, numStr], ctx) {
       </div>
       <p class="note">ยกลูก/กิมมี่ แยกจากการพัตลงจริง และไม่นับเป็นพัตลงในสถิติ</p>
     </section>
-
-    <nav class="row between hole-nav">
+    ` : ''}
+    <nav class="hole-bar" aria-label="เปลี่ยนหลุม">
       ${prevN ? `<a class="btn" href="#/round/${roundId}/hole/${prevN}">‹ หลุม ${prevN}</a>` : '<span></span>'}
-      ${nextN ? `<a class="btn primary" href="#/round/${roundId}/hole/${nextN}">หลุม ${nextN} ›</a>` : `<a class="btn primary" href="#/round/${roundId}/card">สกอร์การ์ด ›</a>`}
+      <a class="btn mid" href="#/round/${roundId}/card" aria-label="สกอร์การ์ด">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>สกอร์การ์ด</a>
+      ${nextN ? `<a class="btn primary" href="#/round/${roundId}/hole/${nextN}">หลุม ${nextN} ›</a>` : `<a class="btn primary" href="#/round/${roundId}/card">จบ ›</a>`}
     </nav>
   </div>`;
 
@@ -324,6 +336,18 @@ export function holeView([roundId, numStr], ctx) {
       par: async (el) => {
         const v = Number(el.dataset.v);
         await saveHole({ par: hole.par === v ? null : v });
+        await rememberCourseCard(round.course_id, st.holesOf(roundId));
+        refresh();
+      },
+      gscore: async (el) => {
+        await setGroupScore(round, st.S.holes.get(hole.id), el.dataset.pid, Number(el.dataset.v));
+        refresh();
+      },
+      gmore: async (el) => {
+        const raw = prompt('จำนวนสโตรก');
+        const n = Math.round(Number(raw));
+        if (!raw || !Number.isInteger(n) || n < 1 || n > 30) return;
+        await setGroupScore(round, st.S.holes.get(hole.id), el.dataset.pid, n);
         refresh();
       },
       finish: async (el) => {
@@ -372,36 +396,39 @@ export function scorecardView([roundId], ctx) {
   if (!round) return { html: `${header('ไม่พบรอบ')}<div class="page"><p>ไม่พบรอบนี้</p></div>` };
   const holes = st.holesOf(roundId);
   const total = roundScore(holes, st.shotsOf, st.penaltiesOf);
-  const rows = holes.map((h) => {
-    const shots = st.shotsOf(h.id);
-    const sc = holeScore(h, shots, st.penaltiesOf(h.id));
-    const flags = [];
-    if (h.par == null) flags.push('ไม่มีพาร์');
-    if (h.status === 'playing') flags.push(shots.length ? 'ยังไม่จบ' : 'ยังไม่เล่น');
-    if (h.status === 'incomplete') flags.push('จดไม่ครบ');
-    if (h.finish === 'picked_up') flags.push('ยกลูก');
-    const un = shots.filter((s) => s.assessment == null).length;
-    if (un) flags.push(`ไม่ประเมิน ${un}`);
-    return `<tr data-act="goHole" data-n="${h.number}" class="${flags.length ? 'flag' : ''}">
-      <td>${h.number}</td><td>${h.par ?? '–'}</td><td>${sc.strokes || ''}</td><td>${sc.penalties || ''}</td>
-      <td><b>${sc.started ? sc.total : ''}</b></td><td>${sc.started && h.status === 'done' ? fmtToPar(sc.toPar) : ''}</td>
-      <td class="small">${esc(flags.join(' · '))}</td></tr>`;
-  }).join('');
   const incomplete = holes.filter((h) => h.status !== 'done').length;
+  const logShots = shotLogging(round);
+  const grid = gridOf(round);
+  const games = round.games || [];
+  const myFlags = logShots ? holes.map((h) => {
+    const shots = st.shotsOf(h.id);
+    const f = [];
+    if (h.status === 'incomplete') f.push('จดไม่ครบ');
+    if (h.finish === 'picked_up') f.push('ยกลูก');
+    const un = shots.filter((s) => s.assessment == null).length;
+    if (un) f.push(`ไม่ประเมิน ${un}`);
+    return f.length ? `หลุม ${h.number}: ${f.join(', ')}` : null;
+  }).filter(Boolean) : [];
+  const noPar = holes.filter((h) => h.par == null).length;
   return {
-    html: `${header('สกอร์การ์ด', { back: '#/', sub: `${esc(round.course_name_snapshot)} · ${esc(round.province_snapshot)} · ${esc(fmtDate(round.played_at))}${round.tee_name ? ` · แท่น ${esc(round.tee_name)}` : ''}` })}
+    html: `${header('สกอร์การ์ด', { back: '#/', sub: `${esc(round.course_name_snapshot)} · ${esc(fmtDate(round.played_at))}${round.tee_name ? ` · แท่น ${esc(round.tee_name)}` : ''}` })}
     <div class="page">
-      <div class="card totals">
+      ${logShots && playersOf(round).length === 1 ? `<div class="card totals">
         <div>ตี <b>${total.strokes}</b> + ปรับ <b>${total.penalties}</b> = <b class="big-num">${total.total}</b></div>
         <div class="small muted">เทียบพาร์ ${fmtToPar(total.toPar)} (นับเฉพาะ ${total.holesForPar} หลุมที่จบและมีพาร์)</div>
-        ${round.status !== 'playing' ? `<div><span class="badge ${round.status === 'complete' ? 'good' : 'bad'}">${round.status === 'complete' ? 'จบรอบ' : 'จบรอบ (จดไม่ครบ)'}</span></div>` : ''}
+      </div>` : ''}
+      ${round.status !== 'playing' ? `<div><span class="badge ${round.status === 'complete' ? 'good' : 'bad'}">${round.status === 'complete' ? 'จบรอบ' : 'จบรอบ (จดไม่ครบ)'}</span></div>` : ''}
+      ${groupTableHtml(round, grid)}
+      <p class="note">แตะแถวเพื่อไปหลุมนั้น${noPar ? ` · ยังไม่มีพาร์ ${noPar} หลุม (<a href="#/round/${roundId}/pars">กรอกพาร์/HC</a>)` : ''}</p>
+      ${countsTableHtml(grid)}
+      <div class="action-grid">
+        <button type="button" class="btn primary" data-act="share">📤 แชร์รูปสกอร์การ์ด</button>
+        ${games.length ? `<a class="btn" href="#/round/${roundId}/games">🎲 ผลเกม (${games.length})</a>` : ''}
+        <a class="btn" href="#/round/${roundId}/setup">👥 ผู้เล่น / เกม</a>
+        <a class="btn" href="#/round/${roundId}/pars">⛳ พาร์ / HC</a>
+        ${logShots ? `<a class="btn" href="#/round/${roundId}/summary">📊 สรุปการเล่นของฉัน</a>` : ''}
       </div>
-      <div class="table-wrap"><table class="card-table">
-        <thead><tr><th>หลุม</th><th>พาร์</th><th>ตี</th><th>ปรับ</th><th>รวม</th><th>+/-</th><th>สถานะ</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table></div>
-      <p class="note">แตะแถวเพื่อกลับไปแก้ไขหลุมนั้น</p>
-      <a class="btn block" href="#/round/${roundId}/summary">📊 สรุปการเล่นรอบนี้</a>
+      ${myFlags.length ? `<details class="card small"><summary>ข้อมูลรายช็อตของฉันที่ยังไม่ครบ (${myFlags.length})</summary><ul>${myFlags.map((f) => `<li>${esc(f)}</li>`).join('')}</ul></details>` : ''}
       ${round.status === 'playing' ? `
         <button type="button" class="btn primary block" data-act="finishRound">จบรอบ${incomplete ? ` (${incomplete} หลุมยังไม่จบ)` : ''}</button>`
     : '<button type="button" class="btn block" data-act="reopenRound">กลับไปจดต่อ</button>'}
@@ -409,6 +436,15 @@ export function scorecardView([roundId], ctx) {
     </div>`,
     actions: {
       goHole: (el) => ctx.go(`#/round/${roundId}/hole/${el.dataset.n}`),
+      share: async (el) => {
+        el.disabled = true;
+        try {
+          const r = await shareRoundImage(round);
+          if (r === 'downloaded') toast('บันทึกรูปสกอร์การ์ดแล้ว ส่งเข้า LINE ได้จากคลังรูป/ดาวน์โหลด');
+        } finally {
+          el.disabled = false;
+        }
+      },
       finishRound: async () => {
         let status = 'complete';
         if (incomplete) {
