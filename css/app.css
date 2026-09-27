@@ -499,3 +499,81 @@ input.cell.bad { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger
 .share-preview.loading::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, .35) 50%, transparent 70%); background-size: 200% 100%; animation: shimmer 1.1s linear infinite; }
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 .note.center { text-align: center; }
+
+/* ---------- พัฒนาเกม ---------- */
+.coach section { display: flex; flex-direction: column; gap: 6px; }
+.goal-pick { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.goal-pick::-webkit-scrollbar { display: none; }
+.goal-pick .chip { flex: none; }
+.coach-hero { display: flex; flex-direction: column; gap: 10px; }
+.hero-nums { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center; }
+.hero-nums span { display: block; font-size: .76rem; color: var(--muted); }
+.hero-nums b { display: block; font-size: 1.55rem; line-height: 1.2; }
+.hero-nums small { font-size: .7rem; color: var(--muted); }
+.hero-nums b.good { color: var(--good); }
+.hero-nums b.bad { color: var(--bad); }
+.goal-gap { padding: 8px 12px; border-radius: 12px; background: var(--brand-soft); color: var(--text); text-align: center; }
+.goal-gap b { color: var(--brand); font-size: 1.15rem; }
+.goal-gap.ok { background: var(--good-soft); color: var(--good); font-weight: 700; }
+svg.trend { width: 100%; height: auto; display: block; }
+svg.trend text { font-size: 10px; fill: var(--muted); font-family: inherit; }
+svg.trend .goal-line { stroke: var(--gold); stroke-width: 1.5; stroke-dasharray: 5 4; }
+svg.trend text.goal-txt { fill: var(--gold-ink); font-weight: 700; }
+svg.trend .score-line { fill: none; stroke: var(--brand); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+svg.trend circle { fill: var(--surface); stroke: var(--brand); stroke-width: 2; }
+svg.trend circle.hit { fill: var(--brand); }
+.par-types { display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; font-size: .85rem; color: var(--muted); }
+.par-types b { color: var(--text); }
+.badge.ok { background: var(--good-soft); color: var(--good); }
+.badge.near { background: var(--warn-soft); color: var(--gold-ink); }
+.badge.far { background: var(--none-soft); color: var(--muted); }
+h2 .badge { font-size: .72rem; vertical-align: middle; margin-left: 6px; }
+.leaks { display: flex; flex-direction: column; gap: 12px; }
+.leak-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.leak-name { font-weight: 700; }
+.leak-num { white-space: nowrap; }
+.leak-num b { font-size: 1.1rem; }
+.leak-num small { color: var(--muted); font-size: .76rem; margin-left: 2px; }
+.leak-bar { position: relative; height: 10px; border-radius: 6px; background: var(--none-soft); margin: 5px 0 3px; }
+.leak-bar span { position: absolute; inset: 0 auto 0 0; border-radius: 6px; background: var(--good); }
+.leak.far .leak-bar span { background: var(--bad); }
+.leak.near .leak-bar span { background: var(--gold); }
+.leak.save .leak-bar span { background: var(--parc); }
+.leak.save.far .leak-bar span { background: var(--gold); }
+.leak-bar i { position: absolute; top: -3px; bottom: -3px; width: 3px; margin-left: -1.5px; border-radius: 2px; background: var(--text); }
+.leak-sub { font-size: .76rem; color: var(--muted); }
+.leak-total { border-top: 1px solid var(--line); padding-top: 10px; text-align: right; }
+.leak-total b { font-size: 1.2rem; }
+.leak-total small { color: var(--muted); margin-left: 4px; }
+.focus { display: flex; flex-direction: column; gap: 6px; border-left: 4px solid var(--line); }
+.focus.first { border-left-color: var(--bad); }
+.focus .rank { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--table-head); color: #fff; font-size: .8rem; font-weight: 700; }
+.focus .gain { font-size: .78rem; font-weight: 700; color: var(--good); background: var(--good-soft); padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.find { margin: 0; padding-left: 20px; font-size: .88rem; }
+.find li + li { margin-top: 2px; }
+.cues { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; }
+.cues li b { display: block; }
+.cues li span { font-size: .8rem; color: var(--muted); }
+.focus-card { border: 2px solid var(--brand-soft); }
+.focus-card summary { font-weight: 700; cursor: pointer; margin-bottom: 8px; }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.stat-tile { background: var(--surface); border-radius: var(--radius-sm); box-shadow: var(--shadow); padding: 10px 12px; display: flex; flex-direction: column; border-top: 4px solid var(--line); }
+.stat-tile b { font-size: 1.4rem; line-height: 1.25; }
+.st-name { font-size: .8rem; font-weight: 600; }
+.st-goal { font-size: .72rem; color: var(--muted); }
+.stat-tile.ok { border-top-color: var(--good); }
+.stat-tile.near { border-top-color: var(--gold); }
+.stat-tile.far { border-top-color: var(--bad); }
+.drills { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.drill { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px; display: flex; flex-direction: column; gap: 6px; }
+.drill h3 { margin: 2px 0 0; font-size: 1.05rem; }
+.drill p { margin: 0; }
+.drill details summary { cursor: pointer; font-weight: 600; color: var(--brand); font-size: .88rem; }
+.drill ol { margin: 6px 0; padding-left: 20px; font-size: .88rem; }
+.drill .mini.primary { align-self: flex-start; }
+.drill-hist { display: flex; flex-wrap: wrap; gap: 6px; font-size: .76rem; color: var(--muted); }
+.drill-hist span { background: var(--surface-2); padding: 2px 8px; border-radius: 999px; }
+.drill-hist b { color: var(--text); }
+.coach-foot p { margin: 0 0 8px; color: var(--muted); }
+a.coach-link { display: flex; flex-direction: column; gap: 2px; text-decoration: none; color: var(--text); border-left: 5px solid var(--gold); }
+a.coach-link span { font-size: .84rem; color: var(--muted); }

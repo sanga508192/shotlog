@@ -9,6 +9,7 @@ import { accountView, paintSync } from './views/account.js';
 import { setupView, gamesView, parsView } from './views/group.js';
 import { scanView } from './views/scan.js';
 import { shareView } from './views/share.js';
+import { coachView } from './views/coach.js';
 import { resumeHref } from './views/main.js';
 import * as sync from './sync.js';
 import * as cloud from './cloud.js';
@@ -26,6 +27,7 @@ const routes = [
   [/^#\/round\/([^/]+)\/share$/, shareView],
   [/^#\/round\/([^/]+)\/summary$/, summaryView],
   [/^#\/summary$/, summaryView],
+  [/^#\/coach$/, coachView],
   [/^#\/practice$/, practiceView],
   [/^#\/practice\/new(?:\?(.*))?$/, practiceNewView],
   [/^#\/settings$/, settingsView],
@@ -104,7 +106,7 @@ window.addEventListener('hashchange', () => render(true));
 // แถบเมนูล่าง: ปุ่มกลางพาไปรอบที่กำลังเล่น ถ้าไม่มีก็เริ่มรอบใหม่
 function updateNav(hash) {
   const tab = hash === '#/' || hash === '' || hash.startsWith('#/history') ? 'home'
-    : hash.startsWith('#/summary') || /\/summary$/.test(hash) ? 'summary'
+    : hash.startsWith('#/summary') || hash.startsWith('#/coach') || /\/summary$/.test(hash) ? 'summary'
       : hash.startsWith('#/practice') ? 'practice'
         : hash.startsWith('#/settings') || hash.startsWith('#/account') ? 'me'
           : 'play';

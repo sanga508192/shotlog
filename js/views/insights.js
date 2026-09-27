@@ -2,6 +2,7 @@ import * as st from '../state.js';
 import { esc, header, fmtDate, toast } from '../ui.js';
 import { DIMENSIONS } from '../constants.js';
 import { summarize, pct, practiceSuggestion } from '../logic.js';
+import { drill } from '../coach.js';
 
 const open = new Set();   // หัวข้อที่เปิดดูช็อตต้นทาง
 
@@ -122,6 +123,7 @@ export function practiceView(_p, ctx) {
   }
   return {
     html: `${header('ฝึกซ้อม')}<div class="page">
+      <a class="card coach-link" href="#/coach"><b>📋 แผนซ้อมสัปดาห์นี้</b><span>แบบฝึกที่เลือกจากจุดที่เสียสโตรกมากที่สุด ›</span></a>
       <h2>เรื่องที่เสนอจากการออกรอบ</h2>
       ${sm.topics.length ? `<p class="note">จาก ${sm.shotCount} ช็อต ${sm.roundCount} รอบ — คุณเลือกเองว่าจะฝึกเรื่องใด</p>${sm.topics.slice(0, 5).map((t) => topicCard(t, { withSources: false })).join('')}`
     : '<p class="muted">ยังไม่มีอาการที่จดไว้จากการออกรอบ</p>'}
@@ -155,19 +157,22 @@ export function practiceNewView([query], ctx) {
   const key = params.get('t');
   let topic = null;
   if (key) topic = summarize(st.shotRows(null), [], []).topics.find((t) => t.key === key) ?? null;
-  const sug = topic ? practiceSuggestion(topic) : null;
+  const dr = drill(params.get('d'));
+  const sug = topic ? practiceSuggestion(topic) : dr ? { topic: dr.name, metric: dr.pass } : null;
   const bag = st.bagClubs();
+  const back = dr ? '#/coach' : '#/practice';
   return {
-    html: `${header('บันทึกการซ้อม', { back: '#/practice' })}<div class="page">
+    html: `${header('บันทึกการซ้อม', { back })}<div class="page">
       ${topic ? `<div class="card small">มาจากหัวข้อ: <b>${esc(topic.label)}</b><br>พบ ${topic.count} ครั้ง จาก ${topic.denom} ช็อตที่ระบุ · ${topic.round_count} รอบ</div>` : ''}
+      ${dr ? `<div class="card small">แบบฝึก: <b>${esc(dr.name)}</b> (${esc(dr.area)})<ol>${dr.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol></div>` : ''}
       <form class="card" data-submit="save">
         <label>หัวข้อซ้อม<input class="input" name="topic" required value="${esc(sug?.topic ?? '')}" placeholder="เช่น ชิพ: ความสม่ำเสมอในการสัมผัสลูก"></label>
         <label>ไม้ (ไม่บังคับ)<select class="input" name="club"><option value="">ไม่ระบุ</option>
           ${bag.map((c) => `<option value="${c.id}"${c.id === topic?.club_id ? ' selected' : ''}>${esc(c.label)}</option>`).join('')}</select></label>
-        <label>สถานการณ์ที่ซ้อม<input class="input" name="context" placeholder="เช่น ชิพจากรัฟ ระยะ 15 ม."></label>
+        <label>สถานการณ์ที่ซ้อม<input class="input" name="context" value="${esc(dr?.area ?? '')}" placeholder="เช่น ชิพจากรัฟ ระยะ 15 ม."></label>
         <label>เกณฑ์สำเร็จ / เป้าหมาย<input class="input" name="target" value="${esc(sug?.metric ?? '')}" placeholder="กำหนดเอง เช่น หยุดในวงรัศมี 1 คันธง"></label>
         <div class="row gap">
-          <label>จำนวนลูก<input class="input" type="number" inputmode="numeric" min="0" name="attempts" placeholder="เช่น 10"></label>
+          <label>จำนวนลูก<input class="input" type="number" inputmode="numeric" min="0" name="attempts" value="${dr?.attempts ?? ''}" placeholder="เช่น 10"></label>
           <label>สำเร็จ<input class="input" type="number" inputmode="numeric" min="0" name="successes"></label>
         </div>
         <label>วันที่<input class="input" type="date" name="date" value="${st.todayLocal()}"></label>
@@ -189,12 +194,12 @@ export function practiceNewView([query], ctx) {
         btn.disabled = true;
         await st.put('practice', {
           id: st.uid(), date: form.date.value || st.todayLocal(), topic: form.topic.value.trim(),
-          source_topic_key: topic?.key ?? null, club_id_optional: form.club.value || null,
+          source_topic_key: topic?.key ?? null, drill_id: dr?.id ?? null, club_id_optional: form.club.value || null,
           drill_context: form.context.value.trim(), target_definition: form.target.value.trim(),
           attempts, successes, note: form.note.value.trim(), created_at: st.nowIso(),
         });
         toast('บันทึกผลซ้อมแล้ว');
-        ctx.go('#/practice');
+        ctx.go(back);
       },
     },
   };

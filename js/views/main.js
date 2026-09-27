@@ -6,6 +6,7 @@ import { UNITS } from '../constants.js';
 import { enabled as cloudEnabled, session as cloudSession } from '../cloud.js';
 import { courseCard, rememberCourseCard, rememberFriends, friends, myName, gridOf } from './group.js';
 import { ME, MAX_PLAYERS, playersOf, fmtOver } from '../group.js';
+import { coachData, focusListHtml } from './coach.js';
 
 // ---------- หน้าแรก ----------
 
@@ -90,6 +91,19 @@ export function resumeHref(r) {
   return `#/round/${r.id}/hole/${n}`;
 }
 
+// การ์ดสั้น ๆ พาไปหน้าพัฒนาเกม
+function coachTeaser() {
+  const a = coachData();
+  const top = a.focus[0];
+  if (top) {
+    return `<a class="card coach-link" href="#/coach"><b>🎯 จุดที่ควรแก้ก่อน: ${esc(top.th)}</b>
+      <span>${top.k === 'save' ? `ได้คืนแค่ ${top.yours.toFixed(1)} สโตรก/รอบ (เป้า${esc(a.goal.th)} ควรได้ ${top.target})`
+    : `เสีย ${top.yours.toFixed(1)} สโตรก/รอบ (เป้า${esc(a.goal.th)} ควรไม่เกิน ${top.target})`} · ดูแผนพัฒนา ›</span></a>`;
+  }
+  if (!a.scoreRounds.length) return '';
+  return `<a class="card coach-link" href="#/coach"><b>📈 พัฒนาเกม</b><span>สกอร์เฉลี่ย ${a.avgScore.toFixed(1)} · เป้า${esc(a.goal.th)} · ดูแผนซ้อม ›</span></a>`;
+}
+
 export function homeView(_p, ctx) {
   const all = st.rounds();
   const playing = all.filter((r) => r.status === 'playing');
@@ -116,6 +130,7 @@ export function homeView(_p, ctx) {
         <div><b>${best != null && Number.isFinite(best) ? fmtOver(best) : '–'}</b><span>ดีสุด (9 หลุมขึ้นไป)</span></div>
         <div><b>${st.S.shots.size}</b><span>ช็อตที่จด</span></div>
       </div>` : ''}
+      ${coachTeaser()}
       <div class="row between"><h2>รอบล่าสุด</h2>${all.length ? '<a class="mini" href="#/history">ดูทั้งหมด / ลบ</a>' : ''}</div>
       ${past.length ? past.slice(0, 5).map((r) => roundRow(r, `#/round/${r.id}/card`)).join('')
     : '<div class="empty"><span class="em">🏌️</span>ยังไม่มีรอบที่จบ<br><span class="small">กด "เริ่มรอบใหม่" ด้านบนเพื่อเริ่มจดรอบแรก</span></div>'}
@@ -294,6 +309,7 @@ export function newRoundView([courseId], ctx) {
   const parsSet = Object.values(nr.pars).filter(Boolean).length;
   const count = nr.holes === 'custom' ? Math.min(36, Math.max(1, parseInt(nr.custom, 10) || 0)) : nr.holes;
   const parOpts = [{ v: '3', th: '3' }, { v: '4', th: '4' }, { v: '5', th: '5' }, { v: '6', th: '6' }];
+  const { cues } = coachData();
   return {
     html: `${header('เริ่มรอบใหม่', { back: '#/courses' })}<div class="page">
       <div class="card">
@@ -316,6 +332,8 @@ export function newRoundView([courseId], ctx) {
     : '<div class="card warn small">ยังไม่มีสกอร์การ์ดของสนามนี้</div>'}
       <a class="btn block" href="#/scan/${encodeURIComponent(courseId)}">📷 ถ่ายรูปสกอร์การ์ดเพื่อเติมพาร์ / HC / ระยะ</a>`}
       ${needsGeo ? `<button type="button" class="linklike small" data-act="saveGeo">📍 ${c.geo ? 'ตำแหน่งสนามนี้เป็นค่าโดยประมาณ' : 'ยังไม่มีตำแหน่งสนามนี้'} — กดบันทึกตำแหน่งตอนอยู่ที่สนาม</button>` : ''}
+
+      ${cues.length ? `<details class="card focus-card" open><summary>🎯 โฟกัสรอบนี้</summary>${focusListHtml(cues)}<a class="mini" href="#/coach">ดูที่มาและแผนซ้อม ›</a></details>` : ''}
 
       <h2>ใครเล่นด้วย</h2>
       <div class="chips">
