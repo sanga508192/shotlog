@@ -439,6 +439,9 @@ body[data-screen="hole"] .toast { bottom: calc(88px + env(safe-area-inset-bottom
 .toast[hidden] { display: none; }
 .toast button { background: none; border: 0; color: #8fe0b4; font-weight: 700; cursor: pointer; min-height: 36px; }
 .net { background: var(--warn-soft); text-align: center; font-size: .84rem; padding: 4px 8px; }
+.update-bar { display: flex; align-items: center; justify-content: center; gap: 12px; background: var(--brand); color: var(--brand-ink); font-size: .88rem; font-weight: 600; padding: 6px 12px; }
+.update-bar[hidden] { display: none; }
+.update-bar button { font: inherit; font-weight: 700; border: 0; border-radius: 999px; padding: 6px 14px; background: var(--brand-ink); color: var(--brand); cursor: pointer; }
 .sync-pill {
   margin-left: auto; flex: none; font-size: .76rem; font-weight: 600; padding: 5px 11px; border-radius: 999px;
   background: var(--none-soft); color: var(--text); text-decoration: none; white-space: nowrap;
@@ -580,3 +583,8 @@ a.coach-link span { font-size: .84rem; color: var(--muted); }
 .photo-pick { display: flex; align-items: center; gap: 10px; padding: 10px 12px; }
 .photo-pick .grow { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .photo-thumb { width: 64px; height: 48px; object-fit: cover; border-radius: 8px; flex: none; }
+
+/* ---------- แก้ปัญหาแอป ---------- */
+.diag summary { cursor: pointer; font-weight: 600; }
+.diag pre { white-space: pre-wrap; word-break: break-word; font-size: .72rem; background: var(--surface-2); border-radius: 8px; padding: 8px; max-height: 260px; overflow: auto; margin: 8px 0; }
+.backup-warn { display: flex; flex-direction: column; gap: 4px; }

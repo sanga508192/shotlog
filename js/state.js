@@ -23,11 +23,35 @@ export function todayLocal() {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
+// ---------- ดัชนีในหน่วยความจำ ----------
+// หาหลุมของรอบ/ช็อตของหลุมโดยไม่ต้องไล่ข้อมูลทั้งหมดทุกครั้ง สร้างใหม่เมื่อข้อมูลเปลี่ยน (ดูจากเลขรุ่น)
+let version = 0;
+const indexes = new Map();
+function groupIndex(store, field, sortFn) {
+  const k = `${store}.${field}`;
+  let e = indexes.get(k);
+  if (!e || e.version !== version) {
+    const m = new Map();
+    for (const o of S[store].values()) {
+      const key = o[field];
+      let arr = m.get(key);
+      if (!arr) m.set(key, (arr = []));
+      arr.push(o);
+    }
+    if (sortFn) for (const arr of m.values()) arr.sort(sortFn);
+    e = { version, m };
+    indexes.set(k, e);
+  }
+  return e.m;
+}
+export const dataVersion = () => version;
+
 export async function load() {
   for (const name of db.STORE_NAMES) {
     const all = await db.getAll(name);
     S[name] = new Map(all.map((o) => [keyOf(name, o), o]));
   }
+  version++;
   const seed = [];
   if (!S.clubs.size) {
     DEFAULT_CLUBS.forEach(([lbl, cat], i) => seed.push({
@@ -42,7 +66,7 @@ export async function load() {
 }
 
 // sync.js ต่อเข้ามาตรงนี้: outboxFor คืนรายการ outbox ที่ต้องเขียนใน transaction เดียวกัน
-export const hooks = { outboxFor: null, afterCommit: null };
+export const hooks = { outboxFor: null, afterCommit: null, changed: null };
 const NO_STAMP = new Set(['settings', 'favorites', 'meta', 'outbox', 'syncrev', 'conflicts']);
 
 // เขียนหลายรายการใน transaction เดียว แล้วค่อยอัปเดตหน่วยความจำเมื่อสำเร็จ
@@ -58,10 +82,21 @@ export async function commit(ops, { raw = false } = {}) {
     if ('put' in op) S[op.store].set(keyOf(op.store, op.put), op.put);
     else S[op.store].delete(op.del);
   }
+  version++;
+  hooks.changed?.();
   if (!raw) hooks.afterCommit?.();
 }
 
 export const put = (store, obj) => commit([{ store, put: obj }]);
+
+// แก้เฉพาะช่องที่เปลี่ยน ทับลงบนข้อมูลล่าสุดในเครื่อง
+// กันการเขียนทับด้วยสำเนาเก่าที่หน้าจอถือไว้ (เช่น ซิงก์เพิ่งดึงการแก้จากอีกเครื่องมา)
+export function patchOp(store, id, changes) {
+  const cur = S[store].get(id);
+  if (!cur) throw new Error('ไม่พบข้อมูลนี้แล้ว (อาจถูกลบจากอีกเครื่อง) ลองกลับหน้าแรก');
+  return { store, put: { ...cur, ...changes } };
+}
+export const patch = (store, id, changes) => commit([patchOp(store, id, changes)]);
 export const del = (store, key) => commit([{ store, del: key }]);
 
 export async function replaceAll(data) {
@@ -102,11 +137,14 @@ export const favoriteSet = () => new Set(S.favorites.keys());
 // สกอร์การ์ดของสนาม: ที่ผู้ใช้ถ่าย/แก้เองมาก่อนข้อมูลที่เตรียมไว้
 export const scorecard = (id) => S.settings.get(`course_scorecard:${id}`)?.value ?? S.userCourses.get(id)?.scorecard ?? SCORECARDS[id] ?? null;
 
+// เรียงใหม่สุดก่อน ข้อมูลที่ไม่มีวันที่ (เช่น ไฟล์สำรองเสีย) ไม่ทำให้แอปพัง
 export const rounds = () => [...S.rounds.values()].sort((a, b) =>
-  b.played_at.localeCompare(a.played_at) || (b.created_at || '').localeCompare(a.created_at || ''));
-export const holesOf = (roundId) => [...S.holes.values()].filter((h) => h.round_id === roundId).sort((a, b) => a.number - b.number);
-export const shotsOf = (holeId) => [...S.shots.values()].filter((s) => s.hole_id === holeId).sort((a, b) => a.sequence - b.sequence);
-export const penaltiesOf = (holeId) => [...S.penalties.values()].filter((p) => p.hole_id === holeId);
+  String(b.played_at || '').localeCompare(String(a.played_at || '')) || String(b.created_at || '').localeCompare(String(a.created_at || '')));
+const byNumber = (a, b) => (Number(a.number) || 0) - (Number(b.number) || 0);
+const bySeq = (a, b) => (Number(a.sequence) || 0) - (Number(b.sequence) || 0);
+export const holesOf = (roundId) => [...(groupIndex('holes', 'round_id', byNumber).get(roundId) ?? [])];
+export const shotsOf = (holeId) => [...(groupIndex('shots', 'hole_id', bySeq).get(holeId) ?? [])];
+export const penaltiesOf = (holeId) => [...(groupIndex('penalties', 'hole_id').get(holeId) ?? [])];
 
 // แถวสำหรับสรุป: ช็อตพร้อมบริบทหลุม รอบ และไม้
 export function shotRows(roundIds) {
@@ -120,5 +158,5 @@ export function shotRows(roundIds) {
     rows.push({ shot, hole, round, club: club(shot.club_id) });
   }
   return rows.sort((a, b) =>
-    a.round.played_at.localeCompare(b.round.played_at) || a.hole.number - b.hole.number || a.shot.sequence - b.shot.sequence);
+    String(a.round.played_at || '').localeCompare(String(b.round.played_at || '')) || byNumber(a.hole, b.hole) || bySeq(a.shot, b.shot));
 }

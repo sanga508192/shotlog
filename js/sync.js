@@ -33,6 +33,10 @@ let phase = 'idle';   // idle | syncing | ok | offline | needs_plan | signed_out
 let lastError = null;
 const listeners = new Set();
 export const onStatus = (fn) => { listeners.add(fn); return () => listeners.delete(fn); };
+// มีข้อมูลการเล่นเปลี่ยนจากอีกเครื่อง (ให้หน้าจอวาดใหม่ด้วยข้อมูลล่าสุด)
+const remoteListeners = new Set();
+export const onRemoteChange = (fn) => { remoteListeners.add(fn); return () => remoteListeners.delete(fn); };
+let remoteChanged = false;
 
 export function status() {
   return {
@@ -67,6 +71,7 @@ function sameAsServer(local, row) {
 }
 
 function applyServerOps(row, key) {
+  remoteChanged = true;
   const ops = [
     row.deleted ? { store: row.store, del: row.id } : { store: row.store, put: row.data },
     { store: 'syncrev', put: { key, rev: row.rev } },
@@ -172,7 +177,10 @@ export function syncNow() {
   running = (async () => {
     setPhase('syncing');
     try {
-      await pull();
+      remoteChanged = false;
+      if (st.meta('link_pending')) await finishLink();
+      else await pull();
+      if (remoteChanged) for (const fn of [...remoteListeners]) fn();
       await push();
       await st.commit([metaOp('last_sync', st.nowIso())], { raw: true });
       setPhase('ok');
@@ -203,32 +211,52 @@ export async function wipeLocal() {
   setPhase('idle');
 }
 
+// ผูกครั้งแรกทำเป็นขั้นที่ทำซ้ำได้: ถ้าเน็ตหลุดกลางทาง รอบซิงก์ถัดไปจะทำต่อเอง ข้อมูลที่จดก่อนผูกจึงไม่ตกหล่น
 export async function link(userId) {
   const owner = linkedOwner();
   if (owner && owner !== userId) throw new Error('OTHER_OWNER');
   if (!owner) {
-    await st.commit([metaOp('linked_owner', userId), metaOp('pull_cursor', 0)], { raw: true });
-    const serverStores = await pull();
-    const ops = [];
-    // บัญชีมีกระเป๋าไม้อยู่แล้ว → ไม่ส่งไม้ตั้งต้นที่ยังไม่เคยใช้ของเครื่องนี้ขึ้นไปซ้ำ
-    if (serverStores.has('clubs')) {
-      const used = new Set([...st.S.shots.values()].map((s) => s.club_id));
-      for (const c of st.S.clubs.values()) {
-        const key = keyOf('clubs', c.id);
-        if (!st.S.syncrev.has(key) && !st.S.conflicts.has(key) && !used.has(c.id)) ops.push({ store: 'clubs', del: c.id });
-      }
-    }
-    const dropped = new Set(ops.map((o) => o.del));
-    for (const store of DATA_STORES) {
-      for (const [id] of st.S[store]) {
-        const key = keyOf(store, id);
-        if (!syncable(store, id) || (store === 'clubs' && dropped.has(id))) continue;
-        if (!st.S.syncrev.has(key) && !st.S.outbox.has(key)) ops.push(outboxOp(store, id));
-      }
-    }
-    await st.commit(ops, { raw: true });
+    await st.commit([metaOp('linked_owner', userId), metaOp('pull_cursor', 0), metaOp('link_pending', true)], { raw: true });
   }
   return syncNow();
+}
+
+// ดึงของบนคลาวด์ก่อน แล้วค่อยเข้าคิวข้อมูลในเครื่องที่ยังไม่เคยขึ้นคลาวด์
+async function finishLink() {
+  const serverStores = await pull();
+  const ops = [{ store: 'meta', del: 'link_pending' }];
+  // บัญชีมีกระเป๋าไม้อยู่แล้ว → ไม่ส่งไม้ตั้งต้นที่ยังไม่เคยใช้ของเครื่องนี้ขึ้นไปซ้ำ
+  if (serverStores.has('clubs')) {
+    const used = new Set([...st.S.shots.values()].map((s) => s.club_id));
+    for (const c of st.S.clubs.values()) {
+      const key = keyOf('clubs', c.id);
+      if (!st.S.syncrev.has(key) && !st.S.conflicts.has(key) && !used.has(c.id)) ops.push({ store: 'clubs', del: c.id });
+    }
+  }
+  const dropped = new Set(ops.filter((o) => o.store === 'clubs').map((o) => o.del));
+  for (const store of DATA_STORES) {
+    for (const [id] of st.S[store]) {
+      const key = keyOf(store, id);
+      if (!syncable(store, id) || (store === 'clubs' && dropped.has(id))) continue;
+      if (!st.S.syncrev.has(key) && !st.S.outbox.has(key)) ops.push(outboxOp(store, id));
+    }
+  }
+  await st.commit(ops, { raw: true });
+}
+
+// กู้คืนจากไฟล์สำรอง: แทนข้อมูลในเครื่อง แต่ไม่ทำให้หลุดจากบัญชีหรือเลิกซิงก์
+// ถ้าเครื่องนี้ผูกคลาวด์อยู่ ข้อมูลในไฟล์จะรวมกับข้อมูลบนคลาวด์ (รายการที่ต่างกันให้ผู้ใช้เลือก) แล้วส่งของที่ยังไม่มีขึ้นไป
+export async function restoreBackup(data) {
+  clearTimeout(timer);
+  const session = st.meta('session');
+  const owner = linkedOwner();
+  await st.replaceAll(data);
+  const keep = [];
+  if (session) keep.push(metaOp('session', session));
+  if (owner) keep.push(metaOp('linked_owner', owner), metaOp('pull_cursor', 0), metaOp('link_pending', true));
+  if (keep.length) await st.commit(keep, { raw: true });
+  setPhase('idle');
+  if (owner) await syncNow().catch(() => {});   // ออฟไลน์: รอบซิงก์ถัดไปทำต่อเอง
 }
 
 // เลิกผูกกับคลาวด์แต่เก็บข้อมูลการเล่นไว้ในเครื่อง (เช่น หลังลบบัญชี)

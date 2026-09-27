@@ -1,6 +1,6 @@
 import * as st from '../state.js';
 import { esc, header, fmtDate, toast, chips } from '../ui.js';
-import { CURATED_COURSES, ISAN_PROVINCES, searchCourses, findDuplicateCourse, sortByDistance, fmtKm, prefillFromScorecard, teeTotal } from '../courses.js';
+import { CURATED_COURSES, ISAN_PROVINCES, searchCourses, findDuplicateCourse, sortByDistance, fmtKm, prefillFromScorecard, teeTotal, teeColor } from '../courses.js';
 import { getPosition, lastPosition } from '../geo.js';
 import { UNITS } from '../constants.js';
 import { enabled as cloudEnabled, session as cloudSession } from '../cloud.js';
@@ -18,12 +18,12 @@ function myTotals(r) {
 }
 
 function roundRow(r, href, { deletable = false } = {}) {
-  const [, m, d] = r.played_at.split('-').map(Number);
+  const [, m, d] = String(r.played_at || '').split('-').map(Number);
   const holes = st.holesOf(r.id);
   const t = myTotals(r);
   const players = playersOf(r).length;
   const row = `<a class="round-row" href="${href}">
-    <div class="date"><b>${d}</b><small>${TH_MONTH[m - 1]}</small></div>
+    <div class="date"><b>${d || '–'}</b><small>${TH_MONTH[m - 1] ?? ''}</small></div>
     <div class="info"><b>${esc(r.course_name_snapshot)}</b>
       <small>${t ? `${t.count}/${holes.length} หลุม` : `${holes.length} หลุม`}${players > 1 ? ` · ${players} คน` : ''}${r.status === 'incomplete' ? ' · จดไม่ครบ' : ''}</small></div>
     ${t ? `<div class="score-pill">${t.strokes}<small>${fmtOver(t.over)}</small></div>` : ''}
@@ -91,6 +91,17 @@ export function resumeHref(r) {
   return `#/round/${r.id}/hole/${n}`;
 }
 
+// ยังไม่ได้เข้าสู่ระบบคลาวด์ และไม่ได้ส่งออกไฟล์สำรองเกิน 30 วัน (มีอย่างน้อย 3 รอบ) → เตือน
+// เบราว์เซอร์บางแบบลบข้อมูลเว็บเองเมื่อพื้นที่เต็มหรือไม่ได้เปิดนาน
+export function backupWarn(roundCount, lastExport, now = Date.now()) {
+  if (cloudSession() || roundCount < 3) return '';
+  const days = lastExport ? (now - Date.parse(lastExport)) / 86400000 : Infinity;
+  if (days < 30) return '';
+  return `<div class="card warn small backup-warn"><b>💾 ${lastExport ? `ไม่ได้สำรองข้อมูลมา ${Math.floor(days)} วัน` : 'ยังไม่เคยสำรองข้อมูล'}</b>
+    <span>ข้อมูล ${roundCount} รอบอยู่ในเครื่องนี้เท่านั้น ถ้ามือถือหายหรือล้างเบราว์เซอร์ ข้อมูลจะหายด้วย</span>
+    <div class="row gap">${cloudEnabled() ? '<a class="mini primary" href="#/account">สำรองอัตโนมัติบนคลาวด์</a>' : ''}<a class="mini" href="#/settings">ส่งออกไฟล์สำรอง</a></div></div>`;
+}
+
 // การ์ดสั้น ๆ พาไปหน้าพัฒนาเกม
 function coachTeaser() {
   const a = coachData();
@@ -134,6 +145,7 @@ export function homeView(_p, ctx) {
       <div class="row between"><h2>รอบล่าสุด</h2>${all.length ? '<a class="mini" href="#/history">ดูทั้งหมด / ลบ</a>' : ''}</div>
       ${past.length ? past.slice(0, 5).map((r) => roundRow(r, `#/round/${r.id}/card`)).join('')
     : '<div class="empty"><span class="em">🏌️</span>ยังไม่มีรอบที่จบ<br><span class="small">กด "เริ่มรอบใหม่" ด้านบนเพื่อเริ่มจดรอบแรก</span></div>'}
+      ${backupWarn(past.length, lastExport)}
       ${cloudSession() ? '' : `<p class="note center">ข้อมูลเก็บในเครื่องนี้ ${lastExport ? `· สำรองล่าสุด ${esc(fmtDate(lastExport))}` : ''} ·
         ${cloudEnabled() ? '<a href="#/account">สำรองบนคลาวด์</a>' : '<a href="#/settings">ส่งออกไฟล์สำรอง</a>'}</p>`}
     </div>`,
@@ -185,7 +197,7 @@ function courseListHtml() {
 }
 
 export function coursesView(_p, ctx) {
-  const provinces = [...new Set(st.allCourses().map((c) => c.province))].sort((a, b) => a.localeCompare(b, 'th'));
+  const provinces = [...new Set(st.allCourses().map((c) => c.province).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th'));
   const refreshList = () => { document.getElementById('course-list').innerHTML = courseListHtml(); };
   const locate = async () => {
     pick.locating = true;
@@ -321,7 +333,7 @@ export function newRoundView([courseId], ctx) {
         <div class="row between"><b>📋 สกอร์การ์ดของสนามนี้</b><span class="small muted">พาร์ ${sc.par.reduce((a, b) => a + (b || 0), 0)} · ${sc.par.length} หลุม</span></div>
         <div class="lbl">เลือกแท่นที (เติมระยะรายหลุมให้)</div>
         <div class="chips tees">${sc.tees.map((t) => `<button type="button" class="chip tee${nr.teeId === t.id ? ' on' : ''}" data-act="pickTee" data-v="${t.id}">
-          <i style="background:${t.color}"></i>${esc(t.name)}${teeTotal(t) ? ` <small>${teeTotal(t).toLocaleString('th-TH')}</small>` : ''}</button>`).join('')}</div>
+          <i style="background:${teeColor(t)}"></i>${esc(t.name)}${teeTotal(t) ? ` <small>${teeTotal(t).toLocaleString('th-TH')}</small>` : ''}</button>`).join('')}</div>
         <details class="small muted"><summary>ที่มาของข้อมูล</summary>
           <ul>${sc.sources.map((x) => `<li>${esc(x)}</li>`).join('')}<li>ตรวจ ณ ${esc(sc.checked_at)} · หน่วย${sc.unit === 'm' ? 'เมตร' : 'หลา'}</li></ul>
           ${sc.note ? `<p>${esc(sc.note)}</p>` : ''}

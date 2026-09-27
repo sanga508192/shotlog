@@ -3,7 +3,10 @@ import { esc, header, chips, toast, download, fmtDate } from '../ui.js';
 import { CLUB_CATEGORIES, UNITS, APP_VERSION } from '../constants.js';
 import { buildExport, parseImport, toCSV } from '../logic.js';
 import * as cloud from '../cloud.js';
-import { linkedOwner } from '../sync.js';
+import { linkedOwner, restoreBackup } from '../sync.js';
+import { friends } from './group.js';
+import { recentErrors, clearErrors } from '../errors.js';
+import * as sync from '../sync.js';
 
 const stamp = () => st.todayLocal();
 
@@ -40,6 +43,26 @@ function practiceCsv() {
   return toCSV(header, rows);
 }
 
+// สรุปสภาพแอปสำหรับแจ้งปัญหา (ไม่มีอีเมลหรือเนื้อหาข้อมูลการเล่น)
+async function diagnostics() {
+  const est = await navigator.storage?.estimate?.().catch(() => null);
+  const persisted = await navigator.storage?.persisted?.().catch(() => null);
+  const mb = (n) => (n == null ? '?' : `${(n / 1048576).toFixed(1)} MB`);
+  const s = sync.status();
+  const lines = [
+    `ShotLog ${APP_VERSION} · ${new Date().toISOString()}`,
+    `เครื่อง: ${navigator.userAgent}`,
+    `หน้าจอ: ${screen.width}x${screen.height} @${devicePixelRatio} · ${matchMedia('(display-mode: standalone)').matches ? 'ติดตั้งเป็นแอป' : 'เปิดในเบราว์เซอร์'} · ${navigator.onLine ? 'ออนไลน์' : 'ออฟไลน์'}`,
+    `ไฟล์แอป: ${navigator.serviceWorker?.controller ? 'ใช้แคช' : 'ไม่มีแคช'} · พื้นที่ ${mb(est?.usage)} / ${mb(est?.quota)} · เก็บถาวร ${persisted ? 'ใช่' : 'ไม่'}`,
+    `ข้อมูล: ${st.S.rounds.size} รอบ, ${st.S.holes.size} หลุม, ${st.S.shots.size} ช็อต, ${st.S.practice.size} ซ้อม`,
+    `ซิงก์: ${cloud.session() ? 'เข้าสู่ระบบ' : 'ไม่ได้เข้าสู่ระบบ'} · ${s.phase} · ค้างส่ง ${s.pending} · ชนกัน ${s.conflicts} · ล่าสุด ${s.lastSync || '-'}${st.meta('link_pending') ? ' · ผูกไม่เสร็จ' : ''}`,
+  ];
+  const errs = recentErrors();
+  lines.push(errs.length ? `ข้อผิดพลาดล่าสุด ${errs.length} รายการ:` : 'ไม่มีข้อผิดพลาดที่บันทึกไว้');
+  for (const e of errs.slice(0, 8)) lines.push(`- ${e.t} [${e.where}] ${e.msg}${e.stack ? ` @ ${e.stack}` : ''}`);
+  return lines.join('\n');
+}
+
 export function settingsView(_p, ctx) {
   const clubs = st.clubs();
   const used = new Set([...st.S.shots.values()].map((s) => s.club_id));
@@ -59,7 +82,7 @@ export function settingsView(_p, ctx) {
       <p class="note">ชื่อและแต้มต่อ (HC) ใช้ในสกอร์การ์ดก๊วนและเกม เริ่มใช้กับรอบใหม่</p>
 
       <h2>เพื่อนในก๊วน</h2>
-      ${st.setting('friends', []).length ? `<div class="players-edit">${st.setting('friends', []).map((f, i) => `<div class="player-row">
+      ${friends().length ? `<div class="players-edit">${friends().map((f, i) => `<div class="player-row">
           <input class="input" value="${esc(f.name)}" data-change="fName" data-i="${i}" aria-label="ชื่อเพื่อน">
           <input class="input hc" type="number" inputmode="numeric" min="0" max="54" placeholder="HC" value="${f.handicap ?? ''}" data-change="fHc" data-i="${i}" aria-label="แต้มต่อ">
           <button type="button" class="mini danger" data-act="fDel" data-i="${i}" aria-label="ลบ">✕</button></div>`).join('')}</div>`
@@ -98,15 +121,42 @@ export function settingsView(_p, ctx) {
       <label class="btn block file-btn">กู้คืนจากไฟล์ JSON…<input type="file" accept="application/json,.json" data-change="importJson" hidden></label>
       <p class="note">การกู้คืนจะแทนที่ข้อมูลทั้งหมดในเครื่องนี้ด้วยข้อมูลในไฟล์</p>
 
+      <h2>แก้ปัญหาแอป</h2>
+      <button type="button" class="btn block" data-act="hardRefresh">🔄 โหลดแอปรุ่นล่าสุดใหม่ (ข้อมูลไม่หาย)</button>
+      <p class="note">ใช้เมื่อแอปค้างอยู่รุ่นเก่าหรือแสดงผลแปลก ๆ จะล้างเฉพาะไฟล์ของแอปที่เก็บไว้ ไม่ลบรอบหรือช็อตที่จด</p>
+      <details class="card small diag"><summary>ข้อมูลสำหรับแจ้งปัญหา</summary>
+        <pre id="diag-text">กำลังรวบรวม…</pre>
+        <div class="row gap"><button type="button" class="mini" data-act="copyDiag">คัดลอก</button>
+          <button type="button" class="mini" data-act="clearErr">ล้างรายการข้อผิดพลาด</button></div>
+        <p class="note">ไม่มีอีเมลหรือข้อมูลการเล่นในนี้ คัดลอกส่งให้ผู้พัฒนาได้</p>
+      </details>
+
       <p class="note center">ShotLog รุ่น ${APP_VERSION} · ข้อมูลเก็บในเครื่องนี้เท่านั้น</p>
     </div>`,
     mount: () => {
+      diagnostics().then((text) => {
+        const el = document.getElementById('diag-text');
+        if (el) el.textContent = text;
+      }).catch(() => {});
       navigator.storage?.persisted?.().then((p) => {
         const el = document.getElementById('persist');
         if (el) el.textContent = p ? 'เบราว์เซอร์ตั้งให้เก็บข้อมูลถาวรแล้ว' : 'เบราว์เซอร์อาจล้างข้อมูลเมื่อพื้นที่เต็ม — ควรส่งออกไฟล์สำรองเป็นระยะ';
       }).catch(() => {});
     },
     actions: {
+      hardRefresh: async () => {
+        if (!confirm('โหลดไฟล์แอปรุ่นล่าสุดจากอินเทอร์เน็ตใหม่ทั้งหมด?\nรอบ ช็อต และการตั้งค่าที่จดไว้ยังอยู่ครบ (ต้องมีสัญญาณ)')) return;
+        if (!navigator.onLine) { toast('ต้องต่ออินเทอร์เน็ตก่อน'); return; }
+        const regs = await navigator.serviceWorker?.getRegistrations?.() ?? [];
+        await Promise.all(regs.map((r) => r.unregister()));
+        if (globalThis.caches) await Promise.all((await caches.keys()).map((k) => caches.delete(k)));
+        location.reload();
+      },
+      copyDiag: async () => {
+        const text = document.getElementById('diag-text')?.textContent || '';
+        try { await navigator.clipboard.writeText(text); toast('คัดลอกแล้ว'); } catch { toast('คัดลอกไม่ได้ กดค้างที่ข้อความเพื่อเลือกแทน'); }
+      },
+      clearErr: () => { clearErrors(); ctx.rerender(); toast('ล้างรายการแล้ว'); },
       inBag: async (el) => { await saveClub(el.dataset.id, { in_bag: el.checked }); ctx.rerender(); },
       clubLabel: async (el) => {
         const v = el.value.trim();
@@ -147,20 +197,20 @@ export function settingsView(_p, ctx) {
         await st.setSetting('my_handicap', Number.isFinite(n) ? n : null);
       },
       fName: async (el) => {
-        const list = [...st.setting('friends', [])];
+        const list = [...friends()];
         const v = el.value.trim();
         if (!v) { ctx.rerender(); return; }
         list[Number(el.dataset.i)] = { ...list[Number(el.dataset.i)], name: v };
         await st.setSetting('friends', list);
       },
       fHc: async (el) => {
-        const list = [...st.setting('friends', [])];
+        const list = [...friends()];
         const n = el.value === '' ? null : Math.max(0, Math.min(54, Math.round(Number(el.value))));
         list[Number(el.dataset.i)] = { ...list[Number(el.dataset.i)], handicap: Number.isFinite(n) ? n : null };
         await st.setSetting('friends', list);
       },
       fDel: async (el) => {
-        const list = [...st.setting('friends', [])];
+        const list = [...friends()];
         list.splice(Number(el.dataset.i), 1);
         await st.setSetting('friends', list);
         ctx.rerender();
@@ -193,9 +243,10 @@ export function settingsView(_p, ctx) {
           toast(err.message);
           return;
         }
-        const msg = `กู้คืนจากไฟล์: ${data.rounds.length} รอบ, ${data.shots.length} ช็อต, ${data.practice.length} บันทึกซ้อม\nข้อมูลปัจจุบันในเครื่องจะถูกแทนที่ทั้งหมด ดำเนินการต่อ?`;
+        const merge = linkedOwner() ? '\nเครื่องนี้ซิงก์กับคลาวด์อยู่: ข้อมูลในไฟล์จะรวมกับข้อมูลบนคลาวด์ ถ้าแก้ต่างกันแอปจะให้เลือก' : '';
+        const msg = `กู้คืนจากไฟล์: ${data.rounds.length} รอบ, ${data.shots.length} ช็อต, ${data.practice.length} บันทึกซ้อม\nข้อมูลปัจจุบันในเครื่องจะถูกแทนที่ทั้งหมด${merge}\nดำเนินการต่อ?`;
         if (!confirm(msg)) return;
-        await st.replaceAll(data);
+        await restoreBackup(data);
         toast('กู้คืนข้อมูลแล้ว');
         ctx.rerender();
       },

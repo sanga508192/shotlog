@@ -115,7 +115,7 @@ export function summaryView([roundId], ctx) {
 
 export function practiceView(_p, ctx) {
   const sm = summarize(st.shotRows(null), [...st.S.holes.values()], st.setting('priority_topics', []));
-  const sessions = [...st.S.practice.values()].sort((a, b) => b.date.localeCompare(a.date) || (b.created_at || '').localeCompare(a.created_at || ''));
+  const sessions = [...st.S.practice.values()].sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || String(b.created_at || '').localeCompare(String(a.created_at || '')));
   const byTopic = new Map();
   for (const s of sessions) {
     if (!byTopic.has(s.topic)) byTopic.set(s.topic, []);

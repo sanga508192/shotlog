@@ -28,7 +28,11 @@ export async function rememberCourseCard(courseId, holes) {
 
 // ---------- เพื่อนที่เคยเล่นด้วย ----------
 
-export const friends = () => st.setting('friends', []);
+// ข้อมูลเพื่อนที่เสีย (เช่น จากไฟล์สำรองเก่า) ข้ามไป ไม่ทำให้หน้าพัง
+export const friends = () => {
+  const v = st.setting('friends', []);
+  return Array.isArray(v) ? v.filter((f) => f && typeof f.name === 'string' && f.name.trim()) : [];
+};
 
 export async function rememberFriends(players) {
   const list = [...friends()];
@@ -74,15 +78,18 @@ export function groupEntryHtml(round, hole) {
 
 // ใช้ใน actions ของหน้าหลุม
 export async function setGroupScore(round, hole, pid, value) {
-  const scores = { ...(hole.group_scores || {}) };
+  const r = st.S.rounds.get(round.id) ?? round;
+  const h = st.S.holes.get(hole.id) ?? hole;
+  const scores = { ...(h.group_scores || {}) };
   if (value == null || scores[pid] === value) delete scores[pid]; else scores[pid] = value;
-  const next = { ...hole, group_scores: scores };
-  if (!shotLogging(round)) {
-    const all = playersOf(round).every((p) => Number.isInteger(scores[p.id]));
-    next.status = all ? 'done' : 'playing';
+  const changes = { group_scores: scores };
+  if (!shotLogging(r)) {
+    const all = playersOf(r).every((p) => Number.isInteger(scores[p.id]));
+    changes.status = all ? 'done' : 'playing';
   }
-  await st.commit([{ store: 'holes', put: next }, { store: 'rounds', put: { ...round, current_hole: hole.number } }]);
-  return next;
+  const holeOp = st.patchOp('holes', h.id, changes);
+  await st.commit([holeOp, st.patchOp('rounds', r.id, { current_hole: h.number })]);
+  return holeOp.put;
 }
 
 // ---------- ตารางสกอร์การ์ด ----------
@@ -171,7 +178,7 @@ export function gamesView([roundId], ctx) {
   const round = st.S.rounds.get(roundId);
   if (!round) return { html: `${header('ไม่พบรอบ')}` };
   const grid = gridOf(round);
-  const games = round.games || [];
+  const games = Array.isArray(round.games) ? round.games : [];
   const total = pointsSummary(games, grid);
   const hasPointGames = games.some((g) => ['skin', 'match', 'team'].includes(g.type));
   return {
@@ -197,11 +204,11 @@ export function setupView([roundId], ctx) {
   const round = st.S.rounds.get(roundId);
   if (!round) return { html: `${header('ไม่พบรอบ')}` };
   const players = playersOf(round, myName());
-  const games = round.games || [];
+  const games = Array.isArray(round.games) ? round.games : [];
   const used = new Set(players.map((p) => p.name));
   const friendChips = friends().filter((f) => !used.has(f.name)).slice(0, 12);
   const savePlayers = async (list) => {
-    await st.put('rounds', { ...round, players: list });
+    await st.patch('rounds', roundId, { players: list });
     await rememberFriends(list);
     ctx.rerender();
   };
@@ -277,7 +284,7 @@ export function setupView([roundId], ctx) {
         const f = friends().find((x) => x.name === el.dataset.name);
         await savePlayers([...players, { id: `p-${st.uid().slice(0, 8)}`, name: f.name, handicap: f.handicap ?? null }]);
       },
-      shotlog: async (el) => { await st.put('rounds', { ...round, shot_logging: el.checked, players }); ctx.rerender(); },
+      shotlog: async (el) => { await st.patch('rounds', roundId, { shot_logging: el.checked, players }); ctx.rerender(); },
       gnew: () => { draftGame = { id: `g-${st.uid().slice(0, 8)}`, type: 'skin', players: players.map((p) => p.id), use_handicap: true, carry: true, point: 1, teams: [[], []] }; ctx.rerender(); },
       gcancel: () => { draftGame = null; ctx.rerender(); },
       gtype: (el) => { draftGame.type = el.dataset.v; ctx.rerender(); },
@@ -303,14 +310,16 @@ export function setupView([roundId], ctx) {
         if (g.type === 'team' && (g.teams[0].length < 1 || g.teams[1].length < 1)) { toast('จัดผู้เล่นให้ครบทั้งทีม A และ B'); return; }
         if (g.type !== 'team') delete g.teams;
         if (g.players.length === players.length) delete g.players;   // ทุกคน (รวมคนที่เพิ่มทีหลัง)
-        await st.put('rounds', { ...round, players, games: [...games, g] });
+        const cur = st.S.rounds.get(roundId);
+        await st.patch('rounds', roundId, { players, games: [...(Array.isArray(cur?.games) ? cur.games : []), g] });
         draftGame = null;
         toast('เพิ่มเกมแล้ว');
         ctx.rerender();
       },
       gdel: async (el) => {
         if (!confirm('ลบเกมนี้?')) return;
-        await st.put('rounds', { ...round, games: games.filter((g) => g.id !== el.dataset.id) });
+        const cur = st.S.rounds.get(roundId);
+        await st.patch('rounds', roundId, { games: (Array.isArray(cur?.games) ? cur.games : []).filter((g) => g.id !== el.dataset.id) });
         ctx.rerender();
       },
     },
@@ -326,8 +335,9 @@ export function parsView([roundId], ctx) {
   const parOpts = [3, 4, 5, 6].map((p) => ({ v: p, th: String(p) }));
   const hcList = holes.map((h) => h.hc_index).filter(Number.isInteger);
   const dupHc = hcList.filter((v, i) => hcList.indexOf(v) !== i);
+  // list: [[holeId, changes]] เขียนทับบนข้อมูลหลุมล่าสุด
   const save = async (list) => {
-    await st.commit(list.map((h) => ({ store: 'holes', put: h })));
+    await st.commit(list.map(([id, changes]) => st.patchOp('holes', id, changes)));
     await rememberCourseCard(round.course_id, st.holesOf(roundId));
     ctx.rerender();
   };
@@ -347,17 +357,17 @@ export function parsView([roundId], ctx) {
       par: async (el) => {
         const h = holes.find((x) => x.number === Number(el.dataset.field));
         const v = Number(el.dataset.v);
-        await save([{ ...h, par: h.par === v ? null : v }]);
+        await save([[h.id, { par: st.S.holes.get(h.id)?.par === v ? null : v }]]);
       },
       allpar: async (el) => {
         const v = Number(el.dataset.v);
         if (holes.some((h) => h.par != null && h.par !== v) && !confirm(`ตั้งพาร์ ${v} ทุกหลุม (ทับค่าเดิม)?`)) return;
-        await save(holes.map((h) => ({ ...h, par: v })));
+        await save(holes.map((h) => [h.id, { par: v }]));
       },
       hc: async (el) => {
         const h = holes.find((x) => x.number === Number(el.dataset.n));
         const n = el.value === '' ? null : Math.round(Number(el.value));
-        await save([{ ...h, hc_index: Number.isInteger(n) && n >= 1 && n <= 18 ? n : null }]);
+        await save([[h.id, { hc_index: Number.isInteger(n) && n >= 1 && n <= 18 ? n : null }]]);
       },
     },
   };
@@ -369,7 +379,7 @@ export function scorecardData(round) {
   const grid = gridOf(round);
   const nm = (id) => grid.players.find((p) => p.id === id)?.name ?? '?';
   const tone = (n) => (n > 0 ? 'pos' : n < 0 ? 'neg' : 'zero');
-  const games = (round.games || []).map((g) => {
+  const games = (Array.isArray(round.games) ? round.games : []).filter((g) => GAME_TYPES.some((t) => t.v === g?.type)).map((g) => {
     const r = computeGame(g, grid);
     const lead = (id, rank) => (rank === 1 && r.holesCounted?.[id] ? 'lead' : 'plain');
     let items;

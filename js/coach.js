@@ -139,7 +139,7 @@ export const STAT_DEFS = [
 
 export function analyzeGame({ rounds, holesOf, shotsOf, penaltiesOf, clubLabel = () => null, practice = [] }, goalV) {
   const finished = rounds.filter((r) => r.status !== 'playing')
-    .sort((a, b) => a.played_at.localeCompare(b.played_at) || (a.created_at || '').localeCompare(b.created_at || ''));
+    .sort((a, b) => String(a.played_at || '').localeCompare(String(b.played_at || '')) || String(a.created_at || '').localeCompare(String(b.created_at || '')));
 
   // ระดับสกอร์: ทุกรอบที่มีสกอร์ของเราอย่างน้อย 9 หลุมที่รู้พาร์ (รวมโหมดจดเร็ว)
   const scoreRounds = [];
@@ -457,7 +457,7 @@ export const drill = (id) => DRILLS.find((d) => d.id === id) ?? null;
 // ผลซ้อมล่าสุดของแบบฝึก (ใหม่สุดก่อน)
 export function drillHistory(practice, id, limit = 3) {
   return practice.filter((p) => p.drill_id === id && p.attempts)
-    .sort((a, b) => b.date.localeCompare(a.date) || (b.created_at || '').localeCompare(a.created_at || ''))
+    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || String(b.created_at || '').localeCompare(String(a.created_at || '')))
     .slice(0, limit);
 }
 

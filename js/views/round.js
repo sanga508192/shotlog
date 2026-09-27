@@ -214,9 +214,7 @@ export function holeView([roundId, numStr], ctx) {
 
   const refresh = () => ctx.rerender();
 
-  async function saveHole(patch) {
-    await st.put('holes', { ...hole, ...patch });
-  }
+  const saveHole = (changes) => st.patch('holes', hole.id, changes);
 
   return {
     html,
@@ -293,11 +291,11 @@ export function holeView([roundId, numStr], ctx) {
           if (!shot.created_at) shot.created_at = st.nowIso();
           ops.push({ store: 'shots', put: shot });
           let holedMsg = false;
-          if (shot.holed && hole.status === 'playing') {
-            ops.push({ store: 'holes', put: { ...hole, status: 'done', finish: 'holed' } });
+          if (shot.holed && st.S.holes.get(hole.id)?.status === 'playing') {
+            ops.push(st.patchOp('holes', hole.id, { status: 'done', finish: 'holed' }));
             holedMsg = true;
           }
-          ops.push({ store: 'rounds', put: { ...round, current_hole: num } });
+          ops.push(st.patchOp('rounds', roundId, { current_hole: num }));
           await st.commit(ops);
           const wasEdit = mode === 'edit';
           resetDraft(round, st.S.holes.get(hole.id));
@@ -312,12 +310,12 @@ export function holeView([roundId, numStr], ctx) {
         const s = st.S.shots.get(el.dataset.id);
         if (!s) return;
         const before = st.shotsOf(hole.id);
-        const holeBefore = { ...hole };
+        const holeBefore = { ...st.S.holes.get(hole.id) };
         const rest = resequence(before.filter((x) => x.id !== s.id));
         const ops = [{ store: 'shots', del: s.id }, ...rest.map((x) => ({ store: 'shots', put: x }))];
         const pensLinked = st.penaltiesOf(hole.id).filter((p) => p.related_shot_id_optional === s.id);
         for (const p of pensLinked) ops.push({ store: 'penalties', put: { ...p, related_shot_id_optional: null } });
-        if (s.holed && hole.finish === 'holed') ops.push({ store: 'holes', put: { ...hole, status: 'playing', finish: null } });
+        if (s.holed && holeBefore.finish === 'holed') ops.push(st.patchOp('holes', hole.id, { status: 'playing', finish: null }));
         await st.commit(ops);
         if (F.id === s.id) resetDraft(round, hole);
         refresh();
@@ -336,7 +334,7 @@ export function holeView([roundId, numStr], ctx) {
       },
       par: async (el) => {
         const v = Number(el.dataset.v);
-        await saveHole({ par: hole.par === v ? null : v });
+        await saveHole({ par: st.S.holes.get(hole.id)?.par === v ? null : v });
         await rememberCourseCard(round.course_id, st.holesOf(roundId));
         refresh();
       },
@@ -400,7 +398,7 @@ export function scorecardView([roundId], ctx) {
   const incomplete = holes.filter((h) => h.status !== 'done').length;
   const logShots = shotLogging(round);
   const grid = gridOf(round);
-  const games = round.games || [];
+  const games = Array.isArray(round.games) ? round.games : [];
   const myFlags = logShots ? holes.map((h) => {
     const shots = st.shotsOf(h.id);
     const f = [];
@@ -443,12 +441,12 @@ export function scorecardView([roundId], ctx) {
           if (!confirm(`ยังมี ${incomplete} หลุมที่ไม่ได้จบ จะบันทึกรอบนี้เป็น “จบรอบ (จดไม่ครบ)” ต่อหรือไม่?`)) return;
           status = 'incomplete';
         }
-        await st.put('rounds', { ...round, status, finished_at: st.nowIso() });
+        await st.patch('rounds', roundId, { status, finished_at: st.nowIso() });
         toast('บันทึกการจบรอบแล้ว');
         ctx.rerender();
       },
       reopenRound: async () => {
-        await st.put('rounds', { ...round, status: 'playing' });
+        await st.patch('rounds', roundId, { status: 'playing' });
         ctx.go(`#/round/${roundId}/hole/${round.current_hole || 1}`);
       },
       deleteRound: async () => {

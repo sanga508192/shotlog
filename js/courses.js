@@ -115,8 +115,8 @@ function haystack(course) {
 
 export function sortCourses(courses) {
   return [...courses].sort((a, b) =>
-    a.province.localeCompare(b.province, 'th') ||
-    a.display_name_th.localeCompare(b.display_name_th, 'th'));
+    String(a.province || '').localeCompare(String(b.province || ''), 'th') ||
+    String(a.display_name_th || '').localeCompare(String(b.display_name_th || ''), 'th'));
 }
 
 export function searchCourses(courses, { q = '', province = '', favoritesOnly = false, favorites = new Set() } = {}) {
@@ -169,7 +169,7 @@ export function distanceKm(a, b) {
 export function sortByDistance(courses, origin) {
   return courses
     .map((c) => ({ ...c, km: c.geo ? distanceKm(origin, c.geo) : null }))
-    .sort((a, b) => (a.km ?? Infinity) - (b.km ?? Infinity) || a.display_name_th.localeCompare(b.display_name_th, 'th'));
+    .sort((a, b) => (a.km ?? Infinity) - (b.km ?? Infinity) || String(a.display_name_th || '').localeCompare(String(b.display_name_th || ''), 'th'));
 }
 
 export function fmtKm(c) {
@@ -195,3 +195,14 @@ export function prefillFromScorecard(sc, teeId, userCard = null) {
 }
 
 export const teeTotal = (tee) => (tee.yards.every((y) => y != null) ? tee.yards.reduce((a, b) => a + b, 0) : null);
+
+// สีจุดของแท่นที: ใช้สีที่บันทึกไว้ ถ้าไม่มี (เช่น สนามจากรูปสกอร์การ์ด) เดาจากชื่อแท่น
+const TEE_COLORS = [
+  [/ดำ|black/i, '#1b1b1b'], [/ทอง|gold/i, '#c99700'], [/น้ำเงิน|ฟ้า|blue/i, '#1d5fd1'], [/ขาว|white/i, '#ffffff'],
+  [/แดง|red/i, '#d7263d'], [/เหลือง|yellow/i, '#f2c200'], [/เขียว|green/i, '#1f8a55'], [/ส้ม|orange/i, '#f08a24'],
+  [/เงิน|silver/i, '#b8c0c8'], [/ชมพู|pink/i, '#e56b9f'],
+];
+export function teeColor(t) {
+  if (typeof t?.color === 'string' && /^#[0-9a-f]{3,8}$/i.test(t.color)) return t.color;
+  return TEE_COLORS.find(([re]) => re.test(String(t?.name || '')))?.[1] ?? '#9aa7a0';
+}

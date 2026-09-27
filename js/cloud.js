@@ -13,13 +13,27 @@ export class ApiError extends Error {
   }
 }
 
+// สัญญาณในสนามกอล์ฟมักอ่อน: คำขอที่ค้างเกินเวลานี้ถือว่าออฟไลน์ แล้วซิงก์รอบถัดไปลองใหม่
+let timeoutMs = 20000;
+export function _setTimeoutMs(ms) { timeoutMs = ms; }
+
 async function req(path, { method = 'GET', body, auth = true } = {}) {
   const headers = { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' };
   if (auth) headers.Authorization = `Bearer ${await accessToken()}`;
-  const res = await fetch(SUPABASE_URL.replace(/\/$/, '') + path, {
-    method, headers, body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  const text = await res.text();
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  let res, text;
+  try {
+    res = await fetch(SUPABASE_URL.replace(/\/$/, '') + path, {
+      method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: ctrl.signal,
+    });
+    text = await res.text();
+  } catch (err) {
+    if (err?.name === 'AbortError') throw new TypeError('เครือข่ายช้าเกินไป ลองใหม่ภายหลัง');
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
   let data = null;
   try { data = text ? JSON.parse(text) : null; } catch { data = { message: text }; }
   if (!res.ok) throw new ApiError(res.status, data);

@@ -21,10 +21,14 @@ const SCHEMA = {
 
 let dbPromise;
 export const events = { blocked: null };
+const OPEN_TIMEOUT_MS = 15000;
 
 export function open() {
   if (dbPromise) return dbPromise;
-  dbPromise = new Promise((resolve, reject) => {
+  const p = new Promise((resolve, reject) => {
+    let blocked = false;
+    // บาง iPhone เปิดฐานข้อมูลค้างไม่ตอบ: ถ้าไม่ได้รอแท็บอื่นอยู่ ให้แจ้งแทนที่จะค้างตลอดไป
+    const timer = setTimeout(() => { if (!blocked) reject(new Error('เปิดฐานข้อมูลในเครื่องไม่ทัน')); }, OPEN_TIMEOUT_MS);
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
@@ -35,15 +39,36 @@ export function open() {
       }
     };
     req.onsuccess = () => {
+      clearTimeout(timer);
+      const db = req.result;
       // แท็บอื่นเปิดรุ่นใหม่กว่า: ปิดตัวเองเพื่อไม่ขวางการอัปเกรด
-      req.result.onversionchange = () => { req.result.close(); globalThis.location?.reload(); };
-      resolve(req.result);
+      db.onversionchange = () => { db.close(); globalThis.location?.reload(); };
+      // Safari ปิดการเชื่อมต่อเองเมื่อแอปอยู่เบื้องหลังนาน → ครั้งหน้าเปิดใหม่
+      db.onclose = () => { if (dbPromise === p) dbPromise = null; };
+      resolve(db);
     };
-    req.onerror = () => reject(req.error);
+    req.onerror = () => { clearTimeout(timer); reject(req.error); };
     // แอปรุ่นเก่ายังเปิดอยู่ในแท็บอื่น: ไม่ใช่ข้อผิดพลาด คำขอจะรอจนแท็บนั้นปิดแล้วทำต่อเอง
-    req.onblocked = () => events.blocked?.();
+    req.onblocked = () => { blocked = true; events.blocked?.(); };
   });
-  return dbPromise;
+  dbPromise = p;
+  p.catch(() => { if (dbPromise === p) dbPromise = null; });   // เปิดไม่สำเร็จ ครั้งหน้าลองใหม่
+  return p;
+}
+
+// การเชื่อมต่อหลุด (iOS: "Connection to Indexed Database server lost") → เปิดใหม่แล้วลองอีกครั้งเดียว
+// ปลอดภัยเพราะ transaction ที่ล้มไม่มีอะไรถูกบันทึก และการเขียนซ้ำได้ผลเท่าเดิม
+const LOST = new Set(['InvalidStateError', 'UnknownError', 'TransactionInactiveError']);
+export const isConnectionLost = (err) => LOST.has(err?.name) || /connection|closing|closed/i.test(err?.message || '');
+
+async function withRetry(fn) {
+  try {
+    return await fn(await open());
+  } catch (err) {
+    if (!isConnectionLost(err)) throw err;
+    dbPromise = null;
+    return fn(await open());
+  }
 }
 
 function done(tx) {
@@ -54,39 +79,40 @@ function done(tx) {
   });
 }
 
-export async function getAll(store) {
-  const db = await open();
-  return new Promise((resolve, reject) => {
+export function getAll(store) {
+  return withRetry((db) => new Promise((resolve, reject) => {
     const req = db.transaction(store).objectStore(store).getAll();
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
-  });
+  }));
 }
 
 // ops: [{ store, put: obj } | { store, del: key }] ใน transaction เดียว
 export async function write(ops) {
   if (!ops.length) return;
-  const db = await open();
   const stores = [...new Set(ops.map((o) => o.store))];
-  const tx = db.transaction(stores, 'readwrite');
-  for (const op of ops) {
-    const os = tx.objectStore(op.store);
-    if ('put' in op) os.put(op.put);
-    else os.delete(op.del);
-  }
-  return done(tx);
+  return withRetry((db) => {
+    const tx = db.transaction(stores, 'readwrite');
+    for (const op of ops) {
+      const os = tx.objectStore(op.store);
+      if ('put' in op) os.put(op.put);
+      else os.delete(op.del);
+    }
+    return done(tx);
+  });
 }
 
-export async function replaceAll(data) {
-  const db = await open();
+export function replaceAll(data) {
   const stores = Object.keys(SCHEMA);
-  const tx = db.transaction(stores, 'readwrite');
-  for (const s of stores) {
-    const os = tx.objectStore(s);
-    os.clear();
-    for (const item of data[s] || []) os.put(item);
-  }
-  return done(tx);
+  return withRetry((db) => {
+    const tx = db.transaction(stores, 'readwrite');
+    for (const s of stores) {
+      const os = tx.objectStore(s);
+      os.clear();
+      for (const item of data[s] || []) os.put(item);
+    }
+    return done(tx);
+  });
 }
 
 export const STORE_NAMES = Object.keys(SCHEMA);

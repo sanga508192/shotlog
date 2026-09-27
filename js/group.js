@@ -24,8 +24,10 @@ export const GAME_TYPES = [
   { v: 'stroke', th: 'สโตรกรวม', desc: 'จัดอันดับสกอร์รวม ทั้งแบบไม่หักและหักแต้มต่อ' },
 ];
 
+// ข้อมูลผู้เล่นที่เสีย (ไม่ใช่รายการ หรือไม่มีรหัส) ถือว่าเล่นคนเดียว ไม่ทำให้หน้าพัง
 export function playersOf(round, myName = 'ฉัน') {
-  return round.players?.length ? round.players : [{ id: ME, name: myName, handicap: null }];
+  const list = Array.isArray(round?.players) ? round.players.filter((p) => p && p.id != null) : [];
+  return list.length ? list.map((p) => ({ ...p, name: String(p.name ?? '') })) : [{ id: ME, name: myName, handicap: null }];
 }
 
 export function playerName(round, pid, myName) {

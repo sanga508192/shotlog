@@ -150,6 +150,49 @@ test('ซิงก์ครบวงจร', async (t) => {
     assert.ok(calls < 10, `เรียก ${calls} ครั้ง`);
   });
 
+  await t.test('ผูกบัญชีแล้วเน็ตหลุดกลางทาง → รอบซิงก์ถัดไปทำต่อ ข้อมูลที่จดก่อนผูกไม่ตกหล่น', async () => {
+    await freshDevice();
+    await st.commit([{ store: 'rounds', put: { id: 'r-offline', played_at: '2026-09-26', course_name_snapshot: 'จดก่อนผูก', status: 'complete' } }]);
+    const api = fakeApi(pg, () => uid);
+    sync._setApi({ ready: () => true, ...api, pull: () => Promise.reject(new TypeError('Failed to fetch')) });
+    await assert.rejects(sync.link(A));
+    assert.equal(sync.linkedOwner(), A);
+    assert.equal(st.meta('link_pending'), true, 'ยังผูกไม่เสร็จ');
+    sync._setApi({ ready: () => true, ...api });
+    await sync.syncNow();
+    assert.equal(st.meta('link_pending'), null);
+    assert.equal((await serverRow(pg, 'rounds', 'r-offline')).data.course_name_snapshot, 'จดก่อนผูก');
+    assert.equal(st.S.rounds.get('r1').course_name_snapshot, 'คีรีมายา', 'ได้ของบนคลาวด์ด้วย');
+    assert.equal(st.S.outbox.size, 0);
+  });
+
+  await t.test('กู้คืนไฟล์สำรองขณะเข้าสู่ระบบ → ไม่หลุดจากบัญชี และข้อมูลในไฟล์ขึ้นคลาวด์', async () => {
+    const session = { access_token: 'x', refresh_token: 'y', expires_at: 9e9, user: { id: A, email: 'a@example.com' } };
+    await st.commit([{ store: 'meta', put: { key: 'session', value: session } }], { raw: true });
+    const backup = st.dumpAll();
+    backup.rounds = [...backup.rounds, { id: 'r-backup', played_at: '2026-01-02', course_name_snapshot: 'จากไฟล์สำรอง', status: 'complete' }];
+    await sync.restoreBackup(backup);
+    assert.deepEqual(st.meta('session'), session, 'ยังอยู่ในระบบ');
+    assert.equal(sync.linkedOwner(), A, 'ยังซิงก์กับบัญชีเดิม');
+    assert.equal(st.meta('link_pending'), null);
+    assert.equal((await serverRow(pg, 'rounds', 'r-backup')).data.course_name_snapshot, 'จากไฟล์สำรอง');
+    assert.equal(st.S.conflicts.size, 0, 'ข้อมูลในไฟล์ที่ตรงกับคลาวด์ไม่ถือว่าชนกัน');
+    assert.equal(st.S.outbox.size, 0);
+  });
+
+  await t.test('กู้คืนไฟล์สำรองตอนออฟไลน์ → ต่อคิวไว้ ส่งขึ้นเมื่อมีสัญญาณ', async () => {
+    const api = fakeApi(pg, () => uid);
+    sync._setApi({ ready: () => true, ...api, pull: () => Promise.reject(new TypeError('Failed to fetch')) });
+    const backup = st.dumpAll();
+    backup.rounds = [...backup.rounds, { id: 'r-backup2', played_at: '2026-01-03', course_name_snapshot: 'ไฟล์สำรองตอนออฟไลน์', status: 'complete' }];
+    await sync.restoreBackup(backup);
+    assert.equal(sync.status().phase, 'offline');
+    sync._setApi({ ready: () => true, ...api });
+    await sync.syncNow();
+    assert.equal((await serverRow(pg, 'rounds', 'r-backup2')).data.course_name_snapshot, 'ไฟล์สำรองตอนออฟไลน์');
+    await st.commit([{ store: 'meta', del: 'session' }], { raw: true });
+  });
+
   await t.test('ไม่มีสิทธิ์สมาชิก → สถานะ needs_plan และข้อมูลยังรออยู่ในคิว', async () => {
     await freshDevice();
     await sync.link(A);
