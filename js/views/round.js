@@ -10,6 +10,7 @@ import {
   rememberCourseCard, shareRoundImage,
 } from './group.js';
 import { playersOf } from '../group.js';
+import { deleteRound } from './main.js';
 
 // ---------- สถานะฟอร์มจดช็อต (อยู่ข้ามการ render) ----------
 
@@ -175,7 +176,7 @@ export function holeView([roundId, numStr], ctx) {
       <div class="hole-num"><span>หลุม</span><b>${num}</b><small>/ ${holes.length}</small></div>
       <div class="hole-meta">
         <div class="par-pick"><span class="lbl inline">พาร์</span>${chips('par', 'par', parOpts, hole.par, { cls: 'tight inline' })}</div>
-        ${hole.hc_index ? `<div class="small muted">HC ${hole.hc_index}</div>` : ''}
+        ${hole.hc_index || hole.distance ? `<div class="small muted">${[hole.distance ? `${hole.distance} ${hole.distance_unit === 'yd' ? 'หลา' : 'ม.'}${round.tee_name ? ` · แท่น${esc(round.tee_name)}` : ''}` : '', hole.hc_index ? `HC ${hole.hc_index}` : ''].filter(Boolean).join(' · ')}</div>` : ''}
         ${logShots ? `<div class="score-line">ตี <b>${sc.strokes}</b> + ปรับ <b>${sc.penalties}</b> = <b>${sc.total}</b>
           ${sc.par != null && hole.status === 'done' ? `<span class="topar">(${fmtToPar(sc.toPar)})</span>` : ''}
           ${sc.notCounted ? `<span class="muted small">· ไม่นับ ${sc.notCounted} ช็อต</span>` : ''}
@@ -460,16 +461,7 @@ export function scorecardView([roundId], ctx) {
         ctx.go(`#/round/${roundId}/hole/${round.current_hole || 1}`);
       },
       deleteRound: async () => {
-        if (!confirm('ลบรอบนี้และช็อตทั้งหมดในรอบ? ถ้ายังไม่ได้ส่งออกไฟล์สำรอง จะกู้คืนไม่ได้')) return;
-        const ops = [{ store: 'rounds', del: roundId }];
-        for (const h of holes) {
-          ops.push({ store: 'holes', del: h.id });
-          for (const s of st.shotsOf(h.id)) ops.push({ store: 'shots', del: s.id });
-          for (const p of st.penaltiesOf(h.id)) ops.push({ store: 'penalties', del: p.id });
-        }
-        await st.commit(ops);
-        toast('ลบรอบแล้ว');
-        ctx.go('#/');
+        await deleteRound(roundId, { after: () => { if (location.hash.includes(roundId)) ctx.go('#/'); else ctx.rerender(); } });
       },
     },
   };

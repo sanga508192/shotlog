@@ -86,8 +86,16 @@ export const clubs = () => [...S.clubs.values()].sort((a, b) => a.order - b.orde
 export const bagClubs = () => clubs().filter((c) => c.in_bag);
 export const club = (id) => (id ? S.clubs.get(id) ?? null : null);
 
-export const allCourses = () => [...CURATED_COURSES, ...S.userCourses.values()];
-export const course = (id) => CURATED_COURSES.find((c) => c.id === id) ?? S.userCourses.get(id) ?? null;
+// ตำแหน่งสนามที่ผู้ใช้บันทึกเอง (ตอนอยู่ที่สนาม) ใช้แทนพิกัดโดยประมาณ
+const withGeo = (c) => {
+  const mine = S.settings.get(`course_geo:${c.id}`)?.value;
+  return mine ? { ...c, geo: mine } : c;
+};
+export const allCourses = () => [...CURATED_COURSES.map(withGeo), ...S.userCourses.values()];
+export const course = (id) => {
+  const c = CURATED_COURSES.find((x) => x.id === id);
+  return c ? withGeo(c) : S.userCourses.get(id) ?? null;
+};
 export const favoriteSet = () => new Set(S.favorites.keys());
 
 export const rounds = () => [...S.rounds.values()].sort((a, b) =>

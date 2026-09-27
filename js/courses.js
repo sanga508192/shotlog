@@ -109,3 +109,60 @@ export function findDuplicateCourse(courses, name, province) {
     c.province === String(province).trim() &&
     [c.display_name_th, c.name_en, ...(c.aliases || [])].map(normalizeText).includes(nn)) || null;
 }
+
+// ---------- พิกัดสนาม (สำหรับเรียงตามระยะทาง) ----------
+// approx = ใช้ตำแหน่งใกล้เคียง (เช่น ตัวเขื่อน) ยังไม่ใช่ตัวสนาม ผู้ใช้บันทึกตำแหน่งจริงเองได้ในแอป
+// พิกัดจาก OpenStreetMap © OpenStreetMap contributors (ODbL)
+export const COURSE_GEO = {
+  'chulabhorn-dam': { lat: 16.53627, lon: 101.65004, approx: true, source: 'Wikipedia (ตำแหน่งเขื่อน)' },
+  'singha-park-khon-kaen': { lat: 16.32145, lon: 102.82335, source: 'OpenStreetMap' },
+  'ubonrat-dam': { lat: 16.77539, lon: 102.61833, approx: true, source: 'Wikipedia (ตำแหน่งเขื่อน)' },
+  'dancoon': { lat: 16.48768, lon: 102.72348, source: 'แผนที่บนเว็บไซต์ ททท.' },
+  'rancho-charnvee': { lat: 14.63661, lon: 101.46385, source: 'OpenStreetMap' },
+  'kirimaya': { lat: 14.51484, lon: 101.43109, source: 'OpenStreetMap (ตำแหน่งรีสอร์ท)' },
+  'panorama': { lat: 14.91351, lon: 101.61656, source: 'แผนที่บนเว็บไซต์สนาม' },
+  'victory-park': { lat: 17.77943, lon: 102.82401, source: 'OpenStreetMap' },
+  'sirindhorn-dam': { lat: 15.19582, lon: 105.41848, source: 'OpenStreetMap' },
+};
+for (const c of CURATED_COURSES) c.geo = COURSE_GEO[c.id] ?? null;
+
+// ระยะทางเส้นตรงบนผิวโลก (กม.)
+export function distanceKm(a, b) {
+  const R = 6371;
+  const rad = (d) => (d * Math.PI) / 180;
+  const dLat = rad(b.lat - a.lat);
+  const dLon = rad(b.lon - a.lon);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+// ใกล้สุดขึ้นก่อน สนามที่ยังไม่มีพิกัดอยู่ท้ายรายการ
+export function sortByDistance(courses, origin) {
+  return courses
+    .map((c) => ({ ...c, km: c.geo ? distanceKm(origin, c.geo) : null }))
+    .sort((a, b) => (a.km ?? Infinity) - (b.km ?? Infinity) || a.display_name_th.localeCompare(b.display_name_th, 'th'));
+}
+
+export function fmtKm(c) {
+  if (c.km == null) return 'ยังไม่มีพิกัด';
+  const n = c.km < 10 ? c.km.toFixed(1) : Math.round(c.km).toLocaleString('th-TH');
+  return `${c.geo?.approx ? '~' : ''}${n} กม.`;
+}
+
+// ---------- สกอร์การ์ดที่เตรียมไว้ ----------
+
+// พาร์/HC/ระยะรายหลุมตามแท่นที่เลือก ค่าที่ผู้ใช้เคยแก้เอง (userCard) มาก่อนค่าจากแหล่งข้อมูล
+export function prefillFromScorecard(sc, teeId, userCard = null) {
+  const out = { pars: {}, hc: {}, dist: {} };
+  if (sc) {
+    const tee = sc.tees.find((t) => t.id === teeId) ?? null;
+    sc.par.forEach((p, i) => { out.pars[i + 1] = p; });
+    sc.hc.forEach((h, i) => { out.hc[i + 1] = h; });
+    if (tee) tee.yards.forEach((y, i) => { if (y != null) out.dist[i + 1] = y; });
+  }
+  for (const [n, v] of Object.entries(userCard?.pars || {})) if (v) out.pars[n] = v;
+  for (const [n, v] of Object.entries(userCard?.hc || {})) if (v) out.hc[n] = v;
+  return out;
+}
+
+export const teeTotal = (tee) => (tee.yards.every((y) => y != null) ? tee.yards.reduce((a, b) => a + b, 0) : null);

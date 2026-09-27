@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node scripts/serve.mjs",
     "test": "node --test tests/",
+    "lint": "deno lint --rules-tags= --rules-include=no-dupe-keys,no-dupe-class-members,no-redeclare,no-unreachable,no-self-assign js/",
     "test:functions": "cd supabase/functions && deno check billing/index.ts stripe-webhook/index.ts && deno test --allow-env tests/"
   },
   "devDependencies": {

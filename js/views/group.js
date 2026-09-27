@@ -337,7 +337,7 @@ export function parsView([roundId], ctx) {
       <div class="row gap wrap"><span class="lbl inline">ตั้งทุกหลุม:</span>
         ${[3, 4, 5].map((p) => `<button type="button" class="mini" data-act="allpar" data-v="${p}">พาร์ ${p}</button>`).join('')}</div>
       ${dupHc.length ? `<p class="note warn">HC ซ้ำกัน: ${[...new Set(dupHc)].join(', ')}</p>` : ''}
-      <div class="par-grid">${holes.map((h) => `<div class="par-cell"><span>หลุม ${h.number}</span>
+      <div class="par-grid">${holes.map((h) => `<div class="par-cell"><span>หลุม ${h.number}${h.distance ? `<small class="muted"> ${h.distance}${h.distance_unit === 'yd' ? ' หลา' : ' ม.'}</small>` : ''}</span>
         ${chips('par', String(h.number), parOpts, h.par, { cls: 'tight' })}
         <input class="input hc" type="number" inputmode="numeric" min="1" max="18" placeholder="HC" value="${h.hc_index ?? ''}" data-change="hc" data-n="${h.number}" aria-label="HC หลุม ${h.number}">
       </div>`).join('')}</div>
