@@ -4,6 +4,7 @@ import { esc, header, chips, toast } from '../ui.js';
 import {
   ME, MAX_PLAYERS, SCORE_KINDS, GAME_TYPES, playersOf, scoreGrid, computeGame, pointsSummary, fmtOver,
 } from '../group.js';
+import { holeFacts } from '../coach.js';
 
 export const myName = () => st.setting('my_name', 'ฉัน');
 export const shotLogging = (round) => round.shot_logging !== false;
@@ -382,5 +383,21 @@ export function scorecardData(round) {
     }
     return { title: gameTitle(g), items };
   });
-  return { round, grid, games };
+  // ตัวเลขรายช็อตของเรา (เฉพาะรอบที่จดรายช็อตครบอย่างน้อยครึ่งหนึ่ง) ใช้ในไฮไลต์ของรูป
+  let stats = null;
+  if (shotLogging(round)) {
+    const facts = st.holesOf(round.id).map((h) => holeFacts(h, st.shotsOf(h.id), st.penaltiesOf(h.id))).filter(Boolean);
+    if (facts.length >= Math.max(9, grid.rows.length / 2)) {
+      const firKnown = facts.filter((f) => f.fir != null);
+      stats = {
+        holes: facts.length,
+        putts: facts.reduce((a, f) => a + f.putts, 0),
+        gir: facts.filter((f) => f.gir).length,
+        fir: firKnown.filter((f) => f.fir).length,
+        firOf: firKnown.length,
+        pen: facts.reduce((a, f) => a + f.leak.pen, 0),
+      };
+    }
+  }
+  return { round, grid, games, stats };
 }

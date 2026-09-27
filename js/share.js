@@ -1,4 +1,4 @@
-// สร้างรูปสกอร์การ์ด (PNG) แบบแนวนอนหรือแนวตั้ง แล้วแชร์ผ่านเมนูแชร์ของมือถือ หรือบันทึกเป็นไฟล์
+// สร้างรูปสกอร์การ์ด แบบแนวนอน 16:9 หรือแนวตั้ง (ใส่รูปก๊วนได้) แล้วแชร์ผ่านเมนูแชร์ของมือถือ หรือบันทึกเป็นไฟล์
 import { SCORE_KINDS, fmtOver } from './group.js';
 
 export const LAYOUTS = [
@@ -27,7 +27,15 @@ const TONE = {
 
 function pen(g) {
   const font = (size, weight) => { g.font = `${weight} ${size}px ${FONT}`; };
-  const width = (s, size = 16, weight = 400) => { font(size, weight); return g.measureText(String(s)).width; };
+  // บางเครื่องวัดความกว้างอักษรไทยได้ 0 (ฟอนต์แยกช่วงอักขระ) ทำให้จัดกลาง/ชิดขวาเพี้ยน จึงประมาณจากจำนวนตัวอักษรแทน
+  const estimate = (s, size) => [...s].filter((ch) => !/[\u0E31\u0E34-\u0E3A\u0E47-\u0E4E]/.test(ch)).length * size * 0.56;
+  const width = (s, size = 16, weight = 400) => {
+    font(size, weight);
+    const str = String(s);
+    const w = g.measureText(str).width;
+    const est = estimate(str, size);
+    return w >= est * 0.5 ? w : est;
+  };
   // ย่อตัวอักษรลงได้ถึง 3/4 ถ้ายังยาวเกินค่อยตัดท้ายด้วย …
   const fit = (s, maxW, size, weight) => {
     const min = Math.round(size * 0.75);
@@ -41,10 +49,12 @@ function pen(g) {
   const text = (s, x, y, { size = 16, weight = 400, color = C.ink, align = 'center', maxW = 0 } = {}) => {
     let str = String(s), z = size;
     if (maxW) [str, z] = fit(str, maxW, size, weight);
+    // จัดตำแหน่งเอง ไม่พึ่ง textAlign ของเบราว์เซอร์
+    const w = align === 'left' ? 0 : width(str, z, weight);
     font(z, weight);
     g.fillStyle = color;
-    g.textAlign = align;
-    g.fillText(str, x, y);
+    g.textAlign = 'left';
+    g.fillText(str, align === 'right' ? x - w : align === 'center' ? x - w / 2 : x, y);
   };
   const box = (x, y, w, h, r, fill, stroke) => {
     g.beginPath();
@@ -205,8 +215,8 @@ function layoutGames(p, games, width) {
   return { items, h: 50 + h + 8 };
 }
 
-function drawGames(p, lay, x0, y0, w) {
-  p.box(x0, y0, w, lay.h, 14, C.bg, C.line);
+function drawGames(p, lay, x0, y0, w, h = lay.h) {
+  p.box(x0, y0, w, h, 14, C.bg, C.line);
   p.text('เกมในก๊วน', x0 + 18, y0 + 26, { size: 16, weight: 700, color: C.brand, align: 'left' });
   for (const gm of lay.items) {
     const gy = y0 + 50 + gm.dy;
@@ -227,10 +237,136 @@ function kindIcon(p, k, x, y) {
   p.text(SAMPLE[k.v], x, y + 1, { size: 12, weight: 700, color: ink });
 }
 
-// ---------- แนวนอน: หลุมเป็นคอลัมน์ ผู้เล่นเป็นแถว เหมือนสกอร์การ์ดจริง ----------
+// ---------- แผงด้านล่าง ----------
 
-function drawLandscape({ round, grid, games = [] }) {
+function panelTitle(p, title, x, y) {
+  p.text(title, x + 18, y + 26, { size: 16, weight: 700, color: C.brand, align: 'left' });
+}
+
+// ตารางจำนวนสกอร์แต่ละแบบ: ผู้เล่นเป็นแถว แบบสกอร์เป็นคอลัมน์ (แถวยืดตามความสูงแผง)
+function drawCounts(p, grid, kinds, x0, y0, w, h) {
   const ps = grid.players;
+  p.box(x0, y0, w, h, 14, C.bg, C.line);
+  panelTitle(p, 'สรุปสกอร์', x0, y0);
+  const nameW = Math.min(190, w * 0.36);
+  const kw = (w - nameW - 12) / kinds.length;
+  const kx = (j) => x0 + nameW + kw * j + kw / 2;
+  kinds.forEach((k, j) => {
+    kindIcon(p, k, kx(j), y0 + 62);
+    p.text(k.th, kx(j), y0 + 88, { size: 12, weight: 600, color: C.muted, maxW: kw - 6 });
+  });
+  const rowH = Math.max(32, Math.min(52, (h - 108) / ps.length));
+  const size = rowH >= 44 ? 20 : 16;
+  let ry = y0 + 100;
+  ps.forEach((pl, i) => {
+    p.line(x0 + 12, ry, x0 + w - 12, ry);
+    const my = ry + rowH / 2;
+    avatar(p, pl.name, i, x0 + 29, my, 11);
+    p.text(pl.name, x0 + 48, my + 1, { size: 15, weight: 600, align: 'left', maxW: nameW - 56 });
+    kinds.forEach((k, j) => {
+      const n = grid.counts[pl.id][k.v];
+      p.text(n || '·', kx(j), my + 1, { size, weight: n ? 700 : 400, color: n ? C.ink : C.faint });
+    });
+    ry += rowH;
+  });
+}
+
+// การ์ดตัวเลขเป็นช่อง ๆ (ใช้กับสรุปสกอร์คนเดียวและไฮไลต์รอบ) ช่องยืดตามพื้นที่
+function drawTiles(p, title, tiles, x0, y0, w, h, maxCols = 4) {
+  p.box(x0, y0, w, h, 14, C.bg, C.line);
+  panelTitle(p, title, x0, y0);
+  const cols = Math.min(maxCols, tiles.length);
+  const rows = Math.ceil(tiles.length / cols);
+  const gap = 10;
+  const tw = (w - 36 - gap * (cols - 1)) / cols;
+  const th = Math.max(64, Math.min(150, (h - 52 - 18 - gap * (rows - 1)) / rows));
+  const vs = Math.round(Math.max(24, Math.min(46, th * 0.36)));
+  const top = y0 + 52 + Math.max(0, (h - 52 - 18 - (th * rows + gap * (rows - 1))) / 2);
+  tiles.forEach((t, i) => {
+    const tx = x0 + 18 + (i % cols) * (tw + gap);
+    const ty = top + Math.floor(i / cols) * (th + gap);
+    p.box(tx, ty, tw, th, 12, C.alt);
+    if (t.kind) {
+      kindIcon(p, { v: t.kind }, tx + 24, ty + 22);
+      p.text(t.label, tx + 42, ty + 23, { size: 13, weight: 600, color: C.muted, align: 'left', maxW: tw - 50 });
+    } else {
+      p.text(t.label, tx + 14, ty + 23, { size: 13, weight: 600, color: C.muted, align: 'left', maxW: tw - 24 });
+    }
+    const vy = ty + 23 + (th - 23) / 2 + (t.sub ? -6 : 0);
+    p.text(t.value, tx + tw / 2, vy, { size: vs, weight: 700, color: t.color || C.ink, maxW: tw - 16 });
+    if (t.sub) p.text(t.sub, tx + tw / 2, vy + vs * 0.62 + 8, { size: 12, color: C.muted, maxW: tw - 16 });
+  });
+}
+
+// อันดับในก๊วน (ใช้เมื่อไม่มีเกมและไม่มีรูป)
+function drawLeader(p, grid, x0, y0, w, h) {
+  p.box(x0, y0, w, h, 14, C.bg, C.line);
+  panelTitle(p, 'อันดับในก๊วน', x0, y0);
+  const t = grid.total.byPlayer;
+  const list = grid.players.map((pl, i) => ({ pl, i, b: t[pl.id] })).filter((x) => x.b.count)
+    .sort((a, b) => a.b.strokes - b.b.strokes);
+  const rowH = Math.max(36, Math.min(64, (h - 62) / Math.max(list.length, 1)));
+  let rank = 0;
+  list.forEach((x, k) => {
+    if (k === 0 || x.b.strokes !== list[k - 1].b.strokes) rank = k + 1;
+    const my = y0 + 52 + k * rowH + rowH / 2;
+    if (k) p.line(x0 + 12, my - rowH / 2, x0 + w - 12, my - rowH / 2);
+    p.box(x0 + 18, my - 13, 26, 26, 13, rank === 1 ? C.goldSoft : C.graySoft);
+    p.text(rank, x0 + 31, my + 1, { size: 14, weight: 700, color: rank === 1 ? C.goldInk : C.muted });
+    avatar(p, x.pl.name, x.i, x0 + 70, my, 14);
+    p.text(x.pl.name, x0 + 94, my + 1, { size: 17, weight: 700, align: 'left', maxW: w - 94 - 150 });
+    p.text(x.b.strokes, x0 + w - 96, my + 1, { size: 22, weight: 700 });
+    if (x.b.over != null) p.text(fmtOver(x.b.over), x0 + w - 40, my + 1, { size: 15, weight: 700, color: x.b.over < 0 ? C.red : x.b.over === 0 ? C.blue : C.muted });
+  });
+}
+
+// รูปก๊วน: ครอปให้เต็มกรอบ เน้นส่วนบนเล็กน้อย (หน้าคนมักอยู่ช่วงบน)
+function drawPhoto(p, img, x0, y0, w, h, r = 16) {
+  const { g } = p;
+  const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+  const s = Math.max(w / iw, h / ih);
+  const sw = w / s, sh = h / s;
+  const sx = (iw - sw) / 2, sy = Math.max(0, Math.min(ih - sh, ih * 0.4 - sh / 2));
+  g.save();
+  p.box(x0, y0, w, h, r, C.graySoft);
+  g.clip();
+  g.drawImage(img, sx, sy, sw, sh, x0, y0, w, h);
+  g.restore();
+  p.box(x0, y0, w, h, r, null, 'rgba(0,0,0,0.08)');
+}
+
+// ไฮไลต์รอบของผู้เล่นคนเดียว
+function highlightTiles(grid, stats) {
+  const id = grid.players[0].id;
+  const b = (part) => part.byPlayer[id];
+  const tiles = [];
+  if (b(grid.front).count && b(grid.back).count) {
+    tiles.push({ label: 'OUT (9 แรก)', value: b(grid.front).strokes, sub: fmtOver(b(grid.front).over) });
+    tiles.push({ label: 'IN (9 หลัง)', value: b(grid.back).strokes, sub: fmtOver(b(grid.back).over) });
+  }
+  const c = grid.counts[id];
+  const parOrBetter = c.par + c.birdie + c.eagle + c.albatross + c.hio;
+  if (parOrBetter || c.double || c.mess) {
+    tiles.push({ label: 'พาร์หรือดีกว่า', value: parOrBetter, sub: 'หลุม', color: parOrBetter ? C.blue : C.ink });
+    tiles.push({ label: 'ดับเบิ้ลขึ้นไป', value: c.double + c.mess, sub: 'หลุม' });
+  }
+  if (stats) {
+    tiles.push({ label: 'พัต', value: stats.putts, sub: `${(stats.putts / stats.holes).toFixed(1)} ต่อหลุม` });
+    tiles.push({ label: 'ออนกรีนตามพาร์', value: `${stats.gir}/${stats.holes}`, sub: 'GIR' });
+    if (stats.firOf) tiles.push({ label: 'ทีออฟออกแฟร์เวย์', value: `${stats.fir}/${stats.firOf}`, sub: 'หลุมพาร์ 4–5' });
+    tiles.push({ label: 'ลูกโทษ', value: stats.pen, sub: 'สโตรก', color: stats.pen ? C.red : C.ink });
+  }
+  return tiles.slice(0, 8);
+}
+
+const countTiles = (grid, kinds) => kinds.map((k) => ({ kind: k.v, label: k.th, value: grid.counts[grid.players[0].id][k.v] }));
+
+// ---------- แนวนอน 16:9: หลุมเป็นคอลัมน์ ผู้เล่นเป็นแถว เหมือนสกอร์การ์ดจริง ----------
+
+function drawLandscape({ round, grid, games = [], stats = null }, { photo = null } = {}) {
+  const ps = grid.players;
+  const n = ps.length;
+  const solo = n === 1;
   const rows = grid.rows;
   const front = rows.filter((r) => r.number <= 9);
   const back = rows.filter((r) => r.number > 9);
@@ -241,47 +377,84 @@ function drawLandscape({ round, grid, games = [] }) {
   const unit = rows.find(dist)?.hole.distance_unit === 'm' ? 'เมตร' : 'หลา';
   const sumDist = (rs) => (rs.length && rs.every(dist) ? rs.reduce((a, r) => a + dist(r), 0) : '');
 
-  const PAD = 28;
-  const cols = [{ type: 'label', w: 190 }];
-  const addHoles = (rs) => rs.forEach((r) => cols.push({ type: 'hole', w: 50, r }));
+  // ความกว้างเนื้อหาคงที่ 1600 แล้วขยายคอลัมน์หลุมให้เต็ม
+  const W0 = 1600, PAD = 32, CW = W0 - PAD * 2;
+  const fixed = 200 + (split ? 68 * 2 : 0) + 80 + 76;
+  const holeW = Math.min(110, (CW - fixed) / rows.length);
+  const cols = [{ type: 'label', w: 200 + Math.max(0, CW - fixed - holeW * rows.length) }];
+  const addHoles = (rs) => rs.forEach((r) => cols.push({ type: 'hole', w: holeW, r }));
   if (split) {
     addHoles(front);
-    cols.push({ type: 'sum', w: 64, label: 'OUT', part: grid.front, rs: front });
+    cols.push({ type: 'sum', w: 68, label: 'OUT', part: grid.front, rs: front });
     addHoles(back);
-    cols.push({ type: 'sum', w: 64, label: 'IN', part: grid.back, rs: back });
+    cols.push({ type: 'sum', w: 68, label: 'IN', part: grid.back, rs: back });
   } else {
     addHoles(rows);
   }
-  cols.push({ type: 'tot', w: 76, label: 'รวม', part: grid.total, rs: rows });
-  cols.push({ type: 'diff', w: 72, label: '+/−' });
+  cols.push({ type: 'tot', w: 80, label: 'รวม', part: grid.total, rs: rows });
+  cols.push({ type: 'diff', w: 76, label: '+/−' });
   let cx = PAD;
   for (const c of cols) { c.x = cx; c.mid = cx + c.w / 2; cx += c.w; }
-  const TW = cx - PAD;
-  const W = TW + PAD * 2;
+  const TW = CW;
 
-  const HEAD_H = 42, DIST_H = 28, PAR_H = 36, HC_H = 28, P_H = ps.length <= 2 ? 60 : 52;
-  const HEADER_H = 128;
-  const tableY = HEADER_H + 24;
-  const tableH = HEAD_H + (hasDist ? DIST_H : 0) + PAR_H + (hasHc ? HC_H : 0) + ps.length * P_H;
+  const HEADER_H = 124, HEAD_H = 44, DIST_H = 30, PAR_H = 38, HC_H = 30, FOOT_H = 40;
+  let P_H = n <= 2 ? 66 : n <= 4 ? 56 : 48;
+  const tableY = HEADER_H + 22;
+  const fixedRows = HEAD_H + (hasDist ? DIST_H : 0) + PAR_H + (hasHc ? HC_H : 0);
 
-  // แผงล่าง: สรุปจำนวนสกอร์แต่ละแบบ + ผลเกม (วางข้างกันถ้ากว้างพอ)
+  // ---- จัดแผงล่าง: ซ้ายเป็นสรุปแบบกะทัดรัด ขวาเป็นรูปก๊วน (ไม่มีรูปใช้เกม/ไฮไลต์/อันดับ) ----
   const m = measurer();
   const kinds = kindsIn(grid);
-  let countsW = kinds.length ? (games.length ? 190 + kinds.length * 72 : TW) : 0;
-  const countsH = kinds.length ? 50 + 50 + ps.length * 36 + 8 : 0;
-  let gamesW = games.length ? TW - (countsW ? countsW + 20 : 0) : 0;
-  let stacked = false;
-  if (games.length && countsW && gamesW < 380) { stacked = true; gamesW = TW; countsW = TW; }
-  const gl = games.length ? layoutGames(m, games, gamesW) : null;
-  const bottomY = tableY + tableH + 22;
-  const bottomH = stacked ? countsH + 20 + gl.h : Math.max(countsH, gl?.h ?? 0);
-  const footY = bottomY + bottomH + (bottomH ? 26 : 8);
-  const H = footY + 22;
+  const tiles = solo ? highlightTiles(grid, stats) : [];
+  const counts = kinds.length ? (solo
+    ? { minH: (w) => 52 + Math.ceil(kinds.length / Math.min(4, kinds.length)) * 86 + 12, draw: (x, y, w, h) => drawTiles(p, 'สรุปสกอร์', countTiles(grid, kinds), x, y, w, h) }
+    : { minH: () => 108 + n * 32 + 8, draw: (x, y, w, h) => drawCounts(p, grid, kinds, x, y, w, h) }) : null;
+  const gamesPanel = (w) => (games.length ? { minH: () => layoutGames(m, games, w).h, draw: (x, y, ww, h) => drawGames(p, layoutGames(p, games, ww), x, y, ww, h) } : null);
+  const tilesPanel = (maxCols) => (tiles.length ? { tiles: true, minH: (w) => 52 + Math.ceil(tiles.length / Math.min(maxCols, tiles.length)) * 86 + 12, draw: (x, y, w, h) => drawTiles(p, 'ไฮไลต์รอบนี้', tiles, x, y, w, h, maxCols) } : null);
+  const leader = !solo ? { minH: () => 62 + n * 40, draw: (x, y, w, h) => drawLeader(p, grid, x, y, w, h) } : null;
+
+  let left, right;
+  if (photo) {
+    left = [counts, gamesPanel(600), tilesPanel(4)].filter(Boolean);
+    right = [{ minH: () => 300, draw: (x, y, w, h) => drawPhoto(p, photo, x, y, w, h) }];
+  } else {
+    left = [counts].filter(Boolean);
+    right = [games.length ? gamesPanel(CW) : solo ? tilesPanel(4) : leader].filter(Boolean);
+  }
+  let LW = 0;
+  if (left.length) {
+    LW = solo ? 560 : Math.max(480, Math.min(640, 200 + kinds.length * 80));
+    if (games.length && photo) LW = Math.max(LW, 620);
+  }
+  if (!right.length) LW = CW;
+  const RW = CW - (LW && right.length ? LW + 20 : 0);
+  const colH = (list, w) => list.reduce((a, x) => a + x.minH(w), 0) + 16 * Math.max(0, list.length - 1);
+  let bottomNat = Math.max(colH(left, LW), colH(right, RW), 0);
+  const natH = (ph) => tableY + fixedRows + n * ph + (bottomNat ? 20 + bottomNat : 0) + 20 + FOOT_H;
+  // มีรูปแล้วแผงซ้ายยาวเกินกรอบ 16:9: เอาไฮไลต์ออกก่อน แล้วค่อยสรุปสกอร์ (ตารางมีเครื่องหมายอยู่แล้ว) เก็บผลเกมไว้
+  for (const drop of [left.find((x) => x.tiles), counts]) {
+    if (!photo || natH(P_H) <= W0 * 9 / 16 || left.length < 2 || !left.includes(drop)) continue;
+    left = left.filter((x) => x !== drop);
+    bottomNat = Math.max(colH(left, LW), colH(right, RW), 0);
+  }
+
+  // พื้นที่เหลือจาก 16:9 ให้แถวผู้เล่นก่อน แล้วที่เหลือยกให้แผงล่าง
+  const maxP = n === 1 ? 96 : n === 2 ? 84 : n <= 4 ? 66 : 56;
+  const spare = W0 * 9 / 16 - natH(P_H);
+  if (spare > 0) P_H = Math.min(maxP, P_H + Math.floor(spare / n));
+  const H = Math.max(W0 * 9 / 16, natH(P_H));
+  const W = Math.max(W0, H * 16 / 9);
+  const ox = (W - W0) / 2;
+  const tableH = fixedRows + n * P_H;
+  const bottomY = tableY + tableH + 20;
+  const bottomH = H - 20 - FOOT_H - bottomY;
 
   const { canvas, p } = newCanvas(W, H);
   const { g } = p;
   p.fill(0, 0, W, H, C.page);
   headerBand(p, W, HEADER_H, { round, grid });
+  g.save();
+  g.translate(ox, 0);
 
   // ตาราง
   g.save();
@@ -299,7 +472,7 @@ function drawLandscape({ round, grid, games = [] }) {
   for (const c of cols) {
     const my = y + HEAD_H / 2 + 1;
     if (c.type === 'label') p.text('หลุม', c.x + 18, my, { size: 15, weight: 700, color: '#ffffff', align: 'left' });
-    else if (c.type === 'hole') p.text(c.r.number, c.mid, my, { size: 16, weight: 700, color: '#ffffff' });
+    else if (c.type === 'hole') p.text(c.r.number, c.mid, my, { size: 17, weight: 700, color: '#ffffff' });
     else p.text(c.label, c.mid, my, { size: 14, weight: 700, color: c.type === 'diff' ? 'rgba(255,255,255,0.8)' : '#ffffff' });
   }
   y += HEAD_H;
@@ -309,7 +482,7 @@ function drawLandscape({ round, grid, games = [] }) {
     for (const c of cols) {
       const my = y + DIST_H / 2 + 1;
       if (c.type === 'label') p.text(`ระยะ (${unit})`, c.x + 18, my, { size: 13, color: C.muted, align: 'left' });
-      else if (c.type === 'hole') p.text(dist(c.r) ?? '', c.mid, my, { size: 13, color: C.muted });
+      else if (c.type === 'hole') p.text(dist(c.r) ?? '', c.mid, my, { size: 14, color: C.muted });
       else if (c.type === 'sum') p.text(sumDist(c.rs), c.mid, my, { size: 13, weight: 600, color: C.muted });
       else if (c.type === 'tot') p.text(sumDist(c.rs), c.mid, my, { size: 13, weight: 600, color: 'rgba(255,255,255,0.8)' });
     }
@@ -321,9 +494,9 @@ function drawLandscape({ round, grid, games = [] }) {
   for (const c of cols) {
     const my = y + PAR_H / 2 + 1;
     if (c.type === 'label') p.text('พาร์', c.x + 18, my, { size: 15, weight: 700, color: C.brand, align: 'left' });
-    else if (c.type === 'hole') p.text(c.r.par ?? '–', c.mid, my, { size: 16, weight: 700, color: C.brand });
-    else if (c.type === 'sum') p.text(c.part.par || '', c.mid, my, { size: 16, weight: 700, color: C.brand });
-    else if (c.type === 'tot') p.text(c.part.par || '', c.mid, my, { size: 17, weight: 700, color: '#ffffff' });
+    else if (c.type === 'hole') p.text(c.r.par ?? '–', c.mid, my, { size: 17, weight: 700, color: C.brand });
+    else if (c.type === 'sum') p.text(c.part.par || '', c.mid, my, { size: 17, weight: 700, color: C.brand });
+    else if (c.type === 'tot') p.text(c.part.par || '', c.mid, my, { size: 18, weight: 700, color: '#ffffff' });
   }
   y += PAR_H;
 
@@ -332,85 +505,73 @@ function drawLandscape({ round, grid, games = [] }) {
     for (const c of cols) {
       const my = y + HC_H / 2 + 1;
       if (c.type === 'label') p.text('HC (ความยาก)', c.x + 18, my, { size: 13, color: C.muted, align: 'left' });
-      else if (c.type === 'hole') p.text(c.r.hc ?? '', c.mid, my, { size: 13, color: C.muted });
+      else if (c.type === 'hole') p.text(c.r.hc ?? '', c.mid, my, { size: 14, color: C.muted });
     }
     p.line(PAD, y + HC_H, PAD + TW, y + HC_H, C.line);
     y += HC_H;
   }
 
+  const big = P_H >= 72;
   ps.forEach((pl, i) => {
     band(y, P_H, i % 2 ? C.alt : C.bg);
     const my = y + P_H / 2;
     const hc = Number(pl.handicap) > 0 ? `HC ${pl.handicap}` : '';
     for (const c of cols) {
       if (c.type === 'label') {
-        const ar = ps.length <= 2 ? 17 : 15;
+        const ar = big ? 20 : n <= 2 ? 17 : 15;
         avatar(p, pl.name, i, c.x + 16 + ar, my, ar);
         const nx = c.x + 16 + ar * 2 + 10, maxW = c.x + c.w - nx - 10;
-        p.text(pl.name, nx, hc ? my - 8 : my + 1, { size: 17, weight: 700, align: 'left', maxW });
-        if (hc) p.text(hc, nx, my + 13, { size: 12, color: C.muted, align: 'left' });
+        p.text(pl.name, nx, hc ? my - 9 : my + 1, { size: big ? 20 : 17, weight: 700, align: 'left', maxW });
+        if (hc) p.text(hc, nx, my + 14, { size: 12, color: C.muted, align: 'left' });
       } else if (c.type === 'hole') {
-        scoreCell(p, c.r.cells[pl.id], c.mid, my, 15, 17);
+        scoreCell(p, c.r.cells[pl.id], c.mid, my, big ? 18 : 15, big ? 21 : 17);
       } else if (c.type === 'sum' || c.type === 'tot') {
         const b = c.part.byPlayer[pl.id];
         p.text(b.count ? b.strokes : '–', c.mid, my + 1, {
-          size: c.type === 'tot' ? 21 : 17, weight: 700, color: c.type === 'tot' ? '#ffffff' : C.ink,
+          size: c.type === 'tot' ? (big ? 26 : 21) : (big ? 20 : 17), weight: 700, color: c.type === 'tot' ? '#ffffff' : C.ink,
         });
       } else if (c.type === 'diff') {
         const over = grid.total.byPlayer[pl.id].over;
         if (over == null) { p.text('–', c.mid, my + 1, { color: C.faint }); continue; }
         const [bg, ink] = over < 0 ? [C.redSoft, C.red] : over === 0 ? ['#e4ecfb', C.blue] : [C.graySoft, C.ink];
-        p.box(c.mid - 26, my - 14, 52, 28, 14, bg);
-        p.text(fmtOver(over), c.mid, my + 1, { size: 15, weight: 700, color: ink });
+        p.box(c.mid - 27, my - 15, 54, 30, 15, bg);
+        p.text(fmtOver(over), c.mid, my + 1, { size: 16, weight: 700, color: ink });
       }
     }
-    if (i < ps.length - 1) p.line(PAD, y + P_H, PAD + TW, y + P_H);
+    if (i < n - 1) p.line(PAD, y + P_H, PAD + TW, y + P_H);
     y += P_H;
   });
 
   const bodyY = tableY + HEAD_H;
-  for (const c of cols.slice(1)) {
-    const strong = c.type !== 'hole' || cols[cols.indexOf(c) - 1].type !== 'hole';
+  cols.forEach((c, i) => {
+    if (!i) return;
+    const strong = c.type !== 'hole' || cols[i - 1].type !== 'hole';
     p.line(c.x, bodyY, c.x, tableY + tableH, strong ? C.line : C.grid);
-  }
+  });
   g.restore();
   p.box(PAD, tableY, TW, tableH, 16, null, C.line);
 
-  // สรุปสกอร์
-  if (kinds.length) {
-    const x0 = PAD, y0 = bottomY;
-    p.box(x0, y0, countsW, countsH, 14, C.bg, C.line);
-    p.text('สรุปสกอร์', x0 + 18, y0 + 26, { size: 16, weight: 700, color: C.brand, align: 'left' });
-    const kw = (countsW - 190) / kinds.length;
-    const kx = (j) => x0 + 190 + kw * j + kw / 2;
-    kinds.forEach((k, j) => {
-      kindIcon(p, k, kx(j), y0 + 62);
-      p.text(k.th, kx(j), y0 + 88, { size: 12, weight: 600, color: C.muted, maxW: kw - 6 });
+  // แผงล่าง: แผงสุดท้ายของแต่ละฝั่งยืดให้เต็มความสูง
+  const stack = (list, x, w) => {
+    let yy = bottomY;
+    list.forEach((it, i) => {
+      const h = i === list.length - 1 ? bottomY + bottomH - yy : it.minH(w);
+      it.draw(x, yy, w, h);
+      yy += h + 16;
     });
-    let ry = y0 + 100;
-    ps.forEach((pl, i) => {
-      p.line(x0 + 12, ry, x0 + countsW - 12, ry);
-      avatar(p, pl.name, i, x0 + 18 + 11, ry + 18, 11);
-      p.text(pl.name, x0 + 48, ry + 19, { size: 15, weight: 600, align: 'left', maxW: 190 - 58 });
-      kinds.forEach((k, j) => {
-        const n = grid.counts[pl.id][k.v];
-        p.text(n || '·', kx(j), ry + 19, { size: 16, weight: n ? 700 : 400, color: n ? C.ink : C.faint });
-      });
-      ry += 36;
-    });
+  };
+  if (bottomNat) {
+    stack(left, PAD, LW);
+    stack(right, PAD + (left.length ? LW + 20 : 0), left.length ? RW : CW);
   }
-  if (gl) {
-    const gx = stacked || !countsW ? PAD : PAD + countsW + 20;
-    const gy = stacked ? bottomY + countsH + 20 : bottomY;
-    drawGames(p, gl, gx, gy, gamesW);
-  }
-  footer(p, W, footY, PAD);
+  g.restore();
+  footer(p, W, H - 22, PAD);
   return canvas;
 }
 
 // ---------- แนวตั้ง: หลุมเป็นแถว ผู้เล่นเป็นคอลัมน์ ----------
 
-function drawPortrait({ round, grid, games = [] }) {
+function drawPortrait({ round, grid, games = [] }, { photo = null } = {}) {
   const ps = grid.players;
   const hasHc = grid.rows.some((r) => Number.isInteger(r.hc));
   const PAD = 16;
@@ -442,6 +603,9 @@ function drawPortrait({ round, grid, games = [] }) {
   if (countsH) y2 += countsH + 16;
   const gamesY = y2;
   if (gl) y2 += gl.h + 16;
+  const photoY = y2;
+  const photoH = photo ? Math.round(TW * 0.75) : 0;
+  if (photo) y2 += photoH + 16;
   const footY = y2 + 8;
   const H = footY + 20;
 
@@ -514,14 +678,15 @@ function drawPortrait({ round, grid, games = [] }) {
     }
   }
   if (gl) drawGames(p, gl, PAD, gamesY, TW);
+  if (photo) drawPhoto(p, photo, PAD, photoY, TW, photoH, 14);
   footer(p, W, footY, PAD);
   return canvas;
 }
 
 // ---------- ส่งออก ----------
 
-export function drawScorecard(data, layout = 'landscape') {
-  return layout === 'portrait' ? drawPortrait(data) : drawLandscape(data);
+export function drawScorecard(data, layout = 'landscape', opts = {}) {
+  return layout === 'portrait' ? drawPortrait(data, opts) : drawLandscape(data, opts);
 }
 
 async function fontsReady() {
@@ -531,11 +696,13 @@ async function fontsReady() {
   } catch { /* ใช้ฟอนต์สำรองของเครื่อง */ }
 }
 
-export async function renderScorecard(data, layout) {
+// มีรูปก๊วนใช้ JPEG ให้ไฟล์เล็กพอส่งในแชต ไม่มีรูปใช้ PNG ให้ตัวหนังสือคม
+export async function renderScorecard(data, layout, opts = {}) {
   await fontsReady();
-  const canvas = drawScorecard(data, layout);
-  const blob = await new Promise((r) => canvas.toBlob(r, 'image/png'));
-  return { blob, width: canvas.width, height: canvas.height };
+  const canvas = drawScorecard(data, layout, opts);
+  const type = opts.photo ? 'image/jpeg' : 'image/png';
+  const blob = await new Promise((r) => canvas.toBlob(r, type, 0.9));
+  return { blob, type, width: canvas.width, height: canvas.height };
 }
 
 export function saveBlob(blob, name) {
@@ -551,7 +718,7 @@ export function saveBlob(blob, name) {
 
 // แชร์ไฟล์ผ่านเมนูของเครื่อง ถ้าเครื่องไม่รองรับจะบันทึกเป็นไฟล์แทน
 export async function shareBlob(blob, name, title) {
-  const file = new File([blob], name, { type: 'image/png' });
+  const file = new File([blob], name, { type: blob.type || 'image/png' });
   if (navigator.canShare?.({ files: [file] })) {
     try {
       await navigator.share({ files: [file], title });
