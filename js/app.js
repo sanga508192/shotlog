@@ -8,6 +8,7 @@ import { settingsView } from './views/settings.js';
 import { accountView, paintSync } from './views/account.js';
 import { setupView, gamesView, parsView } from './views/group.js';
 import { scanView } from './views/scan.js';
+import { shareView } from './views/share.js';
 import { resumeHref } from './views/main.js';
 import * as sync from './sync.js';
 import * as cloud from './cloud.js';
@@ -22,6 +23,7 @@ const routes = [
   [/^#\/round\/([^/]+)\/setup$/, setupView],
   [/^#\/round\/([^/]+)\/games$/, gamesView],
   [/^#\/round\/([^/]+)\/pars$/, parsView],
+  [/^#\/round\/([^/]+)\/share$/, shareView],
   [/^#\/round\/([^/]+)\/summary$/, summaryView],
   [/^#\/summary$/, summaryView],
   [/^#\/practice$/, practiceView],

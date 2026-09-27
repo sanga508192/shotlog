@@ -7,7 +7,7 @@ import {
 import { holeScore, roundScore, fmtToPar, suggestShotType, shiftForInsert, resequence } from '../logic.js';
 import {
   groupEntryHtml, setGroupScore, groupTableHtml, countsTableHtml, gridOf, isGroupRound, shotLogging,
-  rememberCourseCard, shareRoundImage,
+  rememberCourseCard,
 } from './group.js';
 import { playersOf } from '../group.js';
 import { deleteRound } from './main.js';
@@ -423,7 +423,7 @@ export function scorecardView([roundId], ctx) {
       <p class="note">แตะแถวเพื่อไปหลุมนั้น${noPar ? ` · ยังไม่มีพาร์ ${noPar} หลุม (<a href="#/round/${roundId}/pars">กรอกพาร์/HC</a>)` : ''}</p>
       ${countsTableHtml(grid)}
       <div class="action-grid">
-        <button type="button" class="btn primary" data-act="share">📤 แชร์รูปสกอร์การ์ด</button>
+        <a class="btn primary" href="#/round/${roundId}/share">📤 แชร์รูปสกอร์การ์ด</a>
         ${games.length ? `<a class="btn" href="#/round/${roundId}/games">🎲 ผลเกม (${games.length})</a>` : ''}
         <a class="btn" href="#/round/${roundId}/setup">👥 ผู้เล่น / เกม</a>
         <a class="btn" href="#/round/${roundId}/pars">⛳ พาร์ / HC</a>
@@ -437,15 +437,6 @@ export function scorecardView([roundId], ctx) {
     </div>`,
     actions: {
       goHole: (el) => ctx.go(`#/round/${roundId}/hole/${el.dataset.n}`),
-      share: async (el) => {
-        el.disabled = true;
-        try {
-          const r = await shareRoundImage(round);
-          if (r === 'downloaded') toast('บันทึกรูปสกอร์การ์ดแล้ว ส่งเข้า LINE ได้จากคลังรูป/ดาวน์โหลด');
-        } finally {
-          el.disabled = false;
-        }
-      },
       finishRound: async () => {
         let status = 'complete';
         if (incomplete) {

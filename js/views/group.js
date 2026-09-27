@@ -4,7 +4,6 @@ import { esc, header, chips, toast } from '../ui.js';
 import {
   ME, MAX_PLAYERS, SCORE_KINDS, GAME_TYPES, playersOf, scoreGrid, computeGame, pointsSummary, fmtOver,
 } from '../group.js';
-import { shareScorecard } from '../share.js';
 
 export const myName = () => st.setting('my_name', 'ฉัน');
 export const shotLogging = (round) => round.shot_logging !== false;
@@ -363,17 +362,25 @@ export function parsView([roundId], ctx) {
   };
 }
 
-// ---------- ปุ่มแชร์ ----------
+// ---------- ข้อมูลสำหรับรูปสกอร์การ์ด ----------
 
-export async function shareRoundImage(round) {
+export function scorecardData(round) {
   const grid = gridOf(round);
-  const games = round.games || [];
-  const gameLines = games.map((g) => {
+  const nm = (id) => grid.players.find((p) => p.id === id)?.name ?? '?';
+  const tone = (n) => (n > 0 ? 'pos' : n < 0 ? 'neg' : 'zero');
+  const games = (round.games || []).map((g) => {
     const r = computeGame(g, grid);
-    const nm = (id) => grid.players.find((p) => p.id === id)?.name ?? '?';
-    if (['skin', 'match', 'team'].includes(g.type)) return `${gameTitle(g)}: ${r.ids.map((id) => `${nm(id)} ${signed(r.points[id])}`).join('  ')}`;
-    if (g.type === 'stableford') return `${gameTitle(g)}: ${r.ranking.map(({ id }) => `${nm(id)} ${r.totals[id]}`).join('  ')}`;
-    return `${gameTitle(g)}: ${r.ranking.map(({ id }) => `${nm(id)} ${r.net[id]}`).join('  ')}`;
+    const lead = (id, rank) => (rank === 1 && r.holesCounted?.[id] ? 'lead' : 'plain');
+    let items;
+    if (['skin', 'match', 'team'].includes(g.type)) {
+      items = [...r.ids].sort((a, b) => r.points[b] - r.points[a])
+        .map((id) => ({ name: nm(id), value: signed(r.points[id]), tone: tone(r.points[id]) }));
+    } else if (g.type === 'stableford') {
+      items = r.ranking.map(({ id, rank }) => ({ name: nm(id), value: `${r.totals[id]} แต้ม`, tone: lead(id, rank) }));
+    } else {
+      items = r.ranking.map(({ id, rank }) => ({ name: nm(id), value: String(r.net[id]), tone: lead(id, rank) }));
+    }
+    return { title: gameTitle(g), items };
   });
-  return shareScorecard({ round, grid, gameLines });
+  return { round, grid, games };
 }
