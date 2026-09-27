@@ -1,6 +1,6 @@
 import * as st from '../state.js';
 import { esc, header, fmtDate, toast, chips } from '../ui.js';
-import { ISAN_PROVINCES, searchCourses, findDuplicateCourse, sortByDistance, fmtKm, prefillFromScorecard, teeTotal } from '../courses.js';
+import { CURATED_COURSES, ISAN_PROVINCES, searchCourses, findDuplicateCourse, sortByDistance, fmtKm, prefillFromScorecard, teeTotal } from '../courses.js';
 import { getPosition, lastPosition } from '../geo.js';
 import { UNITS } from '../constants.js';
 import { enabled as cloudEnabled, session as cloudSession } from '../cloud.js';
@@ -215,7 +215,7 @@ export function coursesView(_p, ctx) {
         <a class="btn block primary" href="#/scan">📷 เพิ่มสนามจากรูปสกอร์การ์ด</a>
         <button type="button" class="btn block" data-act="showAdd">＋ เพิ่มสนามเอง (ชื่ออย่างเดียว)</button>
       </div>`}
-      <p class="note">รายชื่อเริ่มต้น 10 สนาม ตรวจชื่อและจังหวัด ณ 25 ก.ย. 2569 ไม่ได้ยืนยันเวลาเปิดบริการหรือราคา · ระยะทางเป็นเส้นตรง ตำแหน่งของคุณใช้ในเครื่องเท่านั้น · พิกัดบางส่วน © OpenStreetMap contributors</p>
+      <p class="note">รายชื่อเตรียมไว้ ${CURATED_COURSES.length} สนาม ตรวจชื่อและจังหวัด ณ ก.ย. 2569 (ยังไม่ครบทุกสนาม เพิ่มเองได้) ไม่ได้ยืนยันเวลาเปิดบริการหรือราคา · ระยะทางเป็นเส้นตรง ตำแหน่งของคุณใช้ในเครื่องเท่านั้น · พิกัดบางส่วน © OpenStreetMap contributors</p>
     </div>`,
     actions: {
       q: (el) => { pick.q = el.value; refreshList(); },

@@ -134,7 +134,8 @@ test('CSV escape และกันสูตร', () => {
 
 test('ค้นหา “โคราช” พบสนามนครราชสีมา และ “Royal” พบ Royal Creek', () => {
   const korat = searchCourses(CURATED_COURSES, { q: 'โคราช' });
-  assert.equal(korat.length, 3);
+  assert.equal(korat.length, CURATED_COURSES.filter((c) => c.province === 'นครราชสีมา').length);
+  assert.ok(korat.length >= 15);
   assert.ok(korat.every((c) => c.province === 'นครราชสีมา'));
   const royal = searchCourses(CURATED_COURSES, { q: 'Royal' });
   assert.deepEqual(royal.map((c) => c.id), ['royal-creek']);
@@ -154,9 +155,11 @@ test('เพิ่มสนามเองที่ชื่อและจั�
   assert.equal(findDuplicateCourse(CURATED_COURSES, 'รอยัลครีก', 'ขอนแก่น'), null);
 });
 
-test('รายชื่อเริ่มต้น 10 สนาม 6 จังหวัด ไม่มีพาร์ที่เดาไว้', () => {
-  assert.equal(CURATED_COURSES.length, 10);
+test('รายชื่อที่เตรียมไว้: รหัสไม่ซ้ำ 6 จังหวัด ไม่มีพาร์ที่เดาไว้ ทุกสนามมีแหล่งอ้างอิง', () => {
+  assert.equal(CURATED_COURSES.length, 22);
+  assert.equal(new Set(CURATED_COURSES.map((c) => c.id)).size, 22);
   assert.equal(new Set(CURATED_COURSES.map((c) => c.province)).size, 6);
+  assert.ok(CURATED_COURSES.every((c) => c.source_urls.length > 0));
   assert.ok(CURATED_COURSES.every((c) => c.scorecard_status === 'none' && c.origin === 'curated'));
 });
 
@@ -184,4 +187,13 @@ test('สรุปสถานะสมาชิกสำหรับแสด�
   // ทดลองอยู่แต่จ่าย PromptPay แล้ว (ยาวกว่า) → แสดงเป็นจ่ายแล้ว
   assert.equal(accessSummary({ source: 'trial', status: 'trialing', current_period_end: d(5), prepaid_until: d(370) }, now).kind, 'prepaid');
   assert.equal(accessSummary({ source: 'promptpay', status: 'none', prepaid_until: d(-1) }, now).kind, 'expired');
+});
+
+test('สนามโคราชที่เพิ่ม ค้นหาได้ทั้งชื่อไทย อังกฤษ และชื่อเดิม', () => {
+  const ids = (q) => searchCourses(CURATED_COURSES, { q }).map((c) => c.id);
+  assert.ok(ids('รุคส์').includes('korat-country-club'));
+  assert.ok(ids('Khao Yai Golf Club').includes('khao-yai-country-club'));
+  assert.ok(ids('ทอสคาน่า').includes('toscana-valley'));
+  assert.ok(ids('Pakchong Highland').includes('seoul-siam'));
+  assert.ok(ids('โบนันซ่า').includes('bonanza'));
 });

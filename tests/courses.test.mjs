@@ -22,7 +22,8 @@ test('อยู่ในเมืองขอนแก่น → สนามข
     if (list[i].km == null) continue;
     assert.ok(list[i].km >= list[i - 1].km, 'ต้องเรียงจากใกล้ไปไกล');
   }
-  assert.equal(list.at(-1).id, 'royal-creek', 'สนามที่ยังไม่มีพิกัดอยู่ท้าย');
+  const firstNoGeo = list.findIndex((c) => c.km == null);
+  assert.ok(list.slice(firstNoGeo).every((c) => c.km == null), 'สนามที่ยังไม่มีพิกัดอยู่ท้ายทั้งหมด');
   assert.equal(fmtKm(list.at(-1)), 'ยังไม่มีพิกัด');
 });
 

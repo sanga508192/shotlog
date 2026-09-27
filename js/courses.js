@@ -32,7 +32,7 @@ export const PROVINCE_ALIASES = {
 
 const CHECKED_AT = '2026-09-25';
 
-function curated(id, th, en, province, aliases, sources) {
+function curated(id, th, en, province, aliases, sources, checkedAt = CHECKED_AT) {
   return {
     id,
     display_name_th: th,
@@ -41,7 +41,7 @@ function curated(id, th, en, province, aliases, sources) {
     province,
     region: 'northeast',
     source_urls: sources,
-    checked_at: CHECKED_AT,
+    checked_at: checkedAt,
     origin: 'curated',
     scorecard_status: 'none',
   };
@@ -68,6 +68,32 @@ export const CURATED_COURSES = [
     ['วิคตอรี่ พาร์ค'], ['https://www.thailandtravel.or.jp/victory-park-golf-and-country-club/']),
   curated('sirindhorn-dam', 'สนามกอล์ฟเขื่อนสิรินธร', 'Sirindhorn Dam Golf Course', 'อุบลราชธานี',
     ['เขื่อนสิรินธร'], ['https://khunsaicholvilla.egat.co.th/srddam/index.php/golf-course']),
+  // ---- นครราชสีมา เพิ่ม 27 ก.ย. 2569 (ตรวจชื่อ/อำเภอจาก GolfLux และเว็บไซต์สนาม) ----
+  // ชื่อที่เคยใช้/ชื่อเดิม ใส่ไว้ในชื่อเรียกเพื่อค้นหาได้ (เช่น รุคส์ โคราช, เขาใหญ่ กอล์ฟ คลับ ที่อยู่เดียวกัน)
+  curated('korat-country-club', 'โคราช คันทรีคลับ กอล์ฟ แอนด์ รีสอร์ท', 'Korat Country Club Golf & Resort', 'นครราชสีมา',
+    ['รุคส์ โคราช', 'Rooks Korat Country Club', 'ปักธงชัย'], ['https://www.koratgolf.com/', 'https://www.golflux.com/course/korat-country-club-golf-resort/'], '2026-09-27'),
+  curated('khao-yai-country-club', 'เขาใหญ่ คันทรีคลับ', 'Khao Yai Country Club', 'นครราชสีมา',
+    ['เขาใหญ่ กอล์ฟ คลับ', 'Khao Yai Golf Club', 'KYC', 'หมูสี'], ['https://www.golflux.com/course/khaoyai-golf-club/', 'https://www.golfdigg.com/en/courses/khao-yai-country-club'], '2026-09-27'),
+  curated('mountain-creek', 'เมาน์เท่น ครีก กอล์ฟ รีสอร์ท แอนด์ เรสซิเดนซ์', 'Mountain Creek Golf Resort & Residences', 'นครราชสีมา',
+    ['เมาน์เท่นครีก'], ['https://mountaincreekthailand.com/en/attraction.php', 'https://www.golflux.com/destination/nakhon-ratchasima-golf-courses/'], '2026-09-27'),
+  curated('suranaree', 'สุรนารี กอล์ฟ คลับ', 'Suranaree Golf Club', 'นครราชสีมา',
+    ['สุรนารี'], ['https://www.golflux.com/course/suranaree-golf-club/'], '2026-09-27'),
+  curated('tiger-golf', 'ไทเกอร์ กอล์ฟ คลับ', 'Tiger Golf Club', 'นครราชสีมา',
+    ['ไทเกอร์'], ['https://www.golflux.com/destination/nakhon-ratchasima-golf-courses/'], '2026-09-27'),
+  curated('my-ozone', 'มาย โอโซน กอล์ฟ คลับ', 'My Ozone Golf Club', 'นครราชสีมา',
+    ['มายโอโซน', 'โอโซน', 'วังไทร'], ['https://www.golflux.com/destination/nakhon-ratchasima-golf-courses/'], '2026-09-27'),
+  curated('jungle-golf', 'จังเกิ้ล กอล์ฟ คลับ', 'Jungle Golf Club', 'นครราชสีมา',
+    ['จังเกิ้ล'], ['https://www.golflux.com/destination/nakhon-ratchasima-golf-courses/'], '2026-09-27'),
+  curated('friendship-meadows', 'เฟรนด์ชิพ เมโดวส์ คันทรีคลับ', 'Friendship Meadows Country Club', 'นครราชสีมา',
+    ['เฟรนด์ชิพ'], ['https://www.golflux.com/destination/nakhon-ratchasima-golf-courses/'], '2026-09-27'),
+  curated('crystal-lake', 'คริสตัล เลค กอล์ฟ คลับ', 'Crystal Lake Golf Club', 'นครราชสีมา',
+    ['คริสตัลเลค'], ['https://www.golflux.com/course/crystal-lake-golf-club/'], '2026-09-27'),
+  curated('seoul-siam', 'โซล สยาม รีสอร์ท คันทรีคลับ', 'Seoul Siam Resort Country Club', 'นครราชสีมา',
+    ['ปากช่อง ไฮแลนด์', 'Pakchong Highland'], ['https://www.golflux.com/destination/nakhon-ratchasima-golf-courses/'], '2026-09-27'),
+  curated('bonanza', 'โบนันซ่า กอล์ฟ แอนด์ คันทรีคลับ', 'Bonanza Golf & Country Club', 'นครราชสีมา',
+    ['โบนันซ่า', 'ขนงพระ'], ['https://www.golflux.com/destination/nakhon-ratchasima-golf-courses/'], '2026-09-27'),
+  curated('toscana-valley', 'ทอสคาน่า วัลเลย์ คันทรีคลับ', 'Toscana Valley Country Club', 'นครราชสีมา',
+    ['ทอสคาน่า', 'Toskana', 'โป่งตาลอง'], ['https://www.golflux.com/destination/nakhon-ratchasima-golf-courses/'], '2026-09-27'),
 ];
 
 export function normalizeText(s) {
@@ -123,6 +149,9 @@ export const COURSE_GEO = {
   'panorama': { lat: 14.91351, lon: 101.61656, source: 'แผนที่บนเว็บไซต์สนาม' },
   'victory-park': { lat: 17.77943, lon: 102.82401, source: 'OpenStreetMap' },
   'sirindhorn-dam': { lat: 15.19582, lon: 105.41848, source: 'OpenStreetMap' },
+  'mountain-creek': { lat: 14.82843, lon: 101.60340, source: 'OpenStreetMap' },
+  'bonanza': { lat: 14.59297, lon: 101.43526, source: 'OpenStreetMap' },
+  'toscana-valley': { lat: 14.51758, lon: 101.50741, source: 'OpenStreetMap' },
 };
 for (const c of CURATED_COURSES) c.geo = COURSE_GEO[c.id] ?? null;
 
