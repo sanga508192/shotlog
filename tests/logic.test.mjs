@@ -143,7 +143,7 @@ test('ค้นหา “โคราช” พบสนามนครราช
 
 test('กรองจังหวัดแสดงเฉพาะจังหวัดนั้น; กรองสนามโปรด', () => {
   const kk = searchCourses(CURATED_COURSES, { province: 'ขอนแก่น' });
-  assert.equal(kk.length, 3);
+  assert.equal(kk.length, 4);
   assert.ok(kk.every((c) => c.province === 'ขอนแก่น'));
   const fav = searchCourses(CURATED_COURSES, { favoritesOnly: true, favorites: new Set(['kirimaya']) });
   assert.deepEqual(fav.map((c) => c.id), ['kirimaya']);
@@ -155,10 +155,10 @@ test('เพิ่มสนามเองที่ชื่อและจั�
   assert.equal(findDuplicateCourse(CURATED_COURSES, 'รอยัลครีก', 'ขอนแก่น'), null);
 });
 
-test('รายชื่อที่เตรียมไว้: รหัสไม่ซ้ำ 7 จังหวัด ไม่มีพาร์ที่เดาไว้ ทุกสนามมีแหล่งอ้างอิง', () => {
-  assert.equal(CURATED_COURSES.length, 23);
-  assert.equal(new Set(CURATED_COURSES.map((c) => c.id)).size, 23);
-  assert.equal(new Set(CURATED_COURSES.map((c) => c.province)).size, 7);
+test('รายชื่อที่เตรียมไว้: รหัสไม่ซ้ำ 8 จังหวัด ไม่มีพาร์ที่เดาไว้ ทุกสนามมีแหล่งอ้างอิง', () => {
+  assert.equal(CURATED_COURSES.length, 25);
+  assert.equal(new Set(CURATED_COURSES.map((c) => c.id)).size, 25);
+  assert.equal(new Set(CURATED_COURSES.map((c) => c.province)).size, 8);
   assert.ok(CURATED_COURSES.every((c) => c.source_urls.length > 0));
   assert.ok(CURATED_COURSES.every((c) => c.scorecard_status === 'none' && c.origin === 'curated'));
 });

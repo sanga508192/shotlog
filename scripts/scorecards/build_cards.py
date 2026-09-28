@@ -11,7 +11,7 @@ HC = {
     'kirimaya': [9, 13, 1, 17, 7, 3, 15, 5, 11, 10, 14, 16, 12, 4, 18, 6, 8, 2],
     'singha-park-khon-kaen': [7, 15, 3, 11, 17, 9, 1, 13, 5, 10, 6, 12, 16, 8, 18, 2, 14, 4],
     'rancho-charnvee': [11, 17, 1, 7, 15, 3, 13, 5, 9, 14, 8, 6, 16, 2, 12, 4, 18, 10],
-    'panorama': [5, 17, 1, 15, 3, 9, 13, 11, 7, 6, 18, 2, 4, 16, 12, 10, 14, 8],
+    'panorama': [13, 17, 3, 15, 1, 9, 5, 11, 7, 4, 18, 2, 6, 16, 10, 12, 14, 8],   # HANDICAP จากสกอร์การ์ดของสนาม
     'dancoon': [13, 17, 12, 18, 14, 16, 8, 3, 9, 5, 2, 7, 11, 6, 1, 4, 10, 15],   # HS จากสกอร์การ์ดของสนาม
     'ubonrat-dam': [10, 2, 14, 17, 11, 8, 4, 6, 15, 7, 1, 18, 5, 16, 12, 9, 13, 3],
     'kabinburi-sport-club': [6, 2, 8, 14, 16, 12, 4, 18, 10, 9, 11, 7, 5, 13, 3, 17, 15, 1],
@@ -20,6 +20,10 @@ HC = {
     'tiger-golf': [13, 17, 3, 7, None, 1, 5, None, 9, 14, 18, 4, 8, None, 2, 6, None, 10],
     # การ์ดให้ H.S. 1–9 (8,7,2,1,5,9,3,4,6) แปลงแบบเดียวกับไทเกอร์: 9 แรกเลขคี่ 9 หลังเลขคู่
     'chulabhorn-dam': [15, 13, 3, 1, 9, 17, 5, 7, 11, 16, 14, 4, 2, 10, 18, 6, 8, 12],
+    'khao-yai-country-club': [7, 5, 15, 17, 1, 11, 13, 9, 3, 6, 10, 2, 14, 4, 18, 8, 16, 12],
+    'khao-cha-ngok': [13, 9, 17, 1, 15, 7, 5, 11, 3, 4, 16, 18, 2, 6, 12, 10, 8, 14],
+    # การ์ดให้ H.S. 1–9 (5,3,7,8,9,6,2,1,4) แปลง: 9 แรกเลขคี่ 9 หลังเลขคู่
+    'mahasak-phonsep': [9, 5, 13, 15, 17, 11, 3, 1, 7, 10, 6, 14, 16, 18, 12, 4, 2, 8],
 }
 HC_LADIES = {'singha-park-khon-kaen': [9, 13, 3, 7, 17, 11, 1, 15, 5, 12, 6, 10, 16, 8, 14, 2, 18, 4]}
 
@@ -27,7 +31,10 @@ SOURCES = {
     'kirimaya': ['ระยะและพาร์: mScorecard', 'HC: Hole19'],
     'singha-park-khon-kaen': ['ระยะ: mScorecard (ยอดรวมแท่นดำ 7,502 หลาตรงกับเว็บไซต์สนาม)', 'พาร์และ HC ชาย/หญิง: Yardage Book บนเว็บไซต์สนาม'],
     'rancho-charnvee': ['ระยะและพาร์: mScorecard', 'HC: Hole19 (พาร์ตรงกันทุกหลุม)'],
-    'panorama': ['ระยะและพาร์: mScorecard (2 ชุดข้อมูล ใช้เฉพาะค่าที่ตรงกัน)', 'HC: Hole19 (พาร์ตรงกันทุกหลุม)'],
+    'panorama': ['สกอร์การ์ดของสนาม (รูปถ่ายจากผู้ใช้ 28 ก.ย. 2569) ยอด OUT/IN/TOTAL ตรงทุกแท่น พร้อม Course/Slope Rating ที่พิมพ์บนการ์ด'],
+    'khao-yai-country-club': ['สกอร์การ์ดของสนาม (รูปถ่ายจากผู้ใช้ 28 ก.ย. 2569) ยอด OUT/IN/TOTAL ตรงทุกแท่น'],
+    'khao-cha-ngok': ['สกอร์การ์ดของสนาม (รูปถ่ายจากผู้ใช้ 28 ก.ย. 2569) ยอด OUT/IN/TOTAL ตรงทุกแท่น'],
+    'mahasak-phonsep': ['สกอร์การ์ดของสนาม (สำเนา รูปถ่ายจากผู้ใช้ 28 ก.ย. 2569) ระยะรายหลุมตรงกันทั้งสองฝั่งการ์ด', 'HC บนการ์ดเป็น 1–9 แปลงเป็น 1–18: 9 แรกเลขคี่ 9 หลังเลขคู่'],
     'dancoon': ['สกอร์การ์ดของสนาม (รูปถ่ายจากผู้ใช้ 28 ก.ย. 2569) ยอด OUT/IN ตรงทุกแท่น (ยอดรวมแท่นเหลืองบนการ์ดพิมพ์ผิดเป็น 6,467 ค่ารายหลุมรวมได้ 6,473)', 'ระยะตรงกับ mScorecard ยกเว้นแท่นขาวหลุม 16 (การ์ด 382)'],
     'ubonrat-dam': ['ระยะและพาร์: mScorecard', 'HC: Hole19 (พาร์ตรงกันทุกหลุม)'],
     'kabinburi-sport-club': ['สกอร์การ์ดของสนาม (รูปถ่ายจากผู้ใช้ 28 ก.ย. 2569) ยอดรวม OUT/IN/TOTAL ตรงทุกแท่น'],
@@ -37,7 +44,8 @@ SOURCES = {
 NOTES = {
     'kirimaya': 'หลุม 6 แท่นดำ: แหล่งข้อมูลระบุ 565 หลาซึ่งผิดปกติสำหรับพาร์ 4 จึงเว้นไว้',
     'singha-park-khon-kaen': 'หลุม 1: Yardage Book ระบุพาร์ 5 แต่สกอร์การ์ดออนไลน์ทุกแหล่งและพาร์รวม 72 ระบุพาร์ 4 จึงใช้พาร์ 4',
-    'panorama': 'หลุม 3 แท่นน้ำเงิน/ขาว/แดง: ข้อมูล 2 ชุดไม่ตรงกัน จึงเว้นไว้',
+    'khao-cha-ngok': 'การ์ดสะกดแท่นแรกว่า "Blur" คือแท่นน้ำเงิน',
+    'mahasak-phonsep': 'สนาม 9 หลุมเล่น 2 รอบ · ยอด 9 หลุมที่พิมพ์บนการ์ด (ชาย 3,275 หญิง 2,639) ไม่ตรงกับผลรวมรายหลุม (3,265 และ 2,647) จึงใช้ระยะรายหลุม',
     'dancoon': 'มีหลุม 5A (พาร์ 3 ระยะ 130/120/105/95 หลา) เป็นหลุมสำรอง ไม่นับใน 18 หลุมและยอดรวม',
     'chulabhorn-dam': 'สนาม 9 หลุมเล่น 2 รอบ · แท่นหญิงหลุม 4/13 เว้นว่าง: การ์ดพิมพ์ 224 หลา แต่ยอดรวมที่พิมพ์ 2,851 ต่างจากผลรวมรายหลุม 2,739 อยู่ 112 หลา',
     'tiger-golf': 'สนาม 9 หลุมเล่น 2 รอบ (9 แรกแท่นน้ำเงิน 9 หลังแท่นขาว) · HC หลุม 5/8/14/17 เว้นว่างเพราะการ์ดพิมพ์ HCP 6 ซ้ำ 2 หลุม · มีหลุมพิเศษ Snoopy (พาร์ 3 103 หลา) Stomper (พาร์ 4 341/331/291) และ Boar (พาร์ 4 358/348/298) ไม่นับในยอดรวม',
@@ -46,6 +54,8 @@ NOTES = {
 # Course Rating / Slope ของแท่น (มีเฉพาะที่พิมพ์บนสกอร์การ์ด) ใช้เป็นค่าเริ่มต้นของแฮนดิแคปโดยประมาณ
 RATINGS = {
     'tiger-golf': {'BlueWhite': (71.1, 130), 'Red': (71.6, 122)},
+    # แดงเป็น Rating ของผู้หญิง (ยาวน้อยกว่าขาวแต่ Rating สูงกว่า)
+    'panorama': {'Black': (72.3, 136), 'Blue': (69.7, 130), 'White': (66.3, 122), 'Red': (67.1, 113)},
 }
 
 def check(cid, par, hc, tees):
@@ -56,7 +66,7 @@ def check(cid, par, hc, tees):
         assert len(t['yards']) == 18, (cid, t['name'])
 
 cards = {}
-for cid in ['kirimaya', 'singha-park-khon-kaen', 'rancho-charnvee', 'panorama', 'dancoon', 'ubonrat-dam', 'kabinburi-sport-club', 'tiger-golf', 'chulabhorn-dam']:
+for cid in ['kirimaya', 'singha-park-khon-kaen', 'rancho-charnvee', 'panorama', 'dancoon', 'ubonrat-dam', 'kabinburi-sport-club', 'tiger-golf', 'chulabhorn-dam', 'khao-yai-country-club', 'khao-cha-ngok', 'mahasak-phonsep']:
     raw = RAW[cid]
     tees = []
     for name, (_tot, yards) in raw['tees'].items():
@@ -70,7 +80,6 @@ for cid in ['kirimaya', 'singha-park-khon-kaen', 'rancho-charnvee', 'panorama', 
         for n in blank:
             y[n - 1] = None
         if cid == 'kirimaya' and name == 'Black': y[5] = None
-        if cid == 'panorama' and name != 'Black': y[2] = None
         tee = {'id': name.lower(), 'name': TEE_TH[name], 'color': TEE_COLOR[name], 'yards': y}
         if name in RATINGS.get(cid, {}):
             cr, slope = RATINGS[cid][name]

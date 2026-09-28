@@ -36,7 +36,7 @@ test('อยู่ในเมืองโคราช → สนามโคร
 
 test('สกอร์การ์ดทุกสนาม: 18 หลุม พาร์ 72 HC 1–18 ไม่ซ้ำ (ว่างได้ถ้าการ์ดไม่ชัด) ระยะเป็นตัวเลขหรือว่าง', () => {
   const ids = Object.keys(SCORECARDS);
-  assert.deepEqual(ids.sort(), ['chulabhorn-dam', 'dancoon', 'kabinburi-sport-club', 'kirimaya', 'panorama', 'rancho-charnvee', 'singha-park-khon-kaen', 'tiger-golf', 'ubonrat-dam']);
+  assert.deepEqual(ids.sort(), ['chulabhorn-dam', 'dancoon', 'kabinburi-sport-club', 'khao-cha-ngok', 'khao-yai-country-club', 'kirimaya', 'mahasak-phonsep', 'panorama', 'rancho-charnvee', 'singha-park-khon-kaen', 'tiger-golf', 'ubonrat-dam']);
   for (const [id, sc] of Object.entries(SCORECARDS)) {
     assert.ok(CURATED_COURSES.some((c) => c.id === id), `${id} ต้องอยู่ในรายชื่อสนาม`);
     assert.equal(sc.par.length, 18, id);
@@ -84,6 +84,12 @@ test('ระยะรวมตรงกับยอดรวมของแห�
   assert.equal(teeTotal(cd.tees[0]), 6704);
   assert.equal(teeTotal(cd.tees[1]), null);
   assert.deepEqual([cd.tees[1].yards[3], cd.tees[1].yards[12]], [null, null]);
+  // พานอรามา เขาใหญ่ เขาชะโงก: ยอดรวมตรงกับการ์ดทุกแท่น
+  assert.deepEqual(SCORECARDS.panorama.tees.map((t) => [teeTotal(t), t.rating.cr, t.rating.slope]), [[6825, 72.3, 136], [6260, 69.7, 130], [5522, 66.3, 122], [4716, 67.1, 113]]);
+  assert.deepEqual(SCORECARDS['khao-yai-country-club'].tees.map((t) => teeTotal(t)), [7075, 6688, 6285, 5740, 5038]);
+  assert.deepEqual(SCORECARDS['khao-cha-ngok'].tees.map((t) => teeTotal(t)), [6962, 6463, 6195, 5685]);
+  // มหาศักดิพลเสพ: รวมจากระยะรายหลุม (ยอดที่พิมพ์บนการ์ดไม่ตรงกับผลรวม)
+  assert.deepEqual(SCORECARDS['mahasak-phonsep'].tees.map((t) => teeTotal(t)), [6530, 5294]);
 });
 
 test('เติมพาร์/HC/ระยะตามแท่นที่เลือก และค่าที่ผู้ใช้แก้เองมาก่อน', () => {

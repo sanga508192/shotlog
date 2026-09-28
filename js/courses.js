@@ -28,6 +28,7 @@ export const PROVINCE_ALIASES = {
   'อำนาจเจริญ': ['Amnat Charoen'],
   'อุดรธานี': ['อุดร', 'Udon Thani', 'Udon'],
   'อุบลราชธานี': ['อุบล', 'Ubon Ratchathani', 'Ubon'],
+  'นครนายก': ['Nakhon Nayok'],
   'ปราจีนบุรี': ['ปราจีน', 'Prachinburi', 'Prachin Buri'],
 };
 
@@ -64,7 +65,8 @@ export const CURATED_COURSES = [
   curated('kirimaya', 'คีรีมายา กอล์ฟ รีสอร์ท แอนด์ สปา', 'Kirimaya Golf Resort & Spa', 'นครราชสีมา',
     ['คีรีมายา'], ['https://www.kirimaya.com/', 'https://www.kirimaya.com/contact/']),
   curated('panorama', 'พานอรามา กอล์ฟ แอนด์ คันทรี คลับ', 'Panorama Golf and Country Club', 'นครราชสีมา',
-    ['พานอรามา'], ['https://www.panoramacountryclub.net/']),
+    ['พานอรามา', 'Panorama', 'สีคิ้ว', 'หนองหญ้าขาว'],
+    ['สกอร์การ์ดของสนาม: 68 ม.10 ต.หนองหญ้าขาว อ.สีคิ้ว จ.นครราชสีมา 30140', 'https://www.panoramacountryclub.net/'], '2026-09-28'),
   curated('royal-creek', 'รอยัลครีก กอล์ฟคลับ แอนด์ รีสอร์ท', 'Royal Creek Golf Club and Resort', 'อุดรธานี',
     ['รอยัลครีก'], ['https://royalcreekgolfthai.wordpress.com/contact/']),
   curated('victory-park', 'วิคตอรี่ พาร์ค กอล์ฟ แอนด์ คันทรี คลับ', 'Victory Park Golf & Country Club', 'หนองคาย',
@@ -76,7 +78,8 @@ export const CURATED_COURSES = [
   curated('korat-country-club', 'โคราช คันทรีคลับ กอล์ฟ แอนด์ รีสอร์ท', 'Korat Country Club Golf & Resort', 'นครราชสีมา',
     ['รุคส์ โคราช', 'Rooks Korat Country Club', 'ปักธงชัย'], ['https://www.koratgolf.com/', 'https://www.golflux.com/course/korat-country-club-golf-resort/'], '2026-09-27'),
   curated('khao-yai-country-club', 'เขาใหญ่ คันทรีคลับ', 'Khao Yai Country Club', 'นครราชสีมา',
-    ['เขาใหญ่ กอล์ฟ คลับ', 'Khao Yai Golf Club', 'KYC', 'หมูสี'], ['https://www.golflux.com/course/khaoyai-golf-club/', 'https://www.golfdigg.com/en/courses/khao-yai-country-club'], '2026-09-27'),
+    ['เขาใหญ่ กอล์ฟ คลับ', 'Khao Yai Golf Club', 'KYC', 'หมูสี'],
+    ['สกอร์การ์ดของสนาม: 151 ม.5 ต.หมูสี อ.ปากช่อง จ.นครราชสีมา 30450', 'https://brc-kycgolf.com/kyc_home/', 'https://www.golfdigg.com/en/courses/khao-yai-country-club'], '2026-09-28'),
   curated('mountain-creek', 'เมาน์เท่น ครีก กอล์ฟ รีสอร์ท แอนด์ เรสซิเดนซ์', 'Mountain Creek Golf Resort & Residences', 'นครราชสีมา',
     ['เมาน์เท่นครีก'], ['https://mountaincreekthailand.com/en/attraction.php', 'https://www.golflux.com/destination/nakhon-ratchasima-golf-courses/'], '2026-09-27'),
   curated('suranaree', 'สุรนารี กอล์ฟ คลับ', 'Suranaree Golf Club', 'นครราชสีมา',
@@ -100,6 +103,13 @@ export const CURATED_COURSES = [
   // ---- ผู้ใช้ขอเพิ่ม 28 ก.ย. 2569 (ชื่อและที่อยู่จากสกอร์การ์ดของสนาม ตำแหน่งจากลิงก์ Google Maps ที่ผู้ใช้ส่ง) ----
   curated('kabinburi-sport-club', 'กบินทร์บุรี สปอร์ตคลับ', 'Kabin Buri Sport Club', 'ปราจีนบุรี',
     ['KBSC', 'กบินทร์บุรี', 'Kabinburi', 'วังดาล'], ['สกอร์การ์ดของสนาม: 196 ม.11 ต.วังดาล อ.กบินทร์บุรี จ.ปราจีนบุรี 25110', 'https://maps.app.goo.gl/qooV85nXYBS5T79F8'], '2026-09-28'),
+  curated('khao-cha-ngok', 'สนามกอล์ฟเขาชะโงก', 'The Khao Cha-Ngok Golf & Country Club', 'นครนายก',
+    ['เขาชะโงก', 'Khao Cha Ngok', 'CRMA', 'จปร.', 'โรงเรียนนายร้อยพระจุลจอมเกล้า', 'พรหมณี'],
+    ['สกอร์การ์ดของสนาม: ศูนย์พัฒนากีฬา โรงเรียนนายร้อยพระจุลจอมเกล้า ต.พรหมณี อ.เมือง จ.นครนายก', 'http://www2.crma.ac.th/golfcourse/home.html'], '2026-09-28'),
+  // สนาม 9 หลุม (เล่น 2 รอบเป็น 18) ในค่ายทหาร
+  curated('mahasak-phonsep', 'สนามกอล์ฟค่ายมหาศักดิพลเสพ', 'Mahasakdiphonsep Camp Golf Course', 'ขอนแก่น',
+    ['มหาศักดิพลเสพ', 'มหาศักดิ์พลเสพ', 'MCGC', 'ชุมแพ', 'โนนสะอาด'],
+    ['สกอร์การ์ดของสนาม (อ.ชุมแพ จ.ขอนแก่น)', 'https://www.golfdd.com/course/189'], '2026-09-28'),
   curated('toscana-valley', 'ทอสคาน่า วัลเลย์ คันทรีคลับ', 'Toscana Valley Country Club', 'นครราชสีมา',
     ['ทอสคาน่า', 'Toskana', 'โป่งตาลอง'], ['https://www.golflux.com/destination/nakhon-ratchasima-golf-courses/'], '2026-09-27'),
 ];
@@ -162,6 +172,9 @@ export const COURSE_GEO = {
   'bonanza': { lat: 14.59297, lon: 101.43526, source: 'OpenStreetMap' },
   'toscana-valley': { lat: 14.51758, lon: 101.50741, source: 'OpenStreetMap' },
   'kabinburi-sport-club': { lat: 14.03125, lon: 101.66486, source: 'Google Maps (ลิงก์จากผู้ใช้)' },
+  'khao-yai-country-club': { lat: 14.55144, lon: 101.34355, source: 'หมุด Google Maps ของสนาม (จากหน้าสนามบน GOVIGO) ตรวจกับภาพดาวเทียมแล้ว' },
+  'khao-cha-ngok': { lat: 14.2863, lon: 101.1543, source: 'คลับเฮาส์บนภาพดาวเทียม ตีนเขาทางตะวันตกเฉียงใต้ของ รร.จปร.' },
+  'mahasak-phonsep': { lat: 16.60544, lon: 101.99212, source: 'Longdo Map ตรวจกับภาพดาวเทียม (แฟร์เวย์ติดถนนมะลิวัลย์ ตรงกับแผนผังบนการ์ด)' },
 };
 for (const c of CURATED_COURSES) c.geo = COURSE_GEO[c.id] ?? null;
 
