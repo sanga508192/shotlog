@@ -105,3 +105,20 @@ test('หน้าจอถือสำเนาเก่าอยู่ แล�
   await assert.rejects(setGroupScore(staleRound, staleHole, 'me', 4), /ไม่พบข้อมูลนี้แล้ว/);
   assert.equal(st.S.holes.has('hs1'), false);
 });
+
+test('ตำแหน่งรูปก๊วน: เต็มกรอบเป็นค่าเริ่มต้น เลื่อนได้ไม่หลุดขอบ ย่อได้จนเห็นทั้งรูป', async () => {
+  const { photoPlacement, MAX_ZOOM } = await import('../js/share.js');
+  // รูป 4:3 ในกรอบกว้าง 1000 สูง 450
+  const d = photoPlacement(4000, 3000, 1000, 450);
+  assert.deepEqual([d.w, d.h, d.x, d.y, d.fits], [1000, 750, 0, -150, true], 'เต็มกรอบ ตรงกลาง');
+  const top = photoPlacement(4000, 3000, 1000, 450, { cy: 0 });
+  assert.equal(top.y, 0, 'ลากขึ้นสุดชนขอบบน ไม่มีช่องว่าง');
+  assert.equal(top.cy, 0.3, 'เก็บจุดกลางจริงหลังชนขอบ');
+  const bottom = photoPlacement(4000, 3000, 1000, 450, { cy: 5 });
+  assert.equal(bottom.y, 450 - 750, 'ชนขอบล่าง');
+  const fit = photoPlacement(4000, 3000, 1000, 450, { zoom: 0.01 });
+  assert.deepEqual([fit.zoom, fit.w, fit.h, fit.x, fit.y, fit.fits], [0.6, 600, 450, 200, 0, false], 'ย่อได้ต่ำสุดแค่เห็นทั้งรูป');
+  const big = photoPlacement(4000, 3000, 1000, 450, { zoom: 99, cx: 0.9, cy: 0.9 });
+  assert.equal(big.zoom, MAX_ZOOM);
+  assert.ok(big.x <= 0 && big.x >= 1000 - big.w && big.y <= 0 && big.y >= 450 - big.h, 'ขยายแล้วยังไม่หลุดขอบ');
+});

@@ -1,23 +1,31 @@
-// หน้าตัวอย่างรูปสกอร์การ์ดก่อนแชร์: เลือกแนวนอน 16:9 / แนวตั้ง ใส่รูปก๊วนได้ แอปจำแบบที่เลือกล่าสุด
+// หน้าตัวอย่างรูปสกอร์การ์ดก่อนแชร์: เลือกแนวนอน 16:9 / แนวตั้ง ใส่รูปก๊วนและปรับตำแหน่งได้ แอปจำแบบที่เลือกล่าสุด
 import * as st from '../state.js';
 import { esc, header, toast } from '../ui.js';
 import { LAYOUTS, renderScorecard, shareBlob, saveBlob } from '../share.js';
 import { scorecardData } from './group.js';
+import { openCropper } from './cropper.js';
 
 // รูปก๊วนเก็บไว้ในหน่วยความจำระหว่างเปิดแอปเท่านั้น ไม่บันทึกลงเครื่องหรือคลาวด์
 const photos = new Map();
 
+// ใช้ onload ไม่ใช้ img.decode(): decode ค้างไม่ตอบเมื่อหน้าอยู่เบื้องหลัง (เช่น ตอนเพิ่งกลับจากหน้าเลือกรูปของมือถือ)
 async function loadPhoto(file) {
   const url = URL.createObjectURL(file);
   const img = new Image();
-  img.src = url;
   try {
-    await img.decode();
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = reject;
+      img.src = url;
+      if (img.complete && img.naturalWidth) resolve();
+    });
+    if (!img.naturalWidth) throw new Error('empty');
   } catch {
     URL.revokeObjectURL(url);
     throw new Error('เปิดรูปนี้ไม่ได้ ลองเลือกรูปอื่น');
   }
-  return { img, url };
+  // crop แยกตามแนวรูป เพราะกรอบรูปแนวนอนกับแนวตั้งสัดส่วนต่างกัน
+  return { img, url, crop: {}, openCrop: true };
 }
 
 function dropPhoto(roundId) {
@@ -36,6 +44,8 @@ export function shareView([roundId], ctx) {
   let root = null;
   let seq = 0;
   let alive = true;
+  let lastRect = null;     // กรอบรูปก๊วนในรูปล่าสุด
+  let wantCrop = false;
   const fileName = () => `scorecard-${round.played_at}-${layout}.${img?.blob.type === 'image/jpeg' ? 'jpg' : 'png'}`;
 
   const setBusy = (busy) => {
@@ -43,19 +53,42 @@ export function shareView([roundId], ctx) {
     root.querySelector('#share-preview').classList.toggle('loading', busy);
   };
 
+  const cropFor = (p) => p.crop[layout] ?? p.crop[layout === 'portrait' ? 'landscape' : 'portrait'] ?? { cx: 0.5, cy: 0.5, zoom: 1 };
+
+  function openCrop() {
+    const p = photos.get(roundId);
+    if (!p) return;
+    if (!lastRect) { wantCrop = true; return; }   // รอให้รูปตัวอย่างเสร็จก่อน จะได้รู้สัดส่วนกรอบ
+    openCropper({
+      url: p.url, iw: p.img.naturalWidth, ih: p.img.naturalHeight, aspect: lastRect.w / lastRect.h, crop: cropFor(p),
+      onDone: (c) => { p.crop = { ...p.crop, [layout]: c }; paint(); },
+    });
+  }
+
   async function paint() {
     const my = ++seq;
     setBusy(true);
     const box = root.querySelector('#share-preview');
     box.className = `share-preview loading ${layout}`;
+    lastRect = null;
     try {
-      const out = await renderScorecard(scorecardData(round), layout, { photo: photos.get(roundId)?.img ?? null });
+      const p = photos.get(roundId);
+      const out = await renderScorecard(scorecardData(round), layout, { photo: p?.img ?? null, crop: p ? cropFor(p) : {} });
       if (!alive || my !== seq) return;
       if (img) URL.revokeObjectURL(img.url);
       img = { blob: out.blob, url: URL.createObjectURL(out.blob) };
-      box.innerHTML = `<img src="${img.url}" width="${out.width}" height="${out.height}" alt="ตัวอย่างรูปสกอร์การ์ด${layout === 'portrait' ? 'แนวตั้ง' : 'แนวนอน'}">`;
+      const r = out.photoRect;
+      const pct = (a, b) => `${((a / b) * 100).toFixed(3)}%`;
+      box.innerHTML = `<div class="pv"><img src="${img.url}" width="${out.width}" height="${out.height}" alt="ตัวอย่างรูปสกอร์การ์ด${layout === 'portrait' ? 'แนวตั้ง' : 'แนวนอน'}">
+        ${r ? `<button type="button" class="photo-hit" data-act="photoCrop" aria-label="แตะเพื่อปรับตำแหน่งรูปก๊วน" style="left:${pct(r.x, r.W)};top:${pct(r.y, r.H)};width:${pct(r.w, r.W)};height:${pct(r.h, r.H)}"><span>✂️ ปรับตำแหน่ง</span></button>` : ''}</div>`;
       root.querySelector('#share-size').textContent = `${out.width} × ${out.height} px`;
       setBusy(false);
+      lastRect = r;
+      if (r && (wantCrop || p?.openCrop)) {
+        wantCrop = false;
+        if (p) p.openCrop = false;
+        openCrop();
+      }
     } catch (err) {
       if (!alive || my !== seq) return;
       box.innerHTML = `<p class="muted">สร้างรูปไม่สำเร็จ: ${esc(err.message || err)}</p>`;
@@ -73,9 +106,12 @@ export function shareView([roundId], ctx) {
       </div>
       ${ph ? `<div class="card photo-pick">
           <img class="photo-thumb" src="${ph.url}" alt="รูปก๊วนที่เลือก">
-          <div class="grow"><b>รูปก๊วน</b><span class="small muted">ใส่ในรูปสกอร์การ์ดเท่านั้น ไม่ได้เก็บไว้ในแอป</span></div>
-          <label class="mini file-btn">เปลี่ยน${fileInput}</label>
-          <button type="button" class="mini danger" data-act="photoDel">เอาออก</button>
+          <div class="grow"><b>รูปก๊วน</b><span class="small muted">ใส่ในรูปสกอร์การ์ดเท่านั้น ไม่ได้เก็บไว้ในแอป</span>
+            <div class="row gap wrap">
+              <button type="button" class="mini primary" data-act="photoCrop">✂️ ปรับตำแหน่ง</button>
+              <label class="mini file-btn">เปลี่ยนรูป${fileInput}</label>
+              <button type="button" class="mini danger" data-act="photoDel">เอาออก</button>
+            </div></div>
         </div>`
     : `<label class="btn block file-btn">📷 ใส่รูปก๊วน (ไม่บังคับ)${fileInput}</label>`}
       <div id="share-preview" class="share-preview loading ${layout}"><span class="muted small">กำลังสร้างรูป…</span></div>
@@ -87,7 +123,11 @@ export function shareView([roundId], ctx) {
       </div>
     </div>`,
     mount(el) { root = el; paint(); },
-    unmount() { alive = false; if (img) URL.revokeObjectURL(img.url); },
+    unmount() {
+      alive = false;
+      if (img) URL.revokeObjectURL(img.url);
+      document.querySelector('#cropper [data-q="cancel"]')?.click();   // ออกจากหน้านี้ ปิดหน้าปรับรูปด้วย
+    },
     actions: {
       layout: async (el) => {
         if (el.dataset.v === layout) return;
@@ -108,6 +148,7 @@ export function shareView([roundId], ctx) {
         photos.set(roundId, loaded);
         ctx.rerender();
       },
+      photoCrop: () => openCrop(),
       photoDel: () => {
         dropPhoto(roundId);
         ctx.rerender();

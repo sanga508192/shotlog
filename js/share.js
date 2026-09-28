@@ -320,17 +320,51 @@ function drawLeader(p, grid, x0, y0, w, h) {
   });
 }
 
-// รูปก๊วน: ครอปให้เต็มกรอบ เน้นส่วนบนเล็กน้อย (หน้าคนมักอยู่ช่วงบน)
-function drawPhoto(p, img, x0, y0, w, h, r = 16) {
+// ---------- รูปก๊วน ----------
+// ตำแหน่งรูปในกรอบกว้าง w สูง h ตามที่ผู้ใช้ปรับ: cx, cy = จุดของรูป (0–1) ที่อยู่กลางกรอบ
+// zoom 1 = เต็มกรอบพอดี, น้อยกว่า 1 ย่อลงได้จนเห็นทั้งรูป (ขอบที่เหลือเติมด้วยรูปเดียวกันแบบเบลอ)
+// ใช้สูตรเดียวกันทั้งตอนวาดรูปและในหน้าปรับตำแหน่ง ให้เห็นตรงกันทุกพิกเซล
+export const MAX_ZOOM = 4;
+export function photoPlacement(iw, ih, w, h, crop = {}) {
+  const cover = Math.max(w / iw, h / ih);
+  const minZoom = Math.min(w / iw, h / ih) / cover;
+  const zoom = Math.min(MAX_ZOOM, Math.max(minZoom, Number(crop.zoom) || 1));
+  const s = cover * zoom;
+  const dw = iw * s, dh = ih * s;
+  const place = (box, d, c) => (d <= box ? (box - d) / 2 : Math.min(0, Math.max(box - d, box / 2 - c * d)));
+  const x = place(w, dw, crop.cx ?? 0.5), y = place(h, dh, crop.cy ?? 0.5);
+  return {
+    x, y, w: dw, h: dh, zoom, minZoom,
+    // จุดกลางจริงหลังชนขอบ (ใช้เก็บค่า จะได้ไม่มีช่วงลากแล้วไม่ขยับ)
+    cx: (w / 2 - x) / dw, cy: (h / 2 - y) / dh,
+    fits: dw >= w - 0.5 && dh >= h - 0.5,
+  };
+}
+
+// พื้นหลังเบลอจากรูปเดียวกัน: ย่อให้เล็กมากแล้วขยายกลับ (ใช้ได้ทุกเบราว์เซอร์ รวม Safari)
+function blurredFill(g, img, iw, ih, x0, y0, w, h) {
+  const small = document.createElement('canvas');
+  const k = 28 / Math.max(w, h);
+  small.width = Math.max(2, Math.round(w * k));
+  small.height = Math.max(2, Math.round(h * k));
+  const pl = photoPlacement(iw, ih, small.width, small.height, { zoom: 1.15 });
+  small.getContext('2d').drawImage(img, pl.x, pl.y, pl.w, pl.h);
+  g.imageSmoothingEnabled = true;
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(small, x0, y0, w, h);
+  g.fillStyle = 'rgba(0,0,0,0.28)';
+  g.fillRect(x0, y0, w, h);
+}
+
+function drawPhoto(p, img, x0, y0, w, h, r = 16, crop = {}) {
   const { g } = p;
   const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
-  const s = Math.max(w / iw, h / ih);
-  const sw = w / s, sh = h / s;
-  const sx = (iw - sw) / 2, sy = Math.max(0, Math.min(ih - sh, ih * 0.4 - sh / 2));
+  const pl = photoPlacement(iw, ih, w, h, crop);
   g.save();
   p.box(x0, y0, w, h, r, C.graySoft);
   g.clip();
-  g.drawImage(img, sx, sy, sw, sh, x0, y0, w, h);
+  if (!pl.fits) blurredFill(g, img, iw, ih, x0, y0, w, h);
+  g.drawImage(img, x0 + pl.x, y0 + pl.y, pl.w, pl.h);
   g.restore();
   p.box(x0, y0, w, h, r, null, 'rgba(0,0,0,0.08)');
 }
@@ -363,7 +397,8 @@ const countTiles = (grid, kinds) => kinds.map((k) => ({ kind: k.v, label: k.th, 
 
 // ---------- แนวนอน 16:9: หลุมเป็นคอลัมน์ ผู้เล่นเป็นแถว เหมือนสกอร์การ์ดจริง ----------
 
-function drawLandscape({ round, grid, games = [], stats = null }, { photo = null } = {}) {
+function drawLandscape({ round, grid, games = [], stats = null }, { photo = null, crop = {} } = {}) {
+  let photoRect = null;
   const ps = grid.players;
   const n = ps.length;
   const solo = n === 1;
@@ -416,7 +451,7 @@ function drawLandscape({ round, grid, games = [], stats = null }, { photo = null
   let left, right;
   if (photo) {
     left = [counts, gamesPanel(600), tilesPanel(4)].filter(Boolean);
-    right = [{ minH: () => 300, draw: (x, y, w, h) => drawPhoto(p, photo, x, y, w, h) }];
+    right = [{ minH: () => 300, draw: (x, y, w, h) => { drawPhoto(p, photo, x, y, w, h, 16, crop); photoRect = { x: x + ox, y, w, h }; } }];
   } else {
     left = [counts].filter(Boolean);
     right = [games.length ? gamesPanel(CW) : solo ? tilesPanel(4) : leader].filter(Boolean);
@@ -566,12 +601,13 @@ function drawLandscape({ round, grid, games = [], stats = null }, { photo = null
   }
   g.restore();
   footer(p, W, H - 22, PAD);
+  canvas.photoRect = photoRect && { ...photoRect, W, H };
   return canvas;
 }
 
 // ---------- แนวตั้ง: หลุมเป็นแถว ผู้เล่นเป็นคอลัมน์ ----------
 
-function drawPortrait({ round, grid, games = [] }, { photo = null } = {}) {
+function drawPortrait({ round, grid, games = [] }, { photo = null, crop = {} } = {}) {
   const ps = grid.players;
   const hasHc = grid.rows.some((r) => Number.isInteger(r.hc));
   const PAD = 16;
@@ -678,8 +714,9 @@ function drawPortrait({ round, grid, games = [] }, { photo = null } = {}) {
     }
   }
   if (gl) drawGames(p, gl, PAD, gamesY, TW);
-  if (photo) drawPhoto(p, photo, PAD, photoY, TW, photoH, 14);
+  if (photo) drawPhoto(p, photo, PAD, photoY, TW, photoH, 14, crop);
   footer(p, W, footY, PAD);
+  canvas.photoRect = photo ? { x: PAD, y: photoY, w: TW, h: photoH, W, H } : null;
   return canvas;
 }
 
@@ -702,7 +739,8 @@ export async function renderScorecard(data, layout, opts = {}) {
   const canvas = drawScorecard(data, layout, opts);
   const type = opts.photo ? 'image/jpeg' : 'image/png';
   const blob = await new Promise((r) => canvas.toBlob(r, type, 0.9));
-  return { blob, type, width: canvas.width, height: canvas.height };
+  // photoRect: ขนาดกรอบรูปก๊วนในรูปนี้ (หน้าปรับตำแหน่งใช้สัดส่วนเดียวกัน)
+  return { blob, type, width: canvas.width, height: canvas.height, photoRect: canvas.photoRect ?? null };
 }
 
 export function saveBlob(blob, name) {
