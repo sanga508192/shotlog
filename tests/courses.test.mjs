@@ -36,7 +36,7 @@ test('อยู่ในเมืองโคราช → สนามโคร
 
 test('สกอร์การ์ดทุกสนาม: 18 หลุม พาร์ 72 HC 1–18 ไม่ซ้ำ (ว่างได้ถ้าการ์ดไม่ชัด) ระยะเป็นตัวเลขหรือว่าง', () => {
   const ids = Object.keys(SCORECARDS);
-  assert.deepEqual(ids.sort(), ['dancoon', 'kabinburi-sport-club', 'kirimaya', 'panorama', 'rancho-charnvee', 'singha-park-khon-kaen', 'tiger-golf', 'ubonrat-dam']);
+  assert.deepEqual(ids.sort(), ['chulabhorn-dam', 'dancoon', 'kabinburi-sport-club', 'kirimaya', 'panorama', 'rancho-charnvee', 'singha-park-khon-kaen', 'tiger-golf', 'ubonrat-dam']);
   for (const [id, sc] of Object.entries(SCORECARDS)) {
     assert.ok(CURATED_COURSES.some((c) => c.id === id), `${id} ต้องอยู่ในรายชื่อสนาม`);
     assert.equal(sc.par.length, 18, id);
@@ -79,6 +79,11 @@ test('ระยะรวมตรงกับยอดรวมของแห�
   assert.deepEqual(SCORECARDS.dancoon.tees.map((t) => teeTotal(t)), [6949, 6473, 5982, 5545]);
   // ไทเกอร์ กองบิน 1: 9 แรกแท่นน้ำเงิน + 9 หลังแท่นขาว = 6,415 · แดง 5,476 · Rating 18 หลุมจาก 9 หลุม 2 ชุด
   assert.deepEqual(SCORECARDS['tiger-golf'].tees.map((t) => [teeTotal(t), t.rating.cr, t.rating.slope]), [[6415, 71.1, 130], [5476, 71.6, 122]]);
+  // เขื่อนจุฬาภรณ์: แท่นชาย 3,352 × 2 · แท่นหญิงหลุม 4/13 เว้นว่าง (การ์ดขัดกันเอง) จึงไม่มียอดรวม
+  const cd = SCORECARDS['chulabhorn-dam'];
+  assert.equal(teeTotal(cd.tees[0]), 6704);
+  assert.equal(teeTotal(cd.tees[1]), null);
+  assert.deepEqual([cd.tees[1].yards[3], cd.tees[1].yards[12]], [null, null]);
 });
 
 test('เติมพาร์/HC/ระยะตามแท่นที่เลือก และค่าที่ผู้ใช้แก้เองมาก่อน', () => {

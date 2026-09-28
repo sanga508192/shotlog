@@ -49,8 +49,9 @@ function curated(id, th, en, province, aliases, sources, checkedAt = CHECKED_AT)
 }
 
 export const CURATED_COURSES = [
-  curated('chulabhorn-dam', 'สนามกอล์ฟเขื่อนจุฬาภรณ์', 'Chulabhorn Dam Golf Course', 'ชัยภูมิ',
-    ['เขื่อนจุฬาภรณ์'], ['https://khunsaicholvilla.egat.co.th/clbdam/index.php/golf-course']),
+  curated('chulabhorn-dam', 'สนามกอล์ฟเขื่อนจุฬาภรณ์', 'Chulabhorn Dam Golf Club', 'ชัยภูมิ',
+    ['เขื่อนจุฬาภรณ์', 'จุฬาภรณ์', 'Chulabhorn Dam Golf Course', 'คอนสาร'],
+    ['สกอร์การ์ดของสนาม (อ.คอนสาร จ.ชัยภูมิ)', 'https://khunsaicholvilla.egat.co.th/clbdam/index.php/golf-course'], '2026-09-28'),
   curated('singha-park-khon-kaen', 'สิงห์ปาร์ค ขอนแก่น กอล์ฟคลับ', 'Singha Park Khon Kaen Golf Club', 'ขอนแก่น',
     ['สิงห์ปาร์ค', 'Singha Park'], ['https://www.singhapark-khonkaen.com/']),
   curated('ubonrat-dam', 'สนามกอล์ฟเขื่อนอุบลรัตน์', 'Ubonrat Dam Golf Course', 'ขอนแก่น',
@@ -147,7 +148,7 @@ export function findDuplicateCourse(courses, name, province) {
 // approx = ใช้ตำแหน่งใกล้เคียง (เช่น ตัวเขื่อน) ยังไม่ใช่ตัวสนาม ผู้ใช้บันทึกตำแหน่งจริงเองได้ในแอป
 // พิกัดจาก OpenStreetMap © OpenStreetMap contributors (ODbL)
 export const COURSE_GEO = {
-  'chulabhorn-dam': { lat: 16.53627, lon: 101.65004, approx: true, source: 'Wikipedia (ตำแหน่งเขื่อน)' },
+  'chulabhorn-dam': { lat: 16.52164, lon: 101.67188, source: 'คลับเฮาส์บนภาพดาวเทียม (สนาม 9 หลุมห่างสันเขื่อนราว 2.8 กม.)' },
   'singha-park-khon-kaen': { lat: 16.32145, lon: 102.82335, source: 'OpenStreetMap' },
   'ubonrat-dam': { lat: 16.77539, lon: 102.61833, approx: true, source: 'Wikipedia (ตำแหน่งเขื่อน)' },
   'dancoon': { lat: 16.4886, lon: 102.7262, source: 'คลับเฮาส์บนภาพดาวเทียม เทียบกับแผนผังในสกอร์การ์ดของสนาม' },

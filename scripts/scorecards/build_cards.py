@@ -4,8 +4,8 @@ import json, sys, os
 sys.path.insert(0, os.path.dirname(__file__))
 from cards_raw import RAW
 
-TEE_TH = {'BlueWhite': 'น้ำเงิน/ขาว', 'Kato': 'Kato', 'Black': 'ดำ', 'Gold': 'ทอง', 'Blue': 'น้ำเงิน', 'White': 'ขาว', 'Red': 'แดง', 'Yellow': 'เหลือง'}
-TEE_COLOR = {'BlueWhite': '#1d4ed8', 'Kato': '#8e24aa', 'Black': '#1b1b1b', 'Gold': '#c9a227', 'Blue': '#1d4ed8', 'White': '#ffffff', 'Red': '#d7263d', 'Yellow': '#f2c200'}
+TEE_TH = {'Men': 'ชาย (M)', 'Ladies': 'หญิง (L)', 'BlueWhite': 'น้ำเงิน/ขาว', 'Kato': 'Kato', 'Black': 'ดำ', 'Gold': 'ทอง', 'Blue': 'น้ำเงิน', 'White': 'ขาว', 'Red': 'แดง', 'Yellow': 'เหลือง'}
+TEE_COLOR = {'Men': '#1e3a8a', 'Ladies': '#3b82f6', 'BlueWhite': '#1d4ed8', 'Kato': '#8e24aa', 'Black': '#1b1b1b', 'Gold': '#c9a227', 'Blue': '#1d4ed8', 'White': '#ffffff', 'Red': '#d7263d', 'Yellow': '#f2c200'}
 
 HC = {
     'kirimaya': [9, 13, 1, 17, 7, 3, 15, 5, 11, 10, 14, 16, 12, 4, 18, 6, 8, 2],
@@ -18,6 +18,8 @@ HC = {
     # การ์ดให้ HCP 1–9 ต่อ 9 หลุม (หลุม 1–9: 7,9,2,4,6,1,3,6,5 — หลุม 5 และ 8 พิมพ์ 6 ซ้ำกัน ไม่มี 8) แปลงเป็น 1–18 ตามหลักทั่วไป
     # ของสนาม 9 หลุมที่เล่น 2 รอบ: 9 แรกเป็นเลขคี่ (2r−1) 9 หลังเป็นเลขคู่ (2r) · หลุม 5/8/14/17 เว้นว่างเพราะการ์ดพิมพ์ซ้ำ
     'tiger-golf': [13, 17, 3, 7, None, 1, 5, None, 9, 14, 18, 4, 8, None, 2, 6, None, 10],
+    # การ์ดให้ H.S. 1–9 (8,7,2,1,5,9,3,4,6) แปลงแบบเดียวกับไทเกอร์: 9 แรกเลขคี่ 9 หลังเลขคู่
+    'chulabhorn-dam': [15, 13, 3, 1, 9, 17, 5, 7, 11, 16, 14, 4, 2, 10, 18, 6, 8, 12],
 }
 HC_LADIES = {'singha-park-khon-kaen': [9, 13, 3, 7, 17, 11, 1, 15, 5, 12, 6, 10, 16, 8, 14, 2, 18, 4]}
 
@@ -29,6 +31,7 @@ SOURCES = {
     'dancoon': ['สกอร์การ์ดของสนาม (รูปถ่ายจากผู้ใช้ 28 ก.ย. 2569) ยอด OUT/IN ตรงทุกแท่น (ยอดรวมแท่นเหลืองบนการ์ดพิมพ์ผิดเป็น 6,467 ค่ารายหลุมรวมได้ 6,473)', 'ระยะตรงกับ mScorecard ยกเว้นแท่นขาวหลุม 16 (การ์ด 382)'],
     'ubonrat-dam': ['ระยะและพาร์: mScorecard', 'HC: Hole19 (พาร์ตรงกันทุกหลุม)'],
     'kabinburi-sport-club': ['สกอร์การ์ดของสนาม (รูปถ่ายจากผู้ใช้ 28 ก.ย. 2569) ยอดรวม OUT/IN/TOTAL ตรงทุกแท่น'],
+    'chulabhorn-dam': ['สกอร์การ์ดของสนาม (รูปถ่ายจากผู้ใช้ 28 ก.ย. 2569) ยอด OUT/IN แท่นชายตรง 3,352', 'HC บนการ์ดเป็น 1–9 แปลงเป็น 1–18: 9 แรกเลขคี่ 9 หลังเลขคู่'],
     'tiger-golf': ['สกอร์การ์ดของสนาม (รูปถ่ายจากผู้ใช้ 28 ก.ย. 2569) ยอด OUT/IN/TOTAL ตรงทุกแท่น', 'Course/Slope Rating 9 หลุมจากการ์ด (น้ำเงินชาย 36.1/135, ขาวชาย 35/125, แดงหญิง 35.8/122) รวมเป็น 18 หลุมตามหลัก WHS: Rating บวกกัน Slope เฉลี่ย'],
 }
 NOTES = {
@@ -36,6 +39,7 @@ NOTES = {
     'singha-park-khon-kaen': 'หลุม 1: Yardage Book ระบุพาร์ 5 แต่สกอร์การ์ดออนไลน์ทุกแหล่งและพาร์รวม 72 ระบุพาร์ 4 จึงใช้พาร์ 4',
     'panorama': 'หลุม 3 แท่นน้ำเงิน/ขาว/แดง: ข้อมูล 2 ชุดไม่ตรงกัน จึงเว้นไว้',
     'dancoon': 'มีหลุม 5A (พาร์ 3 ระยะ 130/120/105/95 หลา) เป็นหลุมสำรอง ไม่นับใน 18 หลุมและยอดรวม',
+    'chulabhorn-dam': 'สนาม 9 หลุมเล่น 2 รอบ · แท่นหญิงหลุม 4/13 เว้นว่าง: การ์ดพิมพ์ 224 หลา แต่ยอดรวมที่พิมพ์ 2,851 ต่างจากผลรวมรายหลุม 2,739 อยู่ 112 หลา',
     'tiger-golf': 'สนาม 9 หลุมเล่น 2 รอบ (9 แรกแท่นน้ำเงิน 9 หลังแท่นขาว) · HC หลุม 5/8/14/17 เว้นว่างเพราะการ์ดพิมพ์ HCP 6 ซ้ำ 2 หลุม · มีหลุมพิเศษ Snoopy (พาร์ 3 103 หลา) Stomper (พาร์ 4 341/331/291) และ Boar (พาร์ 4 358/348/298) ไม่นับในยอดรวม',
 }
 
@@ -52,14 +56,19 @@ def check(cid, par, hc, tees):
         assert len(t['yards']) == 18, (cid, t['name'])
 
 cards = {}
-for cid in ['kirimaya', 'singha-park-khon-kaen', 'rancho-charnvee', 'panorama', 'dancoon', 'ubonrat-dam', 'kabinburi-sport-club', 'tiger-golf']:
+for cid in ['kirimaya', 'singha-park-khon-kaen', 'rancho-charnvee', 'panorama', 'dancoon', 'ubonrat-dam', 'kabinburi-sport-club', 'tiger-golf', 'chulabhorn-dam']:
     raw = RAW[cid]
     tees = []
     for name, (_tot, yards) in raw['tees'].items():
         y = list(yards)
+        blank = raw.get('blank', {}).get(name, [])
         if 'front_back' in raw:   # ข้อมูลจากรูปสกอร์การ์ด: ตรวจยอด OUT/IN/TOTAL ที่พิมพ์บนการ์ดทุกแท่น
             fo, bi = raw['front_back'][name]
-            assert sum(y) == _tot and sum(y[:9]) == fo and sum(y[9:]) == bi, (cid, name, sum(y), _tot)
+            ok = sum(y) == _tot and sum(y[:9]) == fo and sum(y[9:]) == bi
+            # ยอดไม่ตรงได้เฉพาะแท่นที่ระบุหลุมที่ขัดกันไว้ใน blank เท่านั้น
+            assert ok or blank, (cid, name, sum(y), _tot)
+        for n in blank:
+            y[n - 1] = None
         if cid == 'kirimaya' and name == 'Black': y[5] = None
         if cid == 'panorama' and name != 'Black': y[2] = None
         tee = {'id': name.lower(), 'name': TEE_TH[name], 'color': TEE_COLOR[name], 'yards': y}
