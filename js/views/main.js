@@ -127,7 +127,7 @@ function coachTeaser() {
   const top = a.focus[0];
   if (top) {
     return `<a class="card coach-link" href="#/coach"><b>🎯 จุดที่ควรแก้ก่อน: ${esc(top.th)}</b>
-      <span>${top.k === 'save' ? `ได้คืนแค่ ${top.yours.toFixed(1)} สโตรก/รอบ (เป้า${esc(a.goal.th)} ควรได้ ${top.target})`
+      <span>${top.line ? esc(top.line) : top.k === 'save' ? `ได้คืนแค่ ${top.yours.toFixed(1)} สโตรก/รอบ (เป้า${esc(a.goal.th)} ควรได้ ${top.target})`
     : `เสีย ${top.yours.toFixed(1)} สโตรก/รอบ (เป้า${esc(a.goal.th)} ควรไม่เกิน ${top.target})`} · ดูแผนพัฒนา ›</span></a>`;
   }
   if (!a.scoreRounds.length) return '';

@@ -1,13 +1,13 @@
 // หน้าโค้ชพัฒนาเกม: เป้าหมาย → สโตรกหายไปไหน → จุดที่ควรแก้ → โฟกัสรอบหน้า → แผนซ้อม
 import * as st from '../state.js';
 import { esc, header, fmtDate, toast } from '../ui.js';
-import { GOALS, analyzeGame, budgetOver, fmtSigned, clubDistances } from '../coach.js';
+import { GOALS, analyzeGame, budgetOver, fmtSigned, clubDistances, drill, drillHistory, TEE_MIN } from '../coach.js';
 import { courseHoles, toUnit, unitTh, confirmedPoint } from '../holemap.js';
 import { drillCard, clipActions } from './drills.js';
 import { analyzeSG } from '../sg.js';
 import { estimateHandicap, ratingKey, validRating } from '../handicap.js';
 import { ME, playerHoleScore } from '../group.js';
-import { simSummary, inBetweenFor, launchCarryRows, compareDistances, ISSUE_METRIC } from '../launch.js';
+import { simSummary, inBetweenFor, launchCarryRows, compareDistances, ISSUE_METRIC, FAIRWAY_HALF, SMASH_OK } from '../launch.js';
 
 const distFmt = () => { const u = st.setting('map_unit', 'yd'); return (m) => `${Math.round(toUnit(m, u))} ${unitTh(u)}`; };
 
@@ -23,8 +23,8 @@ export function coachData(goalV = st.setting('coach_goal', null)) {
   const sim = simData();
   const a = analyzeGame({
     rounds: st.rounds(), holesOf: st.holesOf, shotsOf: st.shotsOf, penaltiesOf: st.penaltiesOf,
-    clubLabel: (id) => st.club(id)?.label ?? null, practice: [...st.S.practice.values()],
-    simIssues: sim && !sim.stale ? sim.issues : [],
+    clubLabel: (id) => st.club(id)?.label ?? null, clubOf: st.club, practice: [...st.S.practice.values()],
+    simIssues: sim && !sim.stale ? sim.issues : [], simDriver: sim && !sim.stale ? sim.driver : null,
   }, goalV);
   return { ...a, sim };
 }
@@ -58,6 +58,81 @@ function simHtml(sim) {
 }
 
 const f1 = (x) => (x == null ? '–' : (Math.round(x * 10) / 10).toFixed(1).replace(/\.0$/, ''));
+
+// ทีออฟ / ไดรเวอร์: รวมผลทีออฟในสนามกับไดรเวอร์จากเครื่องซ้อมไว้ที่เดียว
+const SIDE_TH = { left: 'ซ้าย', right: 'ขวา' };
+const signed = (x, d = 1) => `${x > 0 ? '+' : ''}${x.toFixed(d)}`;
+
+function teeSimHtml(d, trend, fmt) {
+  const chip = (label, value, goal, ok) => `<span class="tee-chip${ok == null ? '' : ok ? ' ok' : ' far'}"><small>${esc(label)}</small><b>${esc(value)}</b>${goal ? `<small>${esc(goal)}</small>` : ''}</span>`;
+  const chips = [
+    d.carry != null ? chip('ระยะลอย', fmt(d.carry), d.p25 != null ? `ปกติ ${fmt(d.p25).split(' ')[0]}–${fmt(d.p75)}` : '', null) : '',
+    d.fw != null ? chip(`ลงแฟร์เวย์ ${fmt(FAIRWAY_HALF * 2)}`, `${Math.round(d.fw * 100)}%`, `หลุดซ้าย ${Math.round((d.missL ?? 0) * 100)}% · ขวา ${Math.round((d.missR ?? 0) * 100)}%`, d.fw >= 0.6) : '',
+    d.f2p != null ? chip('Face to Path', `${signed(d.f2p)}°`, d.shape ? `ลูก${d.shape} · เป้า ±2°` : 'เป้า ±2°', Math.abs(d.f2p) <= 2) : '',
+    d.path != null ? chip('Club Path', `${signed(d.path)}°`, d.outIn ?? 'เป้า ±3°', Math.abs(d.path) < 3) : '',
+    d.sf != null ? chip('Smash Factor', d.sf.toFixed(2), `เกณฑ์ ≥ ${SMASH_OK.driver.toFixed(2)}`, d.sf >= SMASH_OK.driver - 0.04) : '',
+    d.spin != null ? chip('สปิน', Math.round(d.spin).toLocaleString('en-US'), 'เป้า 2,000–3,000', d.spin >= 1800 && d.spin <= 3300) : '',
+    d.aa != null ? chip('Attack Angle', `${signed(d.aa)}°`, 'เป้า ≥ 0°', d.aa >= -1.5) : '',
+  ].join('');
+  const steps = trend.length > 1
+    ? `<div class="sim-steps">${trend.map((x) => `<span><small>${esc(fmtDate(x.date))}</small><b>${Math.round(x.fw * 100)}%</b></span>`).join('<i>→</i>')}</div>`
+    : '';
+  return `<div class="tee-sim"><b>ไดรเวอร์จากเครื่องซ้อม</b> <small class="muted">${d.n} ลูก · 60 วันล่าสุด</small>
+    <div class="tee-chips">${chips}</div>
+    ${steps ? `<div class="small">ลงแฟร์เวย์บนเครื่องแต่ละครั้ง</div>${steps}` : ''}
+  </div>`;
+}
+
+export function teeHtml(t, goal, sim) {
+  const fmt = distFmt();
+  const trend = sim && !sim.stale ? sim.driverTrend ?? [] : [];
+  const d = t.driver;
+  if (!t.enough && !d) {
+    return `<div class="card small">ยังไม่มีข้อมูลทีออฟพอ (ตอนนี้ ${t.n} หลุมพาร์ 4–5 ต้องอย่างน้อย ${TEE_MIN})
+      <ul class="find"><li>จดแบบ <b>🎯 รายช็อต</b> แล้วระบุ <b>ไม้</b> ที่ทีออฟ</li>
+      <li><b>จุดจบ</b> ของทีออฟ (แฟร์เวย์/รัฟ/บังเกอร์) และ <b>ทิศ</b> ซ้าย/ขวาเมื่อพลาด</li>
+      <li>ลูกโทษ (OB/น้ำ) ระบุว่าเกิดหลังช็อตไหน</li></ul>
+      หรือ<a href="#/launch">นำเข้าไฟล์จาก Garmin R10</a>ที่มีไดรเวอร์ แอปจะวิเคราะห์ไดรเวอร์ให้ทันที</div>`;
+  }
+  let course = '';
+  if (t.enough) {
+    const tone = t.fir == null ? '' : t.fir >= goal.stats.fir ? 'good' : 'bad';
+    const sp = t.spread;
+    const w = (x) => (sp.n ? `${((x / Math.max(sp.n, sp.fw + sp.left + sp.right + sp.unk)) * 100).toFixed(1)}%` : '0%');
+    const res = [['ลงแฟร์เวย์', t.byResult.fw], ['พลาดแฟร์เวย์', t.byResult.rough], ['ลูกโทษ/ต้องตีออก', t.byResult.trouble]]
+      .filter(([, g]) => g.n >= 2).map(([l, g]) => `<span><small>${l}</small><b>${fmtSigned(g.avg)}</b><small>${g.n} หลุม</small></span>`).join('');
+    const clubs = t.byClub.filter((c) => c.n >= 2);
+    course = `<div class="hero-nums">
+        <div><span>ลงแฟร์เวย์</span><b class="${tone}">${t.fir == null ? '–' : `${Math.round(t.fir)}%`}</b><small>เป้า ${goal.stats.fir}%</small></div>
+        <div><span>พลาดบ่อยไปทาง</span><b>${t.dir?.v ? SIDE_TH[t.dir.v] : '–'}</b><small>${t.dir?.v ? `${Math.round(t.dir.rate * 100)}% จาก ${t.dir.n} ครั้ง` : t.dir ? 'ซ้ายขวาพอ ๆ กัน' : 'ยังระบุทิศน้อย'}</small></div>
+        <div><span>ลูกโทษจากทีออฟ</span><b class="${t.penPerRound > goal.budget.pen ? 'bad' : ''}">${f1(t.penPerRound)}</b><small>สโตรก/รอบ (งบ ${goal.budget.pen})</small></div>
+      </div>
+      ${sp.n ? `<div class="tee-spread" role="img" aria-label="ทีออฟ ${sp.n} หลุม: ซ้าย ${sp.left} แฟร์เวย์ ${sp.fw} ขวา ${sp.right} ไม่ระบุทิศ ${sp.unk}">
+        <span class="l" style="width:${w(sp.left)}">${sp.left ? `ซ้าย ${sp.left}` : ''}</span><span class="f" style="width:${w(sp.fw)}">${sp.fw ? `แฟร์เวย์ ${sp.fw}` : ''}</span><span class="r" style="width:${w(sp.right)}">${sp.right ? `ขวา ${sp.right}` : ''}</span><span class="u" style="width:${w(sp.unk)}">${sp.unk ? `? ${sp.unk}` : ''}</span>
+      </div><p class="note">ผลทีออฟ ${sp.n} หลุมพาร์ 4–5${sp.unk ? ' · "?" = พลาดแฟร์เวย์แต่ไม่ได้ระบุทิศ' : ''}</p>` : ''}
+      ${res ? `<div class="tee-res"><b>สกอร์เฉลี่ยเทียบพาร์ต่อหลุม เมื่อทีออฟ…</b><div>${res}</div>
+        ${t.cost != null && t.cost >= 0.3 ? `<p class="small">ทีออฟที่พลาดทำให้เสียราว <b>${f1(t.cost)}</b> สโตรก/รอบ เทียบกับหลุมที่ลงแฟร์เวย์</p>` : ''}</div>` : ''}
+      ${clubs.length > 1 || (clubs.length && clubs[0].id) ? `<div class="dist-cmp"><b>แยกตามไม้ทีออฟ</b>
+        <table><thead><tr><th>ไม้</th><th>หลุม</th><th>ลงแฟร์เวย์</th><th>ลูกโทษ</th><th>เฉลี่ย</th></tr></thead><tbody>
+        ${clubs.map((c) => `<tr><td>${esc(c.label)}</td><td>${c.n}</td><td class="${c.fir == null ? '' : c.fir >= goal.stats.fir ? 'good' : c.fir < goal.stats.fir - 15 ? 'bad' : ''}">${c.fir == null ? '–' : `${Math.round(c.fir)}%`}</td><td class="${c.pen ? 'bad' : ''}">${c.pen}</td><td>${fmtSigned(c.avgOver)}</td></tr>`).join('')}
+        </tbody></table></div>` : ''}`;
+  } else {
+    course = `<p class="small">ทีออฟในสนามยังมี ${t.n} หลุม (ต้องอย่างน้อย ${TEE_MIN}) ตอนนี้จึงดูจากเครื่องซ้อมอย่างเดียว</p>`;
+  }
+  const cueHtml = (c) => `<div class="tee-cue"><b>รอบหน้า:</b> ${esc(c.text)}${c.why ? `<small>${esc(c.why)}</small>` : ''}</div>`;
+  const cue = [t.cue, t.cue2].filter(Boolean).map(cueHtml).join('');
+  const hints = t.hints.length ? `<ul class="find muted">${t.hints.map((h) => `<li>${esc(h)}</li>`).join('')}</ul>` : '';
+  const drills = t.problem ? t.drills.slice(0, 2).map((id) => drill(id)).filter(Boolean) : [];
+  return `<div class="card tee-card">
+    ${course}
+    ${d ? teeSimHtml(d, trend, fmt) : ''}
+    ${cue}
+    ${hints}
+  </div>
+  ${drills.length ? `<p class="note">แบบฝึกไดรเวอร์ที่แนะนำ (อยู่ในแผนซ้อมด้านล่างด้วยอย่างน้อย 1 อย่าง)</p>
+  <div class="drills">${drills.map((x) => drillCard(x, { history: drillHistory([...st.S.practice.values()], x.id) })).join('')}</div>` : ''}`;
+}
+
 const CONF = {
   good: ['ข้อมูลดี', 'ok'], fair: ['ข้อมูลพอใช้', 'near'], low: ['ข้อมูลเบื้องต้น', 'far'], none: ['ข้อมูลยังไม่พอ', 'far'],
 };
@@ -255,10 +330,13 @@ export function coachView(_p, ctx) {
       ${a.focus.length ? a.focus.map((f, i) => `<div class="card focus ${i === 0 ? 'first' : ''}">
         <div class="row between"><div><span class="rank">${i + 1}</span> <b>${f.icon} ${esc(f.th)}</b></div>
           <span class="gain">ได้คืน ~${f1(f.gap)}/รอบ</span></div>
-        <div class="small muted">คุณ ${f.k === 'save' ? 'ได้คืน' : 'เสีย'} ${f1(f.yours)} สโตรก/รอบ · งบของเป้า ${f1(f.target)}</div>
+        <div class="small muted">${f.line ? esc(f.line) : `คุณ ${f.k === 'save' ? 'ได้คืน' : 'เสีย'} ${f1(f.yours)} สโตรก/รอบ · งบของเป้า ${f1(f.target)}`}</div>
         ${f.find.length ? `<ul class="find">${f.find.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
       </div>`).join('')
     : `<div class="card ok small">ทุกหมวดอยู่ในงบของเป้า${esc(g.th)}แล้ว ลองเลือกเป้าที่ยากขึ้นด้านบน</div>`}` : ''}
+
+      <h2 id="tee">ทีออฟ / ไดรเวอร์ ${a.tee.problem ? '<span class="badge bad">ควรแก้</span>' : a.tee.enough || a.tee.driver ? '<span class="badge ok">พอใช้</span>' : ''}</h2>
+      ${teeHtml(a.tee, g, a.sim)}
 
       ${simHtml(a.sim)}
 

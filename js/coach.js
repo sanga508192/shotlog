@@ -139,7 +139,9 @@ export const STAT_DEFS = [
 ];
 
 // simIssues = ปัญหาจากเครื่องซ้อม (launch.js simSummary().issues) ใช้ร่วมจัดแผนซ้อมและโฟกัสรอบหน้า
-export function analyzeGame({ rounds, holesOf, shotsOf, penaltiesOf, clubLabel = () => null, practice = [], simIssues = [] }, goalV) {
+// simDriver = ไดรเวอร์จากเครื่องซ้อม (launch.js driverProfile) ใช้ร่วมกับทีออฟในสนาม
+export function analyzeGame({ rounds, holesOf, shotsOf, penaltiesOf, clubLabel = () => null, clubOf = null, practice = [], simIssues = [], simDriver = null }, goalV) {
+  const clubInfo = clubOf ?? ((id) => (clubLabel(id) ? { id, label: clubLabel(id), category: null } : null));
   const finished = rounds.filter((r) => r.status !== 'playing')
     .sort((a, b) => String(a.played_at || '').localeCompare(String(b.played_at || '')) || String(a.created_at || '').localeCompare(String(b.created_at || '')));
 
@@ -221,8 +223,27 @@ export function analyzeGame({ rounds, holesOf, shotsOf, penaltiesOf, clubLabel =
   });
 
   const ctx = { facts, clubLabel, goal, stats };
-  const focus = ranked.slice(0, 3).map((l) => ({ ...l, ...diagnose(l.k, ctx) }));
+  let pool = ranked.map((l) => ({ ...l, ...diagnose(l.k, ctx) }));
+  // ทีออฟ/ไดรเวอร์เป็นอีกมุมของสโตรกที่หาย: ถ้าเสียมากพอให้ขึ้นเป็นจุดที่ควรแก้ด้วย
+  // ลูกโทษส่วนใหญ่มาจากทีออฟ → รวมเป็นเรื่องเดียวกัน ไม่แสดงซ้ำ
+  const tee = teeAnalysis(facts, { clubOf: clubInfo, goal, driver: simDriver });
+  if (tee.enough && tee.gap >= 0.5) {
+    const pen = pool.find((l) => l.k === 'pen');
+    const merge = pen && tee.penStrokes >= 0.6 * sum('pen');
+    if (merge) pool = pool.filter((l) => l !== pen);
+    pool.push({
+      k: 'tee', th: 'ทีออฟ / ไดรเวอร์', icon: '🏌️', yours: tee.fir, target: goal.stats.fir,
+      gap: Math.max(tee.gap, merge ? pen.gap : 0), cue: tee.cue, drills: tee.drills,
+      find: [...(merge ? pen.find.filter((x) => x.startsWith('สาเหตุ')) : []), ...tee.find.filter((x) => !/^(ทีออฟลงแฟร์เวย์|หลุมที่ทีออฟพลาด)/.test(x))],
+      line: `ทีออฟลงแฟร์เวย์ ${tee.fir == null ? '–' : `${Math.round(tee.fir)}%`} (เป้า ${goal.stats.fir}%)${tee.missCost > 0 ? ` · หลุมที่ทีออฟพลาดเสียเพิ่มเฉลี่ย ${tee.missCost.toFixed(1)} สโตรก` : ''}`,
+    });
+    pool.sort((a, b) => b.gap - a.gap);
+  }
+  const focus = pool.slice(0, 3);
+  const teeFocused = focus.some((f) => f.k === 'tee');
   const cues = focus.map((f) => f.cue).filter(Boolean);
+  // ใช้ไม้อื่นในหลุมเสี่ยงแล้ว หลุมที่ยังใช้ไดรเวอร์ก็ให้เล็งเผื่อฝั่งที่พลาดด้วย
+  if (teeFocused && tee.cue2) cues.splice(cues.indexOf(tee.cue) + 1, 0, tee.cue2);
   if (stats.blow != null && stats.blow > goal.stats.blow + 1 && cues.length < 3) {
     const hardAvg = hard.length >= 6 ? avg(hard.map((h) => h.over)) : null;
     const easyAvg = easy.length >= 6 ? avg(easy.map((h) => h.over)) : null;
@@ -234,16 +255,19 @@ export function analyzeGame({ rounds, holesOf, shotsOf, penaltiesOf, clubLabel =
     });
   }
 
-  const sc = simCue(simIssues);
-  if (sc && cues.length < 3) cues.push(sc);
+  if (!teeFocused && tee.problem && tee.cue && cues.length < 3) cues.push(tee.cue);
+  else if (!teeFocused) {
+    const sc = simCue(simIssues);
+    if (sc && cues.length < 3) cues.push(sc);
+  }
 
-  const plan = buildPlan(focus, goal, practice, simIssues);
+  const plan = buildPlan(focus, goal, practice, simIssues, tee);
   const confidence = n >= 54 ? 'good' : n >= 18 ? 'fair' : n >= 9 ? 'low' : 'none';
   return {
     goal, avgScore, best: recent.length ? Math.min(...recent.map((x) => x.score18)) : null, trend,
     scoreRounds, recentCount: recent.length, byPar,
     shot: { holes: n, holesLogged, rounds: shotRoundIds.length, overShots, confidence },
-    leaks, ranked, stats: statRows, focus, cues: cues.slice(0, 3), plan,
+    leaks, ranked, stats: statRows, focus, cues: cues.slice(0, 3), plan, tee,
   };
 }
 
@@ -381,6 +405,143 @@ function bestTeeClub(facts, clubLabel, avoid) {
   return best && best.label && best.rate >= 0.4 ? best : null;
 }
 
+// ---------- ทีออฟ / ไดรเวอร์ ----------
+// ลูกไดรเวอร์ที่พลาดกระจายไปอยู่หลายหมวดด้านบน (ลูกโทษ ช็อตยาวเกิน พลาดกรีนเพราะตีจากรัฟ) จึงรวมดูที่นี่อีกมุมหนึ่ง
+// ช็อตแรกของหลุมพาร์ 4–5: ลงแฟร์เวย์ไหม พลาดฝั่งไหน โดนลูกโทษหรือต้องตีออกไหม ไม้ไหนตรงกว่า
+// ผลต่อสกอร์ = หลุมที่ทีออฟพลาดเสียมากกว่าหลุมที่ลงแฟร์เวย์เฉลี่ยเท่าไร (เทียบในข้อมูลของคุณเอง)
+// driver = ไดรเวอร์จากเครื่องซ้อม (launch.js driverProfile) · null = ไม่มี
+export const TEE_MIN = 6;
+
+export function teeAnalysis(facts, { clubOf = () => null, goal = goalOf('90'), driver = null } = {}) {
+  const tees = facts.filter((f) => f.par >= 4).map((f) => {
+    const s = f.shots[0];
+    const pen = f.pens.filter((p) => p.related_shot_id_optional === s.id).reduce((a, p) => a + (Number(p.strokes) || 0), 0);
+    const trouble = pen > 0 || s.end_lie === 'other' || f.shots[1]?.shot_type === 'recovery';
+    return { s, pen, trouble, fir: f.fir, over: f.over, club: s.club_id ? clubOf(s.club_id) : null };
+  });
+  const n = tees.length;
+  const enough = n >= TEE_MIN;
+  const perRound = (x) => per18(x, facts.length) ?? 0;
+  const known = tees.filter((t) => t.fir != null);
+  const fir = known.length >= 4 ? share(known.filter((t) => t.fir).length, known.length) * 100 : null;
+  const penStrokes = tees.reduce((a, t) => a + t.pen, 0);
+  const penHoles = tees.filter((t) => t.pen > 0).length;
+  const out = tees.filter((t) => t.trouble && !t.pen).length;
+  const misses = tees.filter((t) => t.fir === false || t.trouble);
+  const dir = side(misses.map((t) => t.s), 'direction', 'left', 'right');
+  const fl = faults(tees.map((t) => t.s));
+  const badContact = [...fl.m.values()].reduce((a, c) => a + c, 0);
+  const spread = {
+    n: known.length,
+    fw: known.filter((t) => t.fir).length,
+    left: misses.filter((t) => t.s.direction === 'left').length,
+    right: misses.filter((t) => t.s.direction === 'right').length,
+  };
+  spread.unk = misses.length - spread.left - spread.right;
+
+  // สกอร์เฉลี่ยเทียบพาร์ตามผลทีออฟ
+  const grp = (xs) => ({ n: xs.length, avg: avg(xs.map((t) => t.over)) });
+  const byResult = {
+    fw: grp(tees.filter((t) => t.fir === true && !t.trouble)),
+    rough: grp(tees.filter((t) => t.fir === false && !t.trouble)),
+    trouble: grp(tees.filter((t) => t.trouble)),
+  };
+  const fwAvg = byResult.fw.n >= 3 ? byResult.fw.avg : null;
+  const missCost = fwAvg != null && misses.length >= 3 ? avg(misses.map((t) => t.over)) - fwAvg : null;
+  const cost = missCost != null ? Math.max(0, perRound(misses.reduce((a, t) => a + t.over - fwAvg, 0))) : null;
+
+  // แยกตามไม้ทีออฟ
+  const m = new Map();
+  for (const t of tees) {
+    const key = t.club?.id ?? '';
+    if (!m.has(key)) m.set(key, { id: key || null, label: t.club?.label ?? 'ไม่ระบุไม้', category: t.club?.category ?? null, list: [] });
+    m.get(key).list.push(t);
+  }
+  const byClub = [...m.values()].map(({ list, ...c }) => {
+    const k = list.filter((t) => t.fir != null);
+    return {
+      ...c, n: list.length, fir: k.length ? share(k.filter((t) => t.fir).length, k.length) * 100 : null,
+      pen: list.filter((t) => t.pen > 0).length, trouble: list.filter((t) => t.trouble).length, avgOver: avg(list.map((t) => t.over)),
+    };
+  }).sort((a, b) => (a.id ? 0 : 1) - (b.id ? 0 : 1) || b.n - a.n);
+  const drv = byClub.find((c) => c.category === 'driver' && c.n >= 3 && c.fir != null) ?? null;
+  const alt = drv
+    ? byClub.filter((c) => c.id && c.category !== 'driver' && c.n >= 3 && c.fir != null && c.fir >= drv.fir + 15).sort((a, b) => b.fir - a.fir)[0] ?? null
+    : null;
+
+  // สโตรกที่ได้คืนต่อรอบ ถ้าลงแฟร์เวย์ได้ตามเป้า หรือลูกโทษจากทีออฟลดลงเหลือเท่างบ
+  const firGap = fir != null ? goal.stats.fir - fir : 0;
+  const saveFir = firGap > 0 && missCost > 0 ? (firGap / 100) * perRound(n) * missCost : 0;
+  const savePen = Math.max(0, perRound(penStrokes) - goal.budget.pen);
+  const gap = enough ? Math.max(saveFir, savePen) : null;
+  const simBad = !!driver && ((driver.fw != null && driver.fw < 0.6) || (driver.f2p != null && Math.abs(driver.f2p) >= 4) || (driver.mishit ?? 0) >= 0.15);
+  const missSide = dir?.v ?? driver?.side ?? null;
+  const problem = (gap != null && gap >= 0.5) || simBad;
+
+  const pct = (x) => `${Math.round(x)}%`;
+  const th = (v) => (v === 'left' ? 'ซ้าย' : 'ขวา');
+  const find = [];
+  if (fir != null) find.push(`ทีออฟลงแฟร์เวย์ ${pct(fir)} (เป้า ${goal.stats.fir}%) จาก ${known.length} หลุมพาร์ 4–5`);
+  if (drv) find.push(`ไดรเวอร์ ${drv.n} หลุม ลงแฟร์เวย์ ${pct(drv.fir)}${drv.pen ? ` · โดนลูกโทษ ${drv.pen} หลุม` : ''}`);
+  if (alt) find.push(`${alt.label} ลงแฟร์เวย์ ${pct(alt.fir)} (${alt.n} หลุม) ตรงกว่าไดรเวอร์`);
+  if (dir?.v) find.push(`ทีออฟที่พลาดไปทาง${th(dir.v)} ${pctTxt(dir.rate)} (${dir.n} ครั้งที่ระบุทิศ)`);
+  if (penHoles) find.push(`ทีออฟโดนลูกโทษ (OB/น้ำ) ${penHoles} หลุม = ${perRound(penStrokes).toFixed(1)} สโตรก/รอบ`);
+  if (out) find.push(`ทีออฟลงพื้นที่ยากจนต้องตีออก ${out} หลุม`);
+  if (fl.m.size) find.push(`ทีออฟที่สัมผัสไม่ดี: ${fl.text}`);
+  if (missCost != null && missCost > 0) find.push(`หลุมที่ทีออฟพลาดเสียมากกว่าหลุมที่ลงแฟร์เวย์เฉลี่ย ${missCost.toFixed(1)} สโตรก`);
+  if (driver) {
+    const bits = [
+      driver.fw != null ? `ลงแฟร์เวย์กว้าง 40 หลา ${pctTxt(driver.fw)}` : '',
+      driver.shape ? `ลูก${driver.shape} (Face to Path ${driver.f2p > 0 ? '+' : ''}${driver.f2p.toFixed(1)}°)` : '',
+      driver.outIn ? `วงสวิง${driver.outIn}` : '',
+    ].filter(Boolean);
+    if (bits.length) find.push(`เครื่องซ้อม: ไดรเวอร์${bits.join(' · ')}`);
+  }
+
+  // ข้อมูลที่ควรจดเพิ่ม
+  const hints = [];
+  if (n && tees.filter((t) => !t.club).length > n * 0.3) hints.push('ระบุไม้ที่ใช้ทีออฟ เพื่อเทียบไดรเวอร์กับไม้อื่น');
+  if (n && known.length < n * 0.7) hints.push('ระบุจุดจบของทีออฟ (แฟร์เวย์/รัฟ/บังเกอร์) ทุกหลุม');
+  if (misses.length >= 3 && spread.unk > misses.length / 2) hints.push('ทีออฟที่พลาดแฟร์เวย์ ระบุทิศ (ซ้าย/ขวา) ด้วย แอปจะบอกได้ว่าควรเล็งอย่างไร');
+
+  let sideCue = null;
+  if (missSide) {
+    const r = missSide === 'right';
+    const simWhy = driver?.shape ? `เครื่องซ้อม: ไดรเวอร์ลูก${driver.shape}` : driver?.side ? `เครื่องซ้อม: ไดรเวอร์หลุดแฟร์เวย์ทาง${th(driver.side)}บ่อย` : '';
+    sideCue = {
+      text: `ทีออฟ: ตั้งทีฝั่ง${r ? 'ขวา' : 'ซ้าย'}ของแท่น แล้วเล็งไปขอบ${r ? 'ซ้าย' : 'ขวา'}ของแฟร์เวย์`,
+      why: [dir?.v ? `ทีออฟที่พลาดไปทาง${th(dir.v)} ${pctTxt(dir.rate)}` : '', driver?.side === missSide ? simWhy : ''].filter(Boolean).join(' · '),
+      ...(dir?.v ? {} : { src: 'sim' }),
+    };
+  }
+  let cue = null;
+  let cue2 = null;
+  if (alt && (drv.pen >= 2 || alt.fir - drv.fir >= 20)) {
+    cue = { text: `หลุมแคบหรือมี OB/น้ำ ทีออฟด้วย ${alt.label} แทนไดรเวอร์`, why: `${alt.label} ลงแฟร์เวย์ ${pct(alt.fir)} · ไดรเวอร์ ${pct(drv.fir)}` };
+    if (sideCue) cue2 = { ...sideCue, text: `หลุมที่ยังใช้ไดรเวอร์: ${sideCue.text.replace(/^ทีออฟ: /, '')}` };
+  } else if (sideCue) {
+    cue = sideCue;
+  } else if (badContact >= 3) {
+    cue = { text: 'ทีออฟ: ตั้งทีสูงพอ (ครึ่งลูกเหนือหัวไม้) สวิง 80% เน้นโดนกลางหน้าไม้', why: `ทีออฟที่สัมผัสไม่ดี: ${fl.text}` };
+  } else if (fir != null && fir < goal.stats.fir) {
+    cue = { text: 'ทีออฟ: สวิง 80% ที่คุมได้ ลงแฟร์เวย์สำคัญกว่าระยะ', why: `ทีออฟลงแฟร์เวย์ ${pct(fir)} (เป้า ${goal.stats.fir}%)` };
+  }
+  if (cue) cue.k = 'tee';
+  if (cue2) cue2.k = 'tee';
+
+  const drills = [];
+  if (missSide) drills.push('driver-curve');
+  if (badContact >= 3 || (driver && ((driver.mishit ?? 0) >= 0.15 || (driver.sf != null && driver.sf < 1.38)))) drills.push('driver-strike');
+  if (alt || penHoles >= 2) drills.push('tee-club-test');
+  drills.push('tee-gate');
+  if (driver) drills.splice(1, 0, 'sim-driver-window');
+
+  return {
+    n, enough, fir, known: known.length, penHoles, penStrokes, penPerRound: perRound(penStrokes), out, dir, spread,
+    faults: fl, byResult, missCost, cost, byClub, drv, alt, driver, missSide, gap, problem, find, hints, cue, cue2, drills: [...new Set(drills)],
+  };
+}
+
 // ---------- แบบฝึก ----------
 // video = คำค้นคลิปสอนใน YouTube (ภาษาไทย / อังกฤษ)
 
@@ -505,6 +666,40 @@ export const DRILLS = [
     pass: 'ผ่าน 5/10',
     video: { th: 'สอนกอล์ฟ ไดรเวอร์ ตีขึ้น attack angle', en: 'driver attack angle hit up drill' },
   },
+  // ---- ไดรเวอร์ ----
+  {
+    id: 'driver-curve', area: 'ทีออฟ', name: 'แก้ลูกโค้งไดรเวอร์', minutes: 15, attempts: 10,
+    why: 'ลูกไดรเวอร์โค้งออกขวา (สไลซ์) หรือซ้าย (ฮุก) เป็นสาเหตุหลักที่ทีออฟหลุดแฟร์เวย์และโดน OB',
+    steps: [
+      'วางไม้ชี้เป้าบนพื้นชี้ไปที่เป้า ตั้งเท้าและไหล่ให้ขนานกับไม้ (คนที่สไลซ์มักยืนเปิดไปทางซ้ายโดยไม่รู้ตัว)',
+      'ลูกโค้งขวา: วางคัฟเวอร์หัวไม้ห่างลูกออกไปด้านนอกราว 1 ฝ่ามือ เยื้องไปข้างหน้าเล็กน้อย ฝึกสวิงเข้าจากด้านในให้ไม่โดนคัฟเวอร์ และหมุนกริปให้ strong ขึ้นเล็กน้อย · ลูกโค้งซ้าย: วางคัฟเวอร์ด้านในแทน',
+      'ตีไดรเวอร์ 10 ลูก สวิง 80% นับลูกที่โค้งน้อยจนยังอยู่ในแฟร์เวย์กว้าง 30 หลา',
+    ],
+    pass: 'ผ่าน 6/10 แล้วค่อยเพิ่มแรงสวิง',
+    video: { th: 'สอนกอล์ฟ แก้สไลซ์ ไดรเวอร์', en: 'fix driver slice drill headcover' },
+  },
+  {
+    id: 'driver-strike', area: 'ทีออฟ', name: 'ไดรเวอร์โดนกลางหน้าไม้', minutes: 10, attempts: 10,
+    why: 'ลูกที่โดนปลาย โคน หรือต่ำบนหน้าไม้ทำให้ลูกเบี้ยว สปินสูง และเสียระยะ แม้วงสวิงจะดี',
+    steps: [
+      'พ่นสเปรย์แป้งระงับกลิ่นเท้า หรือขีดปากกาไวท์บอร์ดบนหน้าไม้ไดรเวอร์',
+      'ตั้งทีให้ครึ่งลูกอยู่เหนือหัวไม้ ตี 10 ลูก สวิง 80% ดูรอยบนหน้าไม้ทุกลูกแล้วเช็ดออก',
+      'นับลูกที่รอยอยู่กลางหน้าไม้ ในวงกว้างราวขนาดลูกกอล์ฟ (โดนปลายไม้ให้ยืนใกล้ขึ้น โดนโคนให้ยืนห่างขึ้น)',
+    ],
+    pass: 'ผ่าน 6/10',
+    video: { th: 'สอนกอล์ฟ ไดรเวอร์ ตีให้โดนกลางหน้าไม้', en: 'driver center strike drill foot spray' },
+  },
+  {
+    id: 'sim-driver-window', area: 'เครื่องซ้อม', name: 'ไดรเวอร์ลงแฟร์เวย์บนเครื่อง', minutes: 15, attempts: 10,
+    why: 'วัดผลจริงว่าไดรเวอร์ลงแฟร์เวย์กี่ลูก ด้วยตัวเลขที่ไม่หลอกตา',
+    steps: [
+      'ตั้งเป้าตรงหน้า ดูค่า Carry Deviation (ระยะเบี่ยงจากแนวเป้า) ทุกลูก',
+      'ตีไดรเวอร์ 10 ลูก ทำรูทีนเต็มทุกลูก สวิงแรงเท่าที่คุมได้',
+      'นับลูกที่เบี่ยงไม่เกิน 20 หลา (18 ม.) และระยะลอยไม่ต่ำกว่าระยะปกติของคุณเกิน 10%',
+    ],
+    pass: 'ผ่าน 6/10 แล้วลดกรอบเหลือ 15 หลา',
+    video: { th: 'ซ้อมไดรเวอร์ ให้ตรง ลงแฟร์เวย์', en: 'driver dispersion practice launch monitor' },
+  },
 ];
 export const drill = (id) => DRILLS.find((d) => d.id === id) ?? null;
 
@@ -537,7 +732,9 @@ export function simCue(simIssues = []) {
 
 // แผนซ้อมสัปดาห์: เรื่องอันดับ 1 จากการออกรอบสองแบบฝึก อันดับ 2 หนึ่งแบบฝึก พัตสั้นเป็นประจำ
 // มีผลจากเครื่องซ้อม → แทรกแบบฝึกของปัญหาอันดับ 1 จากเครื่องซ้อมเป็นแบบฝึกที่ 2 (ไม่มีข้อมูลออกรอบ → ใช้เครื่องซ้อมนำ)
-export function buildPlan(focus, goal, practice = [], sim = []) {
+// ทีออฟ/ไดรเวอร์เป็นปัญหา (tee.problem) แต่ยังไม่มีแบบฝึกทีออฟ → ใส่แทนแบบฝึกสุดท้าย 1 อย่าง
+const isTeeDrill = (id) => drill(id)?.area === 'ทีออฟ' || /^sim-driver-/.test(id);
+export function buildPlan(focus, goal, practice = [], sim = [], tee = null) {
   const d = (i, j) => focus[i]?.drills[j];
   const s = (i, j) => sim[i]?.drills?.[j];
   let ids;
@@ -556,8 +753,14 @@ export function buildPlan(focus, goal, practice = [], sim = []) {
   }
   if (sim.length) basis.push(`${sim[0].th} (จากเครื่องซ้อม)`);
   const fromCourse = new Set(focus.flatMap((f) => f.drills));
-  const items = [...new Set(ids.filter(Boolean))].filter((id) => drill(id)).slice(0, 4)
-    .map((id) => ({ ...drill(id), history: drillHistory(practice, id), fromSim: !fromCourse.has(id) && sim.some((x) => x.drills?.includes(id)) }));
+  let picked = [...new Set(ids.filter(Boolean))].filter((id) => drill(id)).slice(0, 4);
+  const teeAdd = tee?.problem && !picked.some(isTeeDrill) ? tee.drills?.find((id) => drill(id)) : null;
+  if (teeAdd) {
+    picked = [...picked.slice(0, 3), teeAdd];
+    basis.push('ทีออฟ/ไดรเวอร์');
+  }
+  const items = picked
+    .map((id) => ({ ...drill(id), history: drillHistory(practice, id), fromSim: !fromCourse.has(id) && id !== teeAdd && sim.some((x) => x.drills?.includes(id)) }));
   return { items, minutes: items.reduce((a, x) => a + x.minutes, 0), basis };
 }
 

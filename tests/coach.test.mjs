@@ -127,6 +127,7 @@ function dataset(extraRounds = []) {
     shotsOf: (hid) => shotsBy.get(hid) ?? [],
     penaltiesOf: (hid) => pensBy.get(hid) ?? [],
     clubLabel: (cid) => ({ D: 'Driver', '3W': '3W', I7: 'I7' }[cid] ?? null),
+    clubOf: (cid) => ({ D: { id: 'D', label: 'Driver', category: 'driver' }, '3W': { id: '3W', label: '3W', category: 'wood' }, I7: { id: 'I7', label: 'I7', category: 'iron' } }[cid] ?? null),
   };
 }
 
@@ -183,11 +184,22 @@ test('ลูกโทษจากทีออฟ → เสนอไม้ที
     r2.holes.push(mkHole('r2', i + 1, 4, spec, obHole ? { pens: [[0, 2, 'ob_lost']] } : {}));
   }
   const a = analyzeGame(dataset([r2]), '80');
-  const pen = a.focus.find((f) => f.k === 'pen');
-  assert.ok(pen);
-  assert.match(pen.cue.text, /3W/);
-  assert.ok(pen.find.some((x) => x.includes('OB/ลูกหาย')));
-  assert.ok(pen.find.some((x) => x.includes('Driver')));
+  // ลูกโทษทั้งหมดมาจากทีออฟ → รวมเป็นเรื่อง "ทีออฟ / ไดรเวอร์" เรื่องเดียว
+  assert.equal(a.focus.find((f) => f.k === 'pen'), undefined, 'ไม่แสดงลูกโทษซ้ำ');
+  const tee = a.focus.find((f) => f.k === 'tee');
+  assert.ok(tee);
+  assert.equal(a.focus[0].k, 'tee', 'เสียมากที่สุด');
+  assert.match(tee.cue.text, /3W แทนไดรเวอร์/);
+  assert.ok(tee.find.some((x) => x.includes('OB/ลูกหาย')), 'เก็บสาเหตุของลูกโทษไว้');
+  assert.ok(tee.find.some((x) => /^ไดรเวอร์ \d+ หลุม ลงแฟร์เวย์/.test(x)));
+  assert.ok(a.plan.items.some((d) => d.id === 'tee-club-test'));
+  assert.match(a.cues[1].text, /^หลุมที่ยังใช้ไดรเวอร์/, 'โฟกัสรอบหน้าบอกทั้งไม้ที่ควรใช้และวิธีเล็ง');
+
+  // ไม่ส่งข้อมูลไม้ (มีแค่ชื่อ) ยังวิเคราะห์ได้ เพียงแต่แยกไดรเวอร์ไม่ได้ → เหลือเรื่องลูกโทษตามเดิม
+  const { clubOf, ...noCat } = dataset([r2]);
+  assert.ok(clubOf);
+  const b = analyzeGame(noCat, '80');
+  assert.ok(b.focus.some((f) => f.k === 'tee' || f.k === 'pen'));
 });
 
 test('รอบจดเร็วนับเฉพาะสกอร์ ไม่นำมาแยกรายช็อต และรอบที่กำลังเล่นไม่นับ', () => {

@@ -546,6 +546,33 @@ export function launchSessions(practice) {
   return [...m.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
+// ---------- ไดรเวอร์จากเครื่องซ้อม ----------
+// แฟร์เวย์สมมติกว้าง 40 หลา: ระยะลอยเบี่ยงจากแนวเป้า (Carry Deviation) ไม่เกิน 20 หลาถือว่าลงแฟร์เวย์
+export const FAIRWAY_HALF = 20 * YD;
+
+// สรุปไดรเวอร์ (อย่างน้อย 5 ลูก) · fw = สัดส่วนลูกที่ลงแฟร์เวย์สมมติ นับทุกลูกรวมลูกพลาด เพราะในสนามก็นับ
+export function driverProfile(shots, clubOf = () => null, { hand = 'right' } = {}) {
+  const s = clubStats(shots, clubOf).find((x) => x.category === 'driver' && x.n >= 5);
+  if (!s) return null;
+  const keyOf = (x) => (x.clubId && clubOf(x.clubId) ? x.clubId : `raw:${x.raw}`);
+  const dev = shots.filter((x) => keyOf(x) === s.key && x.cdev != null).map((x) => x.cdev);
+  const out = (pred) => (dev.length ? dev.filter(pred).length / dev.length : null);
+  const curve = s.f2pN >= 3 && s.f2p != null && Math.abs(s.f2p) >= 2.5 ? (s.f2p > 0 ? 'right' : 'left') : null;
+  const outIn = s.path != null && Math.abs(s.path) >= 3 ? ((s.path < 0) === (hand === 'right') ? 'ตัดจากนอกเข้าใน' : 'ตีจากในออกนอก') : null;
+  const missL = out((d) => d < -FAIRWAY_HALF), missR = out((d) => d > FAIRWAY_HALF);
+  // ฝั่งที่พลาดบ่อย: ลูกหลุดแฟร์เวย์ฝั่งหนึ่งมากกว่าอีกฝั่งชัดเจน ไม่งั้นใช้ทิศที่ลูกโค้ง
+  const l = missL ?? 0, r = missR ?? 0;
+  const side = l + r >= 0.2 && Math.max(l, r) >= 0.65 * (l + r) ? (r > l ? 'right' : 'left') : curve;
+  return {
+    key: s.key, label: s.label, n: s.n, nDev: dev.length,
+    carry: s.carry, p25: s.p25, p75: s.p75, total: s.total, sideAbs: s.sideAbs,
+    sf: s.sf, spin: s.spin, aa: s.aa, f2p: s.f2p, path: s.path, ld: s.ld, mishit: s.mishit,
+    fw: dev.length >= 5 ? out((d) => Math.abs(d) <= FAIRWAY_HALF) : null,
+    missL, missR, side,
+    curve, shape: curve ? ((curve === 'right') === (hand === 'right') ? 'สไลซ์/เฟด' : 'ฮุก/ดรอว์') : null, outIn,
+  };
+}
+
 const daysBefore = (ymd, days) => new Date(Date.parse(`${ymd}T00:00:00Z`) - days * 86400000).toISOString().slice(0, 10);
 
 // สรุปสำหรับหน้าโค้ช: ใช้เฉพาะการซ้อม 60 วันล่าสุด (นานกว่านั้นวงสวิงอาจเปลี่ยนไปแล้ว)
@@ -555,14 +582,16 @@ export function simSummary(practice, clubOf, { hand = 'right', fmt, inBetween, t
   if (!sessions.length) return null;
   const lastDate = sessions.at(-1).date;
   const recent = today ? sessions.filter((s) => s.date && s.date >= daysBefore(today, days)) : sessions;
-  if (!recent.length) return { stale: true, lastDate, issues: [], top: null, history: [], sessions: 0, shots: 0 };
+  if (!recent.length) return { stale: true, lastDate, issues: [], top: null, history: [], sessions: 0, shots: 0, driver: null, driverTrend: [] };
   const shots = recent.flatMap((s) => s.shots);
   const issues = launchIssues(clubStats(shots, clubOf), { hand, fmt, inBetween });
   const top = issues.find((i) => ISSUE_METRIC[i.k]) ?? null;
   const history = top
     ? recent.map((s) => ({ date: s.date, value: launchMetrics(clubStats(s.shots, clubOf))[ISSUE_METRIC[top.k].k] })).filter((x) => x.value != null).slice(-5)
     : [];
-  return { stale: false, lastDate, issues, top, history, sessions: recent.length, shots: shots.length };
+  const driverTrend = recent.map((s) => ({ date: s.date, d: driverProfile(s.shots, clubOf, { hand }) }))
+    .filter((x) => x.d?.fw != null).map((x) => ({ date: x.date, fw: x.d.fw, carry: x.d.carry, f2p: x.d.f2p })).slice(-5);
+  return { stale: false, lastDate, issues, top, history, sessions: recent.length, shots: shots.length, driver: driverProfile(shots, clubOf, { hand }), driverTrend };
 }
 
 // เทียบระยะในสนาม (GPS: ระยะจริงถึงจุดตีถัดไป ≈ ระยะรวม) กับระยะรวมจากเครื่องซ้อม · ไม้ที่มีข้อมูลทั้งสองแหล่ง

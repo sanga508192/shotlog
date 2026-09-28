@@ -11,7 +11,7 @@ export function chips(act, field, options, current, { cls = '' } = {}) {
 }
 
 export function fmtDate(iso) {
-  if (!iso) return '';
+  if (!iso || typeof iso !== 'string') return '';
   const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
   return new Date(y, m - 1, d).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
 }
