@@ -1,6 +1,7 @@
 // โค้ชพัฒนาเกม: แยกว่าสโตรกเกินพาร์มาจากไหน เทียบกับ "งบสโตรก" ของเป้าหมาย แล้วเสนอโฟกัสรอบหน้าและแผนซ้อม
 // คำนวณล้วน ๆ จากข้อมูลที่จดในเครื่อง (ไม่ใช้ AI ภายนอก) ทดสอบด้วย node:test ได้
 import { ME, playerHoleScore } from './group.js';
+import { distM } from './holemap.js';
 
 // ---------- เป้าหมาย ----------
 // งบสโตรกเกินพาร์ต่อ 18 หลุม (พาร์ 72) แบ่งตามที่มา — รวมกันแล้วไม่เกินสกอร์เป้าหมาย
@@ -483,4 +484,56 @@ export function buildPlan(focus, goal, practice = []) {
   }
   const items = [...new Set(ids)].slice(0, 4).map((id) => ({ ...drill(id), history: drillHistory(practice, id) }));
   return { items, minutes: items.reduce((a, d) => a + d.minutes, 0), basis };
+}
+
+// ---------- ระยะไม้จริงจาก GPS ----------
+// ระยะช็อต = จากจุดที่ตีช็อตนี้ ถึงจุดที่ตีช็อตถัดไป (จับ GPS ตอนจดช็อตขณะยืนอยู่ที่จุดตี)
+// ช็อตแรกของหลุมใช้หมุดแท่นทีแทนได้ถ้าไม่มี GPS
+export const GPS_MAX_ACC = 25;   // เมตร: ตำแหน่งคลาดเคลื่อนเกินนี้ไม่นำมาคิด
+
+export function shotDistances(shots, teePin = null) {
+  const list = shots.filter((s) => s.counted !== false).sort((a, b) => a.sequence - b.sequence);
+  const posOf = (s, i) => {
+    const g = s.gps;
+    if (g && Number.isFinite(g.lat) && Number.isFinite(g.lon) && (g.acc ?? 0) <= GPS_MAX_ACC) return g;
+    return i === 0 && teePin ? teePin : null;
+  };
+  const out = new Map();
+  for (let i = 0; i < list.length - 1; i++) {
+    const a = posOf(list[i], i), b = posOf(list[i + 1], i + 1);
+    if (a && b) out.set(list[i].id, distM(a, b));
+  }
+  return out;
+}
+
+// ควอนไทล์แบบเฉลี่ยระหว่างสองค่าที่ใกล้ที่สุด
+const quant = (arr, p) => {
+  const i = p * (arr.length - 1), lo = Math.floor(i), hi = Math.ceil(i);
+  return arr[lo] + (arr[hi] - arr[lo]) * (i - lo);
+};
+
+// ระยะของแต่ละไม้จากช็อตเต็ม (ทีออฟ/เข้ากรีน) ที่สัมผัสไม่พลาด ไม่โดนลูกโทษ ไม่ออกนอกเขต
+export function clubDistances({ rounds, holesOf, shotsOf, penaltiesOf, clubOf, teeOf = () => null }) {
+  const by = new Map();
+  for (const r of rounds) {
+    if (r.shot_logging === false) continue;
+    for (const h of holesOf(r.id)) {
+      const shots = shotsOf(h.id);
+      if (shots.length < 2) continue;
+      const penalized = new Set(penaltiesOf(h.id).map((p) => p.related_shot_id_optional).filter(Boolean));
+      for (const [id, d] of shotDistances(shots, teeOf(r, h))) {
+        const s = shots.find((x) => x.id === id);
+        const club = clubOf(s.club_id);
+        if (!club || club.category === 'putter' || !['tee', 'approach'].includes(s.shot_type)) continue;
+        if (['top', 'fat'].includes(s.contact) || penalized.has(id) || s.end_lie === 'other') continue;
+        if (d < 20 || d > 400) continue;
+        if (!by.has(club.id)) by.set(club.id, { club, ds: [] });
+        by.get(club.id).ds.push(d);
+      }
+    }
+  }
+  return [...by.values()].map(({ club, ds }) => {
+    ds.sort((a, b) => a - b);
+    return { club_id: club.id, label: club.label, category: club.category, order: club.order ?? 0, n: ds.length, median: quant(ds, 0.5), p25: quant(ds, 0.25), p75: quant(ds, 0.75), max: ds.at(-1) };
+  }).sort((a, b) => a.order - b.order);
 }

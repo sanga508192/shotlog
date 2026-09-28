@@ -11,6 +11,9 @@ import {
 } from './group.js';
 import { playersOf } from '../group.js';
 import { deleteRound } from './main.js';
+import { watchPosition, lastPosition } from '../geo.js';
+import { courseHoles, distM, toUnit, unitTh } from '../holemap.js';
+import { shotDistances, GPS_MAX_ACC } from '../coach.js';
 
 // ---------- สถานะฟอร์มจดช็อต (อยู่ข้ามการ render) ----------
 
@@ -61,14 +64,16 @@ function assessBadge(a) {
   return '<span class="badge none">ยังไม่ประเมิน</span>';
 }
 
-function shotCard(s, editingId) {
+function shotCard(s, editingId, gpsM = null, unit = 'm') {
   const c = st.club(s.club_id);
   const { bits, lie, dist } = shotSummary(s);
+  // พัตไม่แสดงระยะ GPS (คลาดเคลื่อนหลายเมตร มากกว่าระยะพัต)
+  const gpsTxt = s.shot_type === 'putt' ? '' : gpsM != null ? `📍 ${Math.round(toUnit(gpsM, unit))} ${unitTh(unit)}` : s.gps ? '📍' : '';
   return `<div class="shot${s.id === editingId ? ' editing' : ''}${s.counted === false ? ' void' : ''}">
     <button type="button" class="shot-main" data-act="edit" data-id="${s.id}">
       <span class="seq">${s.sequence}</span>
       <span class="shot-body">
-        <span><strong>${esc(c?.label ?? 'ไม่ระบุไม้')}</strong> · ${esc(label(SHOT_TYPES, s.shot_type))} ${assessBadge(s.assessment)}
+        <span><strong>${esc(c?.label ?? 'ไม่ระบุไม้')}</strong> · ${esc(label(SHOT_TYPES, s.shot_type))} ${assessBadge(s.assessment)}${gpsTxt ? ` <span class="gps-dist" title="ระยะช็อตจาก GPS">${gpsTxt}</span>` : ''}
           ${s.holed ? '<span class="badge good">ลงหลุม</span>' : ''}${s.counted === false ? '<span class="badge none">ไม่นับ</span>' : ''}</span>
         ${bits.length ? `<span class="small">${esc(bits.join(' · '))}</span>` : ''}
         ${lie || dist || s.raw_distance_text ? `<span class="small muted">${esc([lie, dist, s.raw_distance_text].filter(Boolean).join(' · '))}</span>` : ''}
@@ -87,12 +92,14 @@ function numInput(field, ph) {
   return `<input class="input" type="number" inputmode="decimal" step="any" min="0" placeholder="${ph}" value="${v ?? ''}" data-input="num" data-field="${field}">`;
 }
 
-function shotForm(bag, phrases) {
+function shotForm(bag, phrases, gpsOn = false) {
   const showSymptoms = F.assessment === 'needs_work' || details;
   const title = mode === 'edit' ? `แก้ไขช็อตที่ ${F.sequence}` : mode === 'insert' ? `แทรกช็อตที่ ${F.sequence}` : `ช็อตที่ ${F.sequence}`;
   const clubOpts = bag.map((c) => ({ v: c.id, th: c.label }));
   return `<section class="card entry" id="entry">
     <div class="row between"><h3>${title}</h3>${mode !== 'new' ? '<button type="button" class="mini" data-act="cancel">ยกเลิก</button>' : ''}</div>
+    ${mode !== 'edit' ? `<label class="check gps-toggle"><input type="checkbox" data-change="gpsShots" ${gpsOn ? 'checked' : ''}> 📍 จับตำแหน่ง GPS ตอนบันทึก <span class="small muted" id="gps-state"></span></label>
+    ${gpsOn ? '<p class="note">บันทึกช็อตขณะยืนอยู่ที่จุดตี (ก่อนหรือหลังตีก็ได้ ก่อนเดินไปลูกถัดไป) แอปจะคำนวณระยะแต่ละช็อตให้</p>' : ''}` : ''}
     <div class="lbl">ไม้</div>${chips('set', 'club_id', clubOpts, F.club_id, { cls: 'clubs' })}
     <div class="lbl">ประเภท ${typeTouched ? '' : '<span class="muted small">(ระบบเสนอ แตะเพื่อแก้)</span>'}</div>${chips('set', 'shot_type', SHOT_TYPES, F.shot_type)}
     <div class="lbl">ประเมินช็อต</div>
@@ -166,6 +173,10 @@ export function holeView([roundId, numStr], ctx) {
   const parOpts = [3, 4, 5, 6].map((p) => ({ v: p, th: String(p) }));
   const logShots = shotLogging(round);
   const group = isGroupRound(round);
+  const gpsOn = logShots && st.setting('gps_shots', false);
+  const pins = round.course_id ? courseHoles(round.course_id)[num] : null;
+  const gpsDist = logShots ? shotDistances(shots, pins?.tee ?? null) : new Map();
+  const unit = round.distance_unit === 'yd' ? 'yd' : 'm';
 
   const html = `${header(`หลุม ${num} / ${holes.length}`, {
     back: `#/round/${roundId}/card`,
@@ -176,6 +187,7 @@ export function holeView([roundId, numStr], ctx) {
       <div class="hole-num"><span>หลุม</span><b>${num}</b><small>/ ${holes.length}</small></div>
       <div class="hole-meta">
         <div class="par-pick"><span class="lbl inline">พาร์</span>${chips('par', 'par', parOpts, hole.par, { cls: 'tight inline' })}</div>
+        ${round.course_id ? `<a class="mini map-link" href="#/map/${encodeURIComponent(round.course_id)}/${num}?r=${encodeURIComponent(roundId)}">🗺 แผนที่หลุม</a>` : ''}
         ${hole.hc_index || hole.distance ? `<div class="small muted">${[hole.distance ? `${hole.distance} ${hole.distance_unit === 'yd' ? 'หลา' : 'ม.'}${round.tee_name ? ` · แท่น${esc(round.tee_name)}` : ''}` : '', hole.hc_index ? `HC ${hole.hc_index}` : ''].filter(Boolean).join(' · ')}</div>` : ''}
         ${logShots ? `<div class="score-line">ตี <b>${sc.strokes}</b> + ปรับ <b>${sc.penalties}</b> = <b>${sc.total}</b>
           ${sc.par != null && hole.status === 'done' ? `<span class="topar">(${fmtToPar(sc.toPar)})</span>` : ''}
@@ -187,10 +199,10 @@ export function holeView([roundId, numStr], ctx) {
 
     ${group ? groupEntryHtml(round, hole) : ''}
 
-    ${logShots ? `<div class="shots">${shots.length ? shots.map((s) => shotCard(s, mode === 'edit' ? F.id : null)).join('') : '<p class="muted center">ยังไม่มีช็อต</p>'}</div>
+    ${logShots ? `<div class="shots">${shots.length ? shots.map((s) => shotCard(s, mode === 'edit' ? F.id : null, gpsDist.get(s.id) ?? null, unit)).join('') : '<p class="muted center">ยังไม่มีช็อต</p>'}</div>
     ${penaltySection(hole, shots)}
 
-    ${shotForm(bag, phrases)}
+    ${shotForm(bag, phrases, gpsOn)}
 
     <section class="card">
       <h3>จบหลุม</h3>
@@ -216,9 +228,22 @@ export function holeView([roundId, numStr], ctx) {
 
   const saveHole = (changes) => st.patch('holes', hole.id, changes);
 
+  let stopGps = null;
   return {
     html,
+    mount(el) {
+      if (!gpsOn) return;
+      const state = el.querySelector('#gps-state');
+      stopGps = watchPosition((pos) => {
+        if (state) state.textContent = pos.accuracy <= GPS_MAX_ACC ? `(±${Math.round(pos.accuracy)} ม.)` : `(ยังไม่แม่น ±${Math.round(pos.accuracy)} ม.)`;
+      }, (err) => { if (state) state.textContent = `(${err.message})`; });
+    },
+    unmount() { stopGps?.(); },
     actions: {
+      gpsShots: async (el) => {
+        await st.setSetting('gps_shots', el.checked);
+        refresh();
+      },
       set: (el) => {
         const { field, v } = el.dataset;
         F[field] = field === 'distance_unit' ? v : (F[field] === v ? null : v);
@@ -289,6 +314,19 @@ export function holeView([roundId, numStr], ctx) {
             shot.sequence = current.length + 1;
           }
           if (!shot.created_at) shot.created_at = st.nowIso();
+          let gpsNote = '';
+          if (gpsOn && mode !== 'edit') {
+            const pos = lastPosition(20000);
+            if (pos && pos.accuracy <= GPS_MAX_ACC) {
+              shot.gps = { lat: pos.lat, lon: pos.lon, acc: Math.round(pos.accuracy), at: st.nowIso() };
+              if (pins?.green && shot.shot_type !== 'putt' && shot.distance_before == null) {
+                shot.distance_before = Math.round(toUnit(distM(pos, pins.green), shot.distance_unit === 'yd' ? 'yd' : 'm'));
+                shot.measurement_method = shot.measurement_method ?? 'gps';
+              }
+            } else {
+              gpsNote = pos ? ` · GPS ยังไม่แม่น (±${Math.round(pos.accuracy)} ม.) ไม่ได้เก็บตำแหน่ง` : ' · ยังไม่ได้ตำแหน่ง GPS';
+            }
+          }
           ops.push({ store: 'shots', put: shot });
           let holedMsg = false;
           if (shot.holed && st.S.holes.get(hole.id)?.status === 'playing') {
@@ -301,7 +339,7 @@ export function holeView([roundId, numStr], ctx) {
           resetDraft(round, st.S.holes.get(hole.id));
           refresh();
           if (holedMsg && nextN) toast('ลงหลุม — บันทึกในเครื่องแล้ว', { label: `ไปหลุม ${nextN}`, run: () => ctx.go(`#/round/${roundId}/hole/${nextN}`) });
-          else toast(wasEdit ? 'แก้ไขแล้ว — บันทึกในเครื่องแล้ว' : 'บันทึกในเครื่องแล้ว');
+          else toast(wasEdit ? 'แก้ไขแล้ว — บันทึกในเครื่องแล้ว' : `บันทึกในเครื่องแล้ว${gpsNote}`);
         } finally {
           saving = false;
         }

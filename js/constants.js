@@ -1,6 +1,6 @@
 // ค่าตัวเลือกทั้งหมดของแอป ค่าที่ไม่ได้เลือกเก็บเป็น null = "ยังไม่ระบุ" เสมอ
 
-export const APP_VERSION = '0.9.3';
+export const APP_VERSION = '0.10.0';
 export const SCHEMA_VERSION = 1;
 export const UNKNOWN_TH = 'ยังไม่ระบุ';
 
@@ -67,6 +67,7 @@ export const MEASURE_METHODS = [
   { v: 'measured', th: 'วัด' },
   { v: 'estimated', th: 'ประมาณ' },
   { v: 'text', th: 'ข้อความ' },
+  { v: 'gps', th: 'GPS' },
 ];
 
 export const UNITS = [

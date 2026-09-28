@@ -613,3 +613,79 @@ a.coach-link span { font-size: .84rem; color: var(--muted); }
 .crop-quick { display: flex; justify-content: center; gap: 8px; }
 .crop-quick .mini { background: rgba(255, 255, 255, .12); color: #fff; border-color: rgba(255, 255, 255, .3); }
 .cropper-btns { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; }
+
+/* ---------- แผนที่หลุม ---------- */
+body[data-screen="map"] { overflow: hidden; }
+body[data-screen="map"] .tabbar, body[data-screen="map"] .net { display: none; }
+.map-screen { position: fixed; inset: 0; z-index: 30; background: #0d1a12; color: #fff; }
+.map-view { position: absolute; inset: 0; }
+.tm { overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; background: #1a2a1f; cursor: grab; }
+.tm:active { cursor: grabbing; }
+.tm-layer { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+.tm-tile { position: absolute; width: 257px; height: 257px; max-width: none; opacity: 0; transition: opacity .25s; -webkit-user-drag: none; }
+.tm-tile.on { opacity: 1; }
+.tm-tile.err { visibility: hidden; }
+.tm-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
+.tm-line { stroke: #ffe14d; stroke-width: 3; stroke-linecap: round; }
+.tm-line.edit { stroke-dasharray: 9 7; stroke: #fff; }
+.tm-acc { fill: rgba(66, 133, 244, .18); stroke: rgba(66, 133, 244, .7); stroke-width: 1; }
+.tm-pins { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+.tm-pin { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+.tm-pin.drag > * { pointer-events: auto; cursor: grab; touch-action: none; }
+.tm-pin.dragging > * { cursor: grabbing; }
+.tm-lbl { position: absolute; transform: translate(-50%, -50%); padding: 2px 9px; border-radius: 999px; background: rgba(0, 0, 0, .6); color: #ffe14d; font-weight: 800; font-size: 1.05rem; white-space: nowrap; }
+.tm-attr { position: absolute; right: 6px; top: calc(env(safe-area-inset-top) + 116px); z-index: 4; font-size: 9px; color: rgba(255, 255, 255, .8); text-shadow: 0 1px 2px #000; pointer-events: none; }
+.mp { position: absolute; left: -21px; top: -52px; width: 42px; height: 42px; display: grid; place-items: center; }
+.mp::before { content: ""; position: absolute; inset: 0; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: #fff; border: 3px solid var(--pin); box-shadow: 0 2px 8px rgba(0, 0, 0, .5); }
+.mp svg { position: relative; width: 22px; height: 22px; color: var(--pin); }
+.mp-tee { --pin: #1d5fd1; }
+.mp-green { --pin: #d7263d; }
+.placing .mp::before { border-color: #ffe14d; box-shadow: 0 0 0 4px rgba(255, 225, 77, .45); }
+.mp-target { position: absolute; left: -14px; top: -14px; width: 28px; height: 28px; border-radius: 50%; background: #ffe14d; border: 3px solid #fff; box-shadow: 0 1px 8px rgba(0, 0, 0, .55); }
+.mp-target::after { content: ""; position: absolute; inset: -14px; border-radius: 50%; }
+.mp-me { position: absolute; left: -9px; top: -9px; width: 18px; height: 18px; border-radius: 50%; background: #4285f4; border: 3px solid #fff; box-shadow: 0 0 0 3px rgba(66, 133, 244, .35); }
+.map-top { position: absolute; top: 0; left: 0; right: 0; z-index: 5; display: flex; align-items: center; gap: 10px; padding: calc(env(safe-area-inset-top) + 10px) 12px 18px; background: linear-gradient(rgba(0, 0, 0, .6), rgba(0, 0, 0, 0)); }
+.map-title { flex: 1; min-width: 0; display: flex; flex-direction: column; text-shadow: 0 1px 3px rgba(0, 0, 0, .7); }
+.map-title b { font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.map-title span { font-size: .86rem; }
+.map-round { flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: rgba(0, 0, 0, .45); color: #fff; font: inherit; font-size: 1.5rem; line-height: 1; text-decoration: none; border: 1px solid rgba(255, 255, 255, .3); cursor: pointer; }
+.map-round.unit { font-size: .84rem; font-weight: 700; }
+.map-round.off { opacity: .3; }
+.map-gps { position: absolute; z-index: 5; top: calc(env(safe-area-inset-top) + 70px); left: 50%; transform: translateX(-50%); max-width: calc(100% - 24px); background: rgba(0, 0, 0, .62); padding: 6px 14px; border-radius: 999px; font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.map-gps b { font-size: 1.3rem; color: #ffe14d; }
+.map-gps .muted { color: rgba(255, 255, 255, .75); }
+.map-bottom { position: absolute; z-index: 5; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 26px 12px calc(env(safe-area-inset-bottom) + 12px); background: linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, .72) 40%); }
+.map-nav { display: flex; align-items: center; gap: 16px; }
+.map-hole { min-width: 66px; text-align: center; background: #fff; color: #16241c; border-radius: 14px; padding: 2px 12px; line-height: 1.1; }
+.map-hole small { display: block; font-size: .7rem; color: #6b7a71; }
+.map-hole b { font-size: 1.55rem; }
+.map-hint { margin: 0; font-size: .8rem; opacity: .9; text-align: center; }
+.map-hint b { color: #ffe14d; }
+.map-check { margin: 0; font-size: .86rem; text-align: center; }
+.map-check b { color: #ffe14d; }
+.map-tools { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.map-pill { min-height: 42px; padding: 6px 15px; border-radius: 999px; background: rgba(255, 255, 255, .14); color: #fff; border: 1px solid rgba(255, 255, 255, .32); font: inherit; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; cursor: pointer; }
+.map-pill.primary { background: #1f8a55; border-color: transparent; }
+.map-pill[disabled] { opacity: .4; cursor: default; }
+.map-steps { display: flex; gap: 8px; }
+.map-step { min-height: 46px; padding: 6px 18px; border-radius: 14px; background: rgba(255, 255, 255, .12); color: #fff; border: 2px solid rgba(255, 255, 255, .28); font: inherit; font-weight: 700; cursor: pointer; }
+.map-step.on { border-color: #ffe14d; background: rgba(255, 225, 77, .2); }
+.map-step.done:not(.on) { border-color: rgba(55, 184, 119, .85); }
+.map-link { display: inline-flex; align-items: center; gap: 4px; }
+
+/* ---------- ระยะไม้ / ปุ่มแผนที่ ---------- */
+.club-dist { display: flex; flex-direction: column; gap: 10px; }
+.cd-row { display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: 10px; }
+.cd-row.few { opacity: .55; }
+.cd-club { font-size: .95rem; }
+.cd-bar { position: relative; height: 12px; border-radius: 6px; background: var(--none-soft); }
+.cd-bar span { position: absolute; top: 0; bottom: 0; border-radius: 6px; background: color-mix(in srgb, var(--brand) 55%, transparent); }
+.cd-bar i { position: absolute; top: -3px; bottom: -3px; width: 3px; margin-left: -1.5px; border-radius: 2px; background: var(--brand); }
+.cd-num { text-align: right; white-space: nowrap; }
+.cd-num b { font-size: 1.05rem; }
+.cd-num small { display: block; font-size: .72rem; color: var(--muted); }
+a.map-card { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--text); }
+.map-card-ico { font-size: 1.6rem; }
+.map-card small { display: block; font-size: .8rem; color: var(--muted); }
+.gps-dist { font-size: .8rem; font-weight: 700; color: var(--brand); white-space: nowrap; }
+.gps-toggle { font-size: .9rem; }

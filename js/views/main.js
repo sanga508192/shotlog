@@ -7,6 +7,7 @@ import { enabled as cloudEnabled, session as cloudSession } from '../cloud.js';
 import { courseCard, rememberCourseCard, rememberFriends, friends, myName, gridOf } from './group.js';
 import { ME, MAX_PLAYERS, playersOf, fmtOver } from '../group.js';
 import { coachData, focusListHtml } from './coach.js';
+import { courseHoles, holeReady } from '../holemap.js';
 
 // ---------- หน้าแรก ----------
 
@@ -100,6 +101,18 @@ export function backupWarn(roundCount, lastExport, now = Date.now()) {
   return `<div class="card warn small backup-warn"><b>💾 ${lastExport ? `ไม่ได้สำรองข้อมูลมา ${Math.floor(days)} วัน` : 'ยังไม่เคยสำรองข้อมูล'}</b>
     <span>ข้อมูล ${roundCount} รอบอยู่ในเครื่องนี้เท่านั้น ถ้ามือถือหายหรือล้างเบราว์เซอร์ ข้อมูลจะหายด้วย</span>
     <div class="row gap">${cloudEnabled() ? '<a class="mini primary" href="#/account">สำรองอัตโนมัติบนคลาวด์</a>' : ''}<a class="mini" href="#/settings">ส่งออกไฟล์สำรอง</a></div></div>`;
+}
+
+// ปุ่มไปแผนที่หลุม: บอกว่าวางหมุดครบกี่หลุมแล้ว
+function mapSetupLink(courseId, sc) {
+  const holes = courseHoles(courseId);
+  const total = sc?.par?.length || 18;
+  const ready = Object.values(holes).filter(holeReady).length;
+  const first = Array.from({ length: total }, (_, i) => i + 1).find((k) => !holeReady(holes[k])) ?? 1;
+  return `<a class="card map-card" href="#/map/${encodeURIComponent(courseId)}/${first}${ready < total ? '?edit=1' : ''}">
+    <span class="map-card-ico" aria-hidden="true">🗺</span>
+    <span><b>แผนที่หลุม</b><small>${ready ? `วางหมุดแล้ว ${ready}/${total} หลุม${ready < total ? ' · แตะเพื่อวางต่อ' : ' · ดูระยะบนภาพดาวเทียม'}` : 'ยังไม่มี · แตะวางหมุดแท่นทีและกรีน (ทำจากบ้านได้)'}</small></span>
+  </a>`;
 }
 
 // การ์ดสั้น ๆ พาไปหน้าพัฒนาเกม
@@ -345,6 +358,7 @@ export function newRoundView([courseId], ctx) {
       <a class="btn block" href="#/scan/${encodeURIComponent(courseId)}">📷 ถ่ายรูปสกอร์การ์ดเพื่อเติมพาร์ / HC / ระยะ</a>`}
       ${needsGeo ? `<button type="button" class="linklike small" data-act="saveGeo">📍 ${c.geo ? 'ตำแหน่งสนามนี้เป็นค่าโดยประมาณ' : 'ยังไม่มีตำแหน่งสนามนี้'} — กดบันทึกตำแหน่งตอนอยู่ที่สนาม</button>` : ''}
 
+      ${mapSetupLink(courseId, sc)}
       ${cues.length ? `<details class="card focus-card" open><summary>🎯 โฟกัสรอบนี้</summary>${focusListHtml(cues)}<a class="mini" href="#/coach">ดูที่มาและแผนซ้อม ›</a></details>` : ''}
 
       <h2>ใครเล่นด้วย</h2>

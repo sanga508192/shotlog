@@ -14,6 +14,7 @@ import { setupView, gamesView, parsView, scorecardData } from '../js/views/group
 import { scanView } from '../js/views/scan.js';
 import { shareView } from '../js/views/share.js';
 import { coachView } from '../js/views/coach.js';
+import { mapView } from '../js/views/map.js';
 
 const ctx = { rerender() {}, go() {} };
 
@@ -86,6 +87,8 @@ async function seedWeird() {
   ops.push({ store: 'practice', put: { id: id('pr'), date: undefined, topic: undefined, attempts: null } });
   ops.push({ store: 'userCourses', put: { id: 'uc1', display_name_th: 'สนามของฉัน', province: 'ขอนแก่น', origin: 'user', scorecard: { par: [4, 4, 3], hc: [1, 2, 3], tees: [{ id: 't1', name: 'ขาว', yards: [300, null, 150] }], unit: 'm', sources: [], checked_at: '2026-09-27' } } });
   ops.push({ store: 'settings', put: { key: 'share_layout', value: 'diagonal' } });
+  ops.push({ store: 'settings', put: { key: 'course_holes:dancoon', value: { holes: { 1: { tee: { lat: 16.48, lon: 102.72 }, green: { lat: 16.483, lon: 102.721 } }, 2: { tee: { lat: 'bad' } }, x: 5 } } } });
+  ops.push({ store: 'settings', put: { key: 'course_holes:kirimaya', value: 'garbage' } });
   ops.push({ store: 'settings', put: { key: 'coach_goal', value: 'nope' } });
   ops.push({ store: 'settings', put: { key: 'priority_topics', value: null } });
   ops.push({ store: 'settings', put: { key: 'friends', value: [{ name: 'Tom' }, null, 'bad'] } });
@@ -112,6 +115,11 @@ function routesFor(ids) {
     ['scan new', () => scanView([undefined], ctx)],
     ['scan curated', () => scanView(['kirimaya'], ctx)],
     ['scan unknown', () => scanView(['nope'], ctx)],
+    ['map curated no pins', () => mapView(['kirimaya', '1', ''], ctx)],
+    ['map with pins', () => mapView(['dancoon', '2', ''], ctx)],
+    ['map edit', () => mapView(['dancoon', '1', 'edit=1'], ctx)],
+    ['map unknown course', () => mapView(['nope', '99', 'r=missing'], ctx)],
+    ['map user course', () => mapView(['uc1', '3', ''], ctx)],
   ];
   for (const [name, r] of Object.entries(ids)) {
     const rid = r.id;
@@ -122,6 +130,7 @@ function routesFor(ids) {
       [`${name} pars`, () => parsView([rid], ctx)],
       [`${name} summary`, () => summaryView([rid], ctx)],
       [`${name} share`, () => shareView([rid], ctx)],
+      [`${name} map`, () => mapView([r.course_id || 'x', '1', `r=${rid}`], ctx)],
       [`${name} share data`, () => ({ html: JSON.stringify(Object.keys(scorecardData(st.S.rounds.get(rid)))) })],
     );
     for (const num of ['1', '2', '9', '18', '19', '0']) list.push([`${name} hole ${num}`, () => holeView([rid, num], ctx)]);

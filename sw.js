@@ -1,6 +1,6 @@
 // เก็บไฟล์แอปทั้งหมดไว้ในเครื่อง เพื่อเปิดใช้ได้เมื่อไม่มีสัญญาณ
 // เปลี่ยน VERSION ทุกครั้งที่แก้ไฟล์ในรายการ เพื่อให้เครื่องผู้ใช้ได้รุ่นใหม่
-const VERSION = 'shotlog-v0.9.3';
+const VERSION = 'shotlog-v0.10.0';
 const ASSETS = [
   './',
   './index.html',
@@ -32,6 +32,9 @@ const ASSETS = [
   './js/views/scan.js',
   './js/views/share.js',
   './js/views/cropper.js',
+  './js/holemap.js',
+  './js/map.js',
+  './js/views/map.js',
   './js/coach.js',
   './js/views/coach.js',
   './js/errors.js',
@@ -54,7 +57,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k !== VERSION && k !== TILE_CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });
@@ -62,9 +65,35 @@ self.addEventListener('activate', (event) => {
 // ตอนพัฒนาบนเครื่อง ใช้ไฟล์ล่าสุดจากเซิร์ฟเวอร์ก่อน (เว็บจริงยังเปิดจากแคชเพื่อใช้ออฟไลน์)
 const DEV = ['localhost', '127.0.0.1'].includes(location.hostname);
 
+// ภาพดาวเทียมของแผนที่หลุม: ใช้ภาพที่เคยโหลดก่อน (เปิดในสนามที่สัญญาณอ่อนได้) เก็บไม่เกินราว 3,000 ภาพ
+const TILE_CACHE = 'shotlog-tiles';
+const TILE_HOST = 'server.arcgisonline.com';
+const TILE_MAX = 3000;
+let tilePuts = 0;
+
+async function tileFetch(req) {
+  const cache = await caches.open(TILE_CACHE);
+  const hit = await cache.match(req);
+  if (hit) return hit;
+  const res = await fetch(req);
+  if (res.ok) {
+    await cache.put(req, res.clone());
+    if (++tilePuts % 100 === 0) {
+      const keys = await cache.keys();
+      if (keys.length > TILE_MAX) await Promise.all(keys.slice(0, keys.length - TILE_MAX + 300).map((k) => cache.delete(k)));
+    }
+  }
+  return res;
+}
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
+  const url = new URL(req.url);
+  if (req.method === 'GET' && url.hostname === TILE_HOST && url.pathname.includes('/World_Imagery/')) {
+    event.respondWith(tileFetch(req));
+    return;
+  }
+  if (req.method !== 'GET' || url.origin !== location.origin) return;
   event.respondWith((async () => {
     const cache = await caches.open(VERSION);
     if (DEV) {

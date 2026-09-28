@@ -11,6 +11,7 @@ import { setupView, gamesView, parsView } from './views/group.js';
 import { scanView } from './views/scan.js';
 import { shareView } from './views/share.js';
 import { coachView } from './views/coach.js';
+import { mapView } from './views/map.js';
 import { resumeHref } from './views/main.js';
 import * as sync from './sync.js';
 import * as cloud from './cloud.js';
@@ -29,6 +30,7 @@ const routes = [
   [/^#\/round\/([^/]+)\/summary$/, summaryView],
   [/^#\/summary$/, summaryView],
   [/^#\/coach$/, coachView],
+  [/^#\/map\/([^/?]+)\/(\d+)(?:\?(.*))?$/, mapView],
   [/^#\/practice$/, practiceView],
   [/^#\/practice\/new(?:\?(.*))?$/, practiceNewView],
   [/^#\/settings$/, settingsView],
@@ -154,7 +156,7 @@ function updateNav(hash) {
   const fab = document.querySelector('#tabbar [data-tab="play"]');
   fab.href = playing ? resumeHref(playing) : '#/courses';
   document.getElementById('fab-label').textContent = playing ? 'จดต่อ' : 'เริ่มรอบ';
-  document.body.dataset.screen = /^#\/round\/[^/]+\/hole\//.test(hash) ? 'hole' : '';
+  document.body.dataset.screen = /^#\/round\/[^/]+\/hole\//.test(hash) ? 'hole' : /^#\/map\//.test(hash) ? 'map' : '';
 }
 
 function updateOnline() {

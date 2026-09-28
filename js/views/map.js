@@ -1,0 +1,279 @@
+// หน้าแผนที่หลุม: ภาพดาวเทียมหมุนให้แท่นทีอยู่ล่าง กรีนอยู่บน · แตะ/ลากจุดเป้าดูระยะ · ระยะจาก GPS ถึงกรีน
+// หลุมที่ยังไม่มีหมุด: แตะวางแท่นทีและกลางกรีน (ทำครั้งเดียวต่อสนาม ทำจากบ้านได้ ซิงก์ไปกับบัญชี)
+import * as st from '../state.js';
+import { esc, toast } from '../ui.js';
+import { TileMap } from '../map.js';
+import {
+  courseHoles, holeReady, setHolePoint, distM, bearing, destination, fmtDist, unitTh, scorecardLength, YD,
+} from '../holemap.js';
+import { watchPosition, lastPosition, getPosition } from '../geo.js';
+import { clubDistances, GPS_MAX_ACC } from '../coach.js';
+
+// สถานะที่อยู่ข้ามการเปลี่ยนหลุม (ของสนามที่เปิดอยู่)
+// edit = กดแก้หมุดเอง (อยู่จนกดเสร็จ) · editHole = หลุมที่กำลังวางหมุดใหม่ (อยู่โหมดวางจนออกจากหลุมนั้น)
+const M = { courseId: null, edit: false, editHole: null, placing: null, targets: {}, openKey: null };
+const NEAR_M = 800;          // อยู่ใกล้กรีนกว่านี้ วัดระยะจากตัวผู้เล่นแทนแท่นที
+const FRESH_MS = 20000;
+
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+// ระยะไดรเวอร์จริงของผู้ใช้ (จาก GPS) ใช้วางจุดเป้าเริ่มต้น ถ้ายังไม่มีข้อมูลใช้ 230 หลา
+function driverM() {
+  const rows = clubDistances({
+    rounds: st.rounds(), holesOf: st.holesOf, shotsOf: st.shotsOf, penaltiesOf: st.penaltiesOf, clubOf: st.club,
+    teeOf: (r, h) => courseHoles(r.course_id)[h.number]?.tee ?? null,
+  });
+  const d = rows.find((r) => r.category === 'driver' && r.n >= 3);
+  return d ? d.median : 230 * YD;
+}
+
+const pinHtml = {
+  tee: '<span class="mp mp-tee" aria-label="แท่นที"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11M9 14h6l-1 3h-4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="3.5" r="2.5" fill="currentColor"/></svg></span>',
+  green: '<span class="mp mp-green" aria-label="กรีน"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 20V4l9 4-9 4" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><ellipse cx="8" cy="20.5" rx="5" ry="1.5" fill="currentColor"/></svg></span>',
+  target: '<span class="mp-target" aria-label="จุดเป้า"></span>',
+  me: '<span class="mp-me" aria-label="ตำแหน่งของคุณ"></span>',
+};
+
+export function mapView([courseId, numStr, query], ctx) {
+  const course = st.course(courseId);
+  const params = new URLSearchParams(query || '');
+  const round = params.get('r') ? st.S.rounds.get(params.get('r')) : null;
+  if (M.courseId !== courseId) Object.assign(M, { courseId, edit: false, editHole: null, placing: null, targets: {} });
+  const openKey = `${courseId}|${query || ''}`;
+  if (M.openKey !== openKey) { M.openKey = openKey; if (params.get('edit') === '1') M.edit = true; }
+
+  const sc = st.scorecard(courseId);
+  const roundHoles = round ? st.holesOf(round.id) : [];
+  const count = roundHoles.length || sc?.par?.length || 18;
+  const n = clamp(Number(numStr) || 1, 1, count);
+  const par = roundHoles.find((h) => h.number === n)?.par ?? sc?.par?.[n - 1] ?? null;
+  const rq = round ? `?r=${encodeURIComponent(round.id)}` : '';
+  const hrefHole = (k) => `#/map/${encodeURIComponent(courseId)}/${k}${rq}`;
+  const back = round ? `#/round/${round.id}/hole/${n}` : `#/new/${encodeURIComponent(courseId)}`;
+
+  // หลุมที่ยังไม่มีหมุดเข้าโหมดวางหมุด และอยู่โหมดนี้ต่อจนออกจากหลุมนี้ (ลากปรับหมุดได้หลังวางครบ)
+  if (!holeReady(courseHoles(courseId)[n])) M.editHole = n;
+  else if (M.editHole !== n) M.editHole = null;
+  if (M.hole !== n) { M.hole = n; M.placing = null; }   // เปลี่ยนหลุม: เริ่มเลือกหมุดที่จะวางใหม่
+
+  let map = null;
+  let gps = null;
+  let gpsErr = null;
+  let stopGps = null;
+  let root = null;
+
+  const H = () => courseHoles(courseId)[n] || {};
+  const unit = () => st.setting('map_unit', 'yd');
+  const editing = () => M.edit || M.editHole === n || !holeReady(H());
+
+  function target() {
+    const h = H();
+    if (!holeReady(h)) return null;
+    if (M.targets[n] !== undefined) return M.targets[n];
+    const len = distM(h.tee, h.green);
+    // พาร์ 3 หรือหลุมสั้น: ไม่ตั้งจุดเป้า (แตะแผนที่เพื่อวางเองได้)
+    if ((par != null && par <= 3) || (par == null && len < 230 * YD)) return null;
+    return destination(h.tee, bearing(h.tee, h.green), Math.min(driverM(), len * 0.62));
+  }
+
+  const gpsUsable = () => gps && Date.now() - gps.at < FRESH_MS && gps.accuracy <= 30;
+  function start() {
+    const h = H();
+    if (gpsUsable() && h.green && distM(gps, h.green) <= NEAR_M) return { at: gps, me: true };
+    return { at: h.tee, me: false };
+  }
+
+  function fitHole() {
+    const h = H();
+    if (!map || !h.tee || !h.green) return;
+    map.fit([h.tee, h.green, target()], { bearing: bearing(h.tee, h.green), pad: { top: 170, bottom: editing() ? 310 : 230, left: 40, right: 40 } });
+  }
+
+  function initialView() {
+    const h = H();
+    if (holeReady(h)) { fitHole(); return; }
+    const all = courseHoles(courseId);
+    const near = h.tee || h.green || all[n - 1]?.green || all[n - 1]?.tee || all[n + 1]?.tee;
+    if (near) { map.setView({ center: near, zoom: 17.3, bearing: 0 }); return; }
+    const pos = lastPosition(10 * 60 * 1000);
+    const geo = course?.geo && !course.geo.approx ? course.geo : null;
+    if (geo) map.setView({ center: geo, zoom: 16, bearing: 0 });
+    else if (pos) map.setView({ center: pos, zoom: 17, bearing: 0 });
+    else if (course?.geo) map.setView({ center: course.geo, zoom: 14, bearing: 0 });
+    else map.setView({ center: { lat: 15.2, lon: 102.5 }, zoom: 7, bearing: 0 });
+  }
+
+  function overlay() {
+    const h = H();
+    const u = unit();
+    const ed = editing();
+    const lines = [], pins = [], circles = [];
+    if (gps && Date.now() - gps.at < 60000) {
+      circles.push({ at: gps, m: gps.accuracy, cls: 'tm-acc' });
+      pins.push({ id: 'me', at: gps, html: pinHtml.me, cls: 'pin-me' });
+    }
+    if (holeReady(h) && !ed) {
+      const s = start();
+      const t = target();
+      const label = (a, b) => `${fmtDist(distM(a, b), u)}`;
+      if (t) {
+        lines.push({ a: s.at, b: t, cls: 'tm-line', label: label(s.at, t) });
+        lines.push({ a: t, b: h.green, cls: 'tm-line', label: label(t, h.green) });
+      } else {
+        lines.push({ a: s.at, b: h.green, cls: 'tm-line', label: label(s.at, h.green) });
+      }
+      pins.push({ id: 'tee', at: h.tee, html: pinHtml.tee, cls: 'pin-tee' });
+      pins.push({ id: 'green', at: h.green, html: pinHtml.green, cls: 'pin-green' });
+      if (t) {
+        pins.push({
+          id: 'target', at: t, html: pinHtml.target, cls: 'pin-target', drag: true,
+          onDrag: (p) => { M.targets[n] = p; map._renderOverlay(); },
+          onDrop: (p) => { M.targets[n] = p; map._renderOverlay(); },
+        });
+      }
+    } else {
+      if (h.tee && h.green) lines.push({ a: h.tee, b: h.green, cls: 'tm-line edit', label: fmtDist(distM(h.tee, h.green), u) });
+      for (const which of ['tee', 'green']) {
+        if (!h[which]) continue;
+        pins.push({
+          id: `${which}-edit`, at: h[which], html: pinHtml[which], cls: `pin-${which}${M.placing === which ? ' placing' : ''}`, drag: true,
+          onDrag: () => {},
+          onDrop: async (p) => { await setHolePoint(courseId, n, which, p); refresh(); },
+        });
+      }
+    }
+    return { lines, pins, circles };
+  }
+
+  function gpsCard() {
+    const h = H();
+    const u = unit();
+    if (gpsErr && !gps) return `<span class="muted">📍 ${esc(gpsErr)}</span>`;
+    if (!gps) return '<span class="muted">📍 กำลังหาตำแหน่ง…</span>';
+    const acc = `±${Math.round(gps.accuracy)} ม.`;
+    if (editing()) return `📍 ตำแหน่งคุณ ${acc}`;
+    if (!h.green) return `📍 ${acc}`;
+    const d = distM(gps, h.green);
+    if (d > 2000) return `<span class="muted">📍 อยู่ห่างหลุมนี้ ${(d / 1000).toFixed(1)} กม.</span>`;
+    return `📍 ถึงกลางกรีน <b>${fmtDist(d, u)}</b> ${unitTh(u)} <small>${acc}</small>`;
+  }
+
+  function title() {
+    const h = H();
+    const u = unit();
+    const len = holeReady(h) ? distM(h.tee, h.green) : null;
+    return `หลุม ${n}${par ? ` · พาร์ ${par}` : ''}${len ? ` · ${fmtDist(len, u)} ${unitTh(u)}` : ''}`;
+  }
+
+  function panel() {
+    const h = H();
+    const u = unit();
+    if (!editing()) {
+      const s = holeReady(h) ? start() : null;
+      return `<div class="map-nav">
+          ${n > 1 ? `<a class="map-round" href="${hrefHole(n - 1)}" aria-label="หลุมก่อนหน้า">‹</a>` : '<span class="map-round off">‹</span>'}
+          <div class="map-hole"><small>หลุม</small><b>${n}</b></div>
+          ${n < count ? `<a class="map-round" href="${hrefHole(n + 1)}" aria-label="หลุมถัดไป">›</a>` : '<span class="map-round off">›</span>'}
+        </div>
+        <p class="map-hint">${s?.me ? 'วัดจากตำแหน่งของคุณ' : 'วัดจากแท่นที'} · แตะแผนที่หรือลากจุดเหลืองเพื่อดูระยะ</p>
+        <div class="map-tools">
+          <button type="button" class="map-pill" data-act="recenter">⤢ ทั้งหลุม</button>
+          <button type="button" class="map-pill" data-act="edit">✏️ แก้หมุด</button>
+        </div>`;
+    }
+    const len = holeReady(h) ? distM(h.tee, h.green) : null;
+    const scl = scorecardLength(sc, n, round?.tee_id);
+    const scInUnit = scl ? Math.round(scl.unit === u ? scl.value : scl.unit === 'yd' ? scl.value * YD : scl.value / YD) : null;
+    const hint = M.placing === 'tee' ? `แตะบนแผนที่ตรง<b>แท่นที</b>ที่คุณใช้ของหลุม ${n}`
+      : M.placing === 'green' ? `แตะบนแผนที่ตรง<b>กลางกรีน</b>หลุม ${n}`
+        : 'ลากหมุดเพื่อปรับให้ตรง หรือเลือกหมุดที่จะวางใหม่';
+    return `<div class="map-steps">
+        <button type="button" class="map-step${M.placing === 'tee' ? ' on' : ''}${h.tee ? ' done' : ''}" data-act="place" data-v="tee">🏌️ แท่นที${h.tee ? ' ✓' : ''}</button>
+        <button type="button" class="map-step${M.placing === 'green' ? ' on' : ''}${h.green ? ' done' : ''}" data-act="place" data-v="green">⛳ กลางกรีน${h.green ? ' ✓' : ''}</button>
+      </div>
+      <p class="map-hint">${hint} · ลาก/ถ่างนิ้วเพื่อหาหลุม</p>
+      ${len ? `<p class="map-check">วัดจากหมุด <b>${fmtDist(len, u)}</b> ${unitTh(u)}${scInUnit ? ` · สกอร์การ์ด${scl.tee ? ` (${esc(scl.tee)})` : ''} ${scInUnit} ${unitTh(u)}` : ''}</p>` : ''}
+      <div class="map-tools">
+        <button type="button" class="map-pill" data-act="gpsHere"${M.placing ? '' : ' disabled'}>📍 ใช้ตำแหน่งฉันตอนนี้</button>
+        ${holeReady(h) ? '<button type="button" class="map-pill primary" data-act="done">เสร็จ</button>' : ''}
+        ${n < count ? `<a class="map-pill" href="${hrefHole(n + 1)}">หลุม ${n + 1} ›</a>` : ''}
+      </div>`;
+  }
+
+  function refresh() {
+    if (!root) return;
+    root.querySelector('.map-screen')?.classList.toggle('editing', editing());
+    root.querySelector('#map-title').textContent = title();
+    root.querySelector('#map-panel').innerHTML = panel();
+    root.querySelector('#map-gps').innerHTML = gpsCard();
+    root.querySelector('#map-unit').textContent = unit() === 'yd' ? 'หลา' : 'ม.';
+    map?._renderOverlay();
+  }
+
+  async function onTap(p) {
+    if (editing()) {
+      if (!M.placing) return;
+      const which = M.placing;
+      await setHolePoint(courseId, n, which, p);
+      const h = H();
+      M.placing = which === 'tee' && !h.green ? 'green' : null;
+      if (holeReady(h) && which === 'green') fitHole();
+      refresh();
+      return;
+    }
+    M.targets[n] = p;
+    refresh();
+  }
+
+  return {
+    html: `<div class="map-screen${editing() ? ' editing' : ''}">
+      <div id="hole-map" class="map-view"></div>
+      <div class="map-top">
+        <a class="map-round" href="${back}" aria-label="กลับ">‹</a>
+        <div class="map-title"><b>${esc(course?.display_name_th || round?.course_name_snapshot || 'สนาม')}</b><span id="map-title">${esc(title())}</span></div>
+        <button type="button" class="map-round unit" id="map-unit" data-act="unit" aria-label="เปลี่ยนหน่วยระยะ">${unit() === 'yd' ? 'หลา' : 'ม.'}</button>
+      </div>
+      <div class="map-gps" id="map-gps">${gpsCard()}</div>
+      <div class="map-bottom" id="map-panel">${panel()}</div>
+    </div>`,
+    mount(el) {
+      root = el;
+      if (editing() && !M.placing) { const h = H(); M.placing = !h.tee ? 'tee' : !h.green ? 'green' : null; refresh(); }
+      map = new TileMap(el.querySelector('#hole-map'), { onTap: (p) => { onTap(p).catch((e) => toast(e.message)); } });
+      map.setOverlay(overlay);
+      initialView();
+      stopGps = watchPosition((pos) => {
+        const first = !gps;
+        gps = pos;
+        gpsErr = null;
+        root.querySelector('#map-gps').innerHTML = gpsCard();
+        // หลุมที่ยังไม่มีหมุดและไม่รู้ตำแหน่งสนาม: พาไปที่ตัวผู้ใช้
+        if (first && !holeReady(H()) && map.zoom < 12) map.setView({ center: pos, zoom: 17 });
+        map._renderOverlay();
+        if (first && !editing()) root.querySelector('#map-panel').innerHTML = panel();
+      }, (err) => {
+        gpsErr = err.code === 1 ? 'เปิดสิทธิ์ตำแหน่งเพื่อดูระยะจากตัวคุณ' : 'ยังหาตำแหน่งไม่ได้';
+        root.querySelector('#map-gps').innerHTML = gpsCard();
+      });
+    },
+    unmount() { stopGps?.(); map?.destroy(); root = null; },
+    actions: {
+      unit: async () => { await st.setSetting('map_unit', unit() === 'yd' ? 'm' : 'yd'); refresh(); },
+      recenter: () => fitHole(),
+      edit: () => { M.edit = true; M.placing = null; refresh(); },
+      done: () => { M.edit = false; M.editHole = null; M.placing = null; fitHole(); refresh(); toast('บันทึกหมุดแล้ว'); },
+      place: (el) => { M.placing = M.placing === el.dataset.v ? null : el.dataset.v; refresh(); },
+      gpsHere: async (el) => {
+        if (!M.placing) return;
+        el.disabled = true;
+        try {
+          const pos = (gps && Date.now() - gps.at < 15000) ? gps : await getPosition({ highAccuracy: true, maxAge: 5000, timeout: 20000 });
+          if (pos.accuracy > GPS_MAX_ACC && !confirm(`ตำแหน่งตอนนี้คลาดเคลื่อนได้ ±${Math.round(pos.accuracy)} เมตร ใช้เลยหรือไม่? (รอสักครู่ในที่โล่งจะแม่นขึ้น)`)) return;
+          await onTap(pos);
+        } finally {
+          el.disabled = false;
+        }
+      },
+    },
+  };
+}

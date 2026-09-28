@@ -60,7 +60,7 @@ export function openCropper({ url, iw, ih, aspect, crop, onDone }) {
   const pts = new Map();
   let pinch = null;
   frame.addEventListener('pointerdown', (e) => {
-    frame.setPointerCapture?.(e.pointerId);
+    try { frame.setPointerCapture?.(e.pointerId); } catch { /* ไม่เป็นไร */ }
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     pinch = null;
   });

@@ -1,7 +1,8 @@
 // หน้าโค้ชพัฒนาเกม: เป้าหมาย → สโตรกหายไปไหน → จุดที่ควรแก้ → โฟกัสรอบหน้า → แผนซ้อม
 import * as st from '../state.js';
 import { esc, header, fmtDate } from '../ui.js';
-import { GOALS, analyzeGame, budgetOver, fmtSigned } from '../coach.js';
+import { GOALS, analyzeGame, budgetOver, fmtSigned, clubDistances } from '../coach.js';
+import { courseHoles, toUnit, unitTh } from '../holemap.js';
 
 export function coachData(goalV = st.setting('coach_goal', null)) {
   return analyzeGame({
@@ -74,6 +75,30 @@ function drillCard(d) {
   </div>`;
 }
 
+// ระยะไม้จริงจาก GPS: แท่งแสดงช่วงปกติ (25–75%) และขีดคือระยะกลาง
+export function clubDistanceHtml() {
+  const rows = clubDistances({
+    rounds: st.rounds(), holesOf: st.holesOf, shotsOf: st.shotsOf, penaltiesOf: st.penaltiesOf, clubOf: st.club,
+    teeOf: (r, h) => courseHoles(r.course_id)[h.number]?.tee ?? null,
+  });
+  if (!rows.length) {
+    return `<div class="card small">เปิด <b>📍 จับตำแหน่ง GPS ตอนบันทึก</b> ในหน้าจดช็อต แล้วบันทึกช็อตขณะยืนที่จุดตี
+      แอปจะรู้ระยะจริงของแต่ละไม้ (นับเฉพาะทีออฟและช็อตเข้ากรีนที่สัมผัสดี)</div>`;
+  }
+  const unit = st.setting('map_unit', 'yd');
+  const u = (m) => Math.round(toUnit(m, unit));
+  const top = Math.max(...rows.map((r) => r.p75)) * 1.08;
+  const pct = (m) => `${((m / top) * 100).toFixed(1)}%`;
+  return `<div class="card club-dist">
+    ${rows.map((r) => `<div class="cd-row${r.n < 3 ? ' few' : ''}">
+      <b class="cd-club">${esc(r.label)}</b>
+      <div class="cd-bar" aria-hidden="true"><span style="left:${pct(r.p25)};width:${pct(Math.max(r.p75 - r.p25, top * 0.01))}"></span><i style="left:${pct(r.median)}"></i></div>
+      <span class="cd-num"><b>${u(r.median)}</b> <small>${u(r.p25)}–${u(r.p75)} · ${r.n} ครั้ง</small></span>
+    </div>`).join('')}
+    <p class="note">ระยะกลาง (${unitTh(unit)}) และช่วงปกติจากช็อตที่จับ GPS · นับเฉพาะทีออฟและช็อตเข้ากรีนที่สัมผัสดี ไม่รวมช็อตที่โดนลูกโทษ · ไม้ที่จางยังมีข้อมูลไม่ถึง 3 ครั้ง</p>
+  </div>`;
+}
+
 export function focusListHtml(cues) {
   return `<ol class="cues">${cues.map((c) => `<li><b>${esc(c.text)}</b><span>${esc(c.why)}</span></li>`).join('')}</ol>`;
 }
@@ -132,6 +157,9 @@ export function coachView(_p, ctx) {
 
       ${shotOk || a.stats.some((s) => s.yours != null) ? `<h2>สถิติหลักเทียบเป้า</h2>
       <div class="stat-grid">${statTiles(a)}</div>` : ''}
+
+      <h2>ระยะไม้จริงของคุณ <span class="badge ok">GPS</span></h2>
+      ${clubDistanceHtml()}
 
       <h2 id="plan">แผนซ้อมสัปดาห์นี้</h2>
       <p class="note">${a.plan.basis.length ? `เน้น: ${esc(a.plan.basis.join(' และ '))} · ` : 'แผนเริ่มต้นตามเป้า · '}ซ้อม 2–3 ครั้งต่อสัปดาห์ ครั้งละราว ${a.plan.minutes} นาที · บันทึกผลทุกครั้งเพื่อดูพัฒนาการ</p>
