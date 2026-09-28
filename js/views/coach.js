@@ -135,7 +135,8 @@ function handicapRounds() {
 
 export function handicapHtml() {
   const prior = Number.isFinite(Number(st.setting('my_handicap', null))) && st.setting('my_handicap', null) !== null ? Number(st.setting('my_handicap')) : null;
-  const r = estimateHandicap(handicapRounds(), (c, t) => st.setting(ratingKey(c, t), null), prior);
+  const cardRating = (c, t) => st.scorecard(c)?.tees?.find((x) => x.id === t)?.rating ?? null;
+  const r = estimateHandicap(handicapRounds(), (c, t) => st.setting(ratingKey(c, t), null) ?? cardRating(c, t), prior);
   const forms = r.missing.slice(0, 4).map((m) => `<form class="rating-form" data-submit="rating" data-course="${esc(m.courseId)}" data-tee="${esc(m.teeId ?? '')}">
       <span><b>${esc(m.name || 'สนาม')}</b>${m.tee ? ` · แท่น${esc(m.tee)}` : ''} <small class="muted">${m.count} รอบ</small></span>
       <input class="input" name="cr" type="number" inputmode="decimal" step="0.1" min="50" max="90" placeholder="Course Rating เช่น 71.8" required aria-label="Course Rating">

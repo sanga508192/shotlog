@@ -17,7 +17,7 @@ test('ระยะทางเส้นตรงถูกต้องตาม�
 test('อยู่ในเมืองขอนแก่น → สนามขอนแก่นขึ้นก่อน ใกล้สุดอันดับแรก', () => {
   const list = sortByDistance(CURATED_COURSES, KHON_KAEN_CITY);
   assert.deepEqual(list.slice(0, 3).map((c) => c.province), ['ขอนแก่น', 'ขอนแก่น', 'ขอนแก่น']);
-  assert.equal(list[0].id, 'singha-park-khon-kaen');
+  assert.equal(list[0].id, 'dancoon', 'คลับเฮาส์แดนคูน 12.1 กม. ใกล้กว่าสิงห์ปาร์ค 12.3 กม.');
   for (let i = 1; i < list.length; i++) {
     if (list[i].km == null) continue;
     assert.ok(list[i].km >= list[i - 1].km, 'ต้องเรียงจากใกล้ไปไกล');
@@ -34,16 +34,20 @@ test('อยู่ในเมืองโคราช → สนามโคร
   assert.match(fmtKm(ubon), /^~/);
 });
 
-test('สกอร์การ์ดทุกสนาม: 18 หลุม พาร์ 72 HC 1–18 ไม่ซ้ำ ระยะเป็นตัวเลขหรือว่าง', () => {
+test('สกอร์การ์ดทุกสนาม: 18 หลุม พาร์ 72 HC 1–18 ไม่ซ้ำ (ว่างได้ถ้าการ์ดไม่ชัด) ระยะเป็นตัวเลขหรือว่าง', () => {
   const ids = Object.keys(SCORECARDS);
-  assert.deepEqual(ids.sort(), ['dancoon', 'kabinburi-sport-club', 'kirimaya', 'panorama', 'rancho-charnvee', 'singha-park-khon-kaen', 'ubonrat-dam']);
+  assert.deepEqual(ids.sort(), ['dancoon', 'kabinburi-sport-club', 'kirimaya', 'panorama', 'rancho-charnvee', 'singha-park-khon-kaen', 'tiger-golf', 'ubonrat-dam']);
   for (const [id, sc] of Object.entries(SCORECARDS)) {
     assert.ok(CURATED_COURSES.some((c) => c.id === id), `${id} ต้องอยู่ในรายชื่อสนาม`);
     assert.equal(sc.par.length, 18, id);
     assert.equal(sc.par.reduce((a, b) => a + b, 0), 72, id);
-    assert.deepEqual([...sc.hc].sort((a, b) => a - b), Array.from({ length: 18 }, (_, i) => i + 1), `${id} HC`);
+    assert.equal(sc.hc.length, 18, `${id} HC`);
+    const known = sc.hc.filter((v) => v != null);
+    assert.ok(known.every((v) => Number.isInteger(v) && v >= 1 && v <= 18) && new Set(known).size === known.length, `${id} HC ซ้ำหรือผิดช่วง`);
+    if (!sc.note?.includes('HC')) assert.equal(known.length, 18, `${id} HC ว่างต้องมีหมายเหตุ`);
     if (sc.hc_ladies) assert.deepEqual([...sc.hc_ladies].sort((a, b) => a - b), Array.from({ length: 18 }, (_, i) => i + 1));
-    assert.ok(sc.tees.length >= 3 && sc.sources.length, id);
+    assert.ok(sc.tees.length >= 2 && sc.sources.length, id);
+    for (const t of sc.tees) if (t.rating) assert.ok(t.rating.cr >= 50 && t.rating.cr <= 90 && t.rating.slope >= 55 && t.rating.slope <= 155, `${id} ${t.id} rating`);
     for (const t of sc.tees) {
       assert.equal(t.yards.length, 18, `${id} ${t.id}`);
       t.yards.forEach((y, i) => {
@@ -71,6 +75,10 @@ test('ระยะรวมตรงกับยอดรวมของแห�
   assert.equal(teeTotal(tee('kirimaya', 'black')), null, 'มีหลุมที่เว้นไว้ → ไม่แสดงยอดรวม');
   // กบินทร์บุรี สปอร์ตคลับ: ยอดรวมตรงกับที่พิมพ์บนสกอร์การ์ดทุกแท่น
   assert.deepEqual(SCORECARDS['kabinburi-sport-club'].tees.map((t) => teeTotal(t)), [8075, 7504, 7158, 6652, 6241, 5829]);
+  // แดนคูน: ยอดรวมตรงกับการ์ด (แท่นเหลืองการ์ดพิมพ์ 6,467 ผิด รายหลุมรวมได้ 6,473)
+  assert.deepEqual(SCORECARDS.dancoon.tees.map((t) => teeTotal(t)), [6949, 6473, 5982, 5545]);
+  // ไทเกอร์ กองบิน 1: 9 แรกแท่นน้ำเงิน + 9 หลังแท่นขาว = 6,415 · แดง 5,476 · Rating 18 หลุมจาก 9 หลุม 2 ชุด
+  assert.deepEqual(SCORECARDS['tiger-golf'].tees.map((t) => [teeTotal(t), t.rating.cr, t.rating.slope]), [[6415, 71.1, 130], [5476, 71.6, 122]]);
 });
 
 test('เติมพาร์/HC/ระยะตามแท่นที่เลือก และค่าที่ผู้ใช้แก้เองมาก่อน', () => {
