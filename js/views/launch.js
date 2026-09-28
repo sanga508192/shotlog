@@ -87,8 +87,7 @@ export function launchView(_p, ctx) {
       ${parsed.noCarry || parsed.dupes ? `<p class="note">${[parsed.noCarry ? `${parsed.noCarry} ช็อตไม่มีระยะลอย (เครื่องวัดไม่ได้) ใช้วิเคราะห์วงสวิงแต่ไม่นับในระยะ` : '', parsed.dupes ? `ข้าม ${parsed.dupes} ช็อตที่ซ้ำกันในไฟล์` : ''].filter(Boolean).join(' · ')}</p>` : ''}
       ${parsed.byPosition ? '<p class="card warn small">อ่านชื่อคอลัมน์ในไฟล์ไม่ออก (อาจเป็นภาษาที่แอปยังไม่รู้จัก) จึงจับคู่ตามลำดับคอลัมน์มาตรฐานของ Garmin ตรวจระยะลอยด้านล่างว่าสมเหตุสมผลก่อนบันทึก</p>' : ''}
       <label>วันที่ซ้อม<input class="input" type="date" value="${esc(IMP.date)}" data-change="impDate"></label>
-      ${IMP.fileDate && IMP.fileDate !== IMP.date ? `<p class="card warn small">วันที่ในไฟล์ (${esc(fmtDate(parsed.date || ''))}) ไม่ตรงกับวันที่ในชื่อไฟล์ (${esc(fmtDate(IMP.fileDate))}) — ชื่อไฟล์อาจเป็นวันที่ส่งออก ตรวจว่าซ้อมวันไหน
-        <button type="button" class="mini" data-act="impFileDate">ใช้ ${esc(fmtDate(IMP.fileDate))}</button></p>` : ''}
+      ${IMP.fileDate && parsed.date && IMP.fileDate !== parsed.date ? `<p class="note">ใช้วันที่ซ้อมจากในไฟล์ (${esc(fmtDate(parsed.date))}) · วันที่ในชื่อไฟล์ (${esc(fmtDate(IMP.fileDate))}) คือวันที่ส่งออกจากแอป Garmin</p>` : ''}
       <div class="lbl">หน่วยในไฟล์ <span class="small muted">(ตามที่ตั้งในแอป Garmin Golf${units.fromFile ? ' · อ่านจากไฟล์' : ' · เดาจากตัวเลข ตรวจอีกครั้ง'})</span></div>
       <div class="chips">${DIST_UNITS.map((u) => `<button type="button" class="chip${units.dist === u.v ? ' on' : ''}" data-act="impDist" data-v="${u.v}">${u.th}</button>`).join('')}
         ${SPEED_UNITS.map((u) => `<button type="button" class="chip${units.speed === u.v ? ' on' : ''}" data-act="impSpeed" data-v="${u.v}">${u.th}</button>`).join('')}</div>
@@ -232,7 +231,6 @@ export function launchView(_p, ctx) {
         ctx.rerender();
       },
       impDate: (el) => { if (IMP) IMP.date = el.value || st.todayLocal(); },
-      impFileDate: () => { if (IMP?.fileDate) { IMP.date = IMP.fileDate; ctx.rerender(); } },
       impDist: (el) => { if (IMP) { IMP.units.dist = el.dataset.v; ctx.rerender(); } },
       impSpeed: (el) => { if (IMP) { IMP.units.speed = el.dataset.v; ctx.rerender(); } },
       impClub: (el) => { if (IMP) { IMP.clubMap[el.dataset.raw] = el.value === '-' ? null : el.value; ctx.rerender(); } },
