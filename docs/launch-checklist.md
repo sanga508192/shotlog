@@ -12,6 +12,8 @@
 
 ## 1. ภาพดาวเทียมแบบใช้เชิงพาณิชย์ได้ (ArcGIS) — คุณ แล้ว Claude
 
+> ✅ ทำแล้ว 28 ก.ย. 2569 — คีย์ "ShotLog satellite tiles" (Basemap styles service, Referrer: sanga508192.github.io และ localhost:5173) **หมดอายุ 28 ก.ย. 2570** ต้องสร้างคีย์ใหม่/ต่ออายุใน My portal → Content ก่อนวันนั้น แล้วเปลี่ยน `ESRI_API_KEY` · ถ้าย้ายไปโดเมนใหม่ต้องเพิ่ม Referrer ของโดเมนนั้นด้วย
+
 บริการภาพที่แอปใช้ตอนนี้ไม่อนุญาตให้ใช้เชิงพาณิชย์ ต้องเปลี่ยนก่อนเก็บเงิน
 
 1. สมัคร **ArcGIS Location Platform** ที่ developers.arcgis.com (ดูโควตาใช้ฟรีต่อเดือนและราคาส่วนเกินในหน้าราคา)
