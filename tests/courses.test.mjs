@@ -36,7 +36,7 @@ test('อยู่ในเมืองโคราช → สนามโคร
 
 test('สกอร์การ์ดทุกสนาม: 18 หลุม พาร์ 72 HC 1–18 ไม่ซ้ำ ระยะเป็นตัวเลขหรือว่าง', () => {
   const ids = Object.keys(SCORECARDS);
-  assert.deepEqual(ids.sort(), ['dancoon', 'kirimaya', 'panorama', 'rancho-charnvee', 'singha-park-khon-kaen', 'ubonrat-dam']);
+  assert.deepEqual(ids.sort(), ['dancoon', 'kabinburi-sport-club', 'kirimaya', 'panorama', 'rancho-charnvee', 'singha-park-khon-kaen', 'ubonrat-dam']);
   for (const [id, sc] of Object.entries(SCORECARDS)) {
     assert.ok(CURATED_COURSES.some((c) => c.id === id), `${id} ต้องอยู่ในรายชื่อสนาม`);
     assert.equal(sc.par.length, 18, id);
@@ -69,6 +69,8 @@ test('ระยะรวมตรงกับยอดรวมของแห�
   assert.equal(teeTotal(tee('rancho-charnvee', 'blue')), 7131);
   assert.equal(teeTotal(tee('dancoon', 'blue')), 6949);
   assert.equal(teeTotal(tee('kirimaya', 'black')), null, 'มีหลุมที่เว้นไว้ → ไม่แสดงยอดรวม');
+  // กบินทร์บุรี สปอร์ตคลับ: ยอดรวมตรงกับที่พิมพ์บนสกอร์การ์ดทุกแท่น
+  assert.deepEqual(SCORECARDS['kabinburi-sport-club'].tees.map((t) => teeTotal(t)), [8075, 7504, 7158, 6652, 6241, 5829]);
 });
 
 test('เติมพาร์/HC/ระยะตามแท่นที่เลือก และค่าที่ผู้ใช้แก้เองมาก่อน', () => {

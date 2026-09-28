@@ -155,10 +155,10 @@ test('เพิ่มสนามเองที่ชื่อและจั�
   assert.equal(findDuplicateCourse(CURATED_COURSES, 'รอยัลครีก', 'ขอนแก่น'), null);
 });
 
-test('รายชื่อที่เตรียมไว้: รหัสไม่ซ้ำ 6 จังหวัด ไม่มีพาร์ที่เดาไว้ ทุกสนามมีแหล่งอ้างอิง', () => {
-  assert.equal(CURATED_COURSES.length, 22);
-  assert.equal(new Set(CURATED_COURSES.map((c) => c.id)).size, 22);
-  assert.equal(new Set(CURATED_COURSES.map((c) => c.province)).size, 6);
+test('รายชื่อที่เตรียมไว้: รหัสไม่ซ้ำ 7 จังหวัด ไม่มีพาร์ที่เดาไว้ ทุกสนามมีแหล่งอ้างอิง', () => {
+  assert.equal(CURATED_COURSES.length, 23);
+  assert.equal(new Set(CURATED_COURSES.map((c) => c.id)).size, 23);
+  assert.equal(new Set(CURATED_COURSES.map((c) => c.province)).size, 7);
   assert.ok(CURATED_COURSES.every((c) => c.source_urls.length > 0));
   assert.ok(CURATED_COURSES.every((c) => c.scorecard_status === 'none' && c.origin === 'curated'));
 });

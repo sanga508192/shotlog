@@ -232,7 +232,7 @@ export function coursesView(_p, ctx) {
   if (st.setting('near_me', false) && !pick.locating && !lastPosition(60 * 60 * 1000)) setTimeout(locate, 0);
   else if (st.setting('near_me', false) && lastPosition(60 * 60 * 1000)) pick.near = true;
   return {
-    html: `${header('เลือกสนาม', { sub: 'ภาคอีสาน · ค้นหาชื่อไทย/อังกฤษหรือจังหวัด' })}<div class="page">
+    html: `${header('เลือกสนาม', { sub: 'ค้นหาชื่อไทย/อังกฤษหรือจังหวัด' })}<div class="page">
       <input class="input" type="search" placeholder="ค้นหา เช่น โคราช, Royal, เขื่อน" value="${esc(pick.q)}" data-input="q" aria-label="ค้นหาสนาม">
       <div class="row gap">
         <select class="input" data-change="province" aria-label="กรองจังหวัด">

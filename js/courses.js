@@ -1,4 +1,4 @@
-// รายชื่อสนามเริ่มต้นภาคอีสาน ตรวจชื่อและจังหวัด ณ 25 ก.ย. 2569
+// รายชื่อสนามเริ่มต้น (ส่วนใหญ่ภาคอีสาน และสนามที่ผู้ใช้ขอเพิ่ม) ตรวจชื่อและจังหวัด ณ ก.ย. 2569
 // ยังไม่มีพาร์/ระยะ/แท่นที/Rating รายสนาม ห้ามเติมจากสนามอื่นหรือคาดเดา
 
 export const ISAN_PROVINCES = [
@@ -28,6 +28,7 @@ export const PROVINCE_ALIASES = {
   'อำนาจเจริญ': ['Amnat Charoen'],
   'อุดรธานี': ['อุดร', 'Udon Thani', 'Udon'],
   'อุบลราชธานี': ['อุบล', 'Ubon Ratchathani', 'Ubon'],
+  'ปราจีนบุรี': ['ปราจีน', 'Prachinburi', 'Prachin Buri'],
 };
 
 const CHECKED_AT = '2026-09-25';
@@ -39,7 +40,7 @@ function curated(id, th, en, province, aliases, sources, checkedAt = CHECKED_AT)
     name_en: en,
     aliases,
     province,
-    region: 'northeast',
+    region: ISAN_PROVINCES.includes(province) ? 'northeast' : 'other',
     source_urls: sources,
     checked_at: checkedAt,
     origin: 'curated',
@@ -92,6 +93,9 @@ export const CURATED_COURSES = [
     ['ปากช่อง ไฮแลนด์', 'Pakchong Highland'], ['https://www.golflux.com/destination/nakhon-ratchasima-golf-courses/'], '2026-09-27'),
   curated('bonanza', 'โบนันซ่า กอล์ฟ แอนด์ คันทรีคลับ', 'Bonanza Golf & Country Club', 'นครราชสีมา',
     ['โบนันซ่า', 'ขนงพระ'], ['https://www.golflux.com/destination/nakhon-ratchasima-golf-courses/'], '2026-09-27'),
+  // ---- ผู้ใช้ขอเพิ่ม 28 ก.ย. 2569 (ชื่อและที่อยู่จากสกอร์การ์ดของสนาม ตำแหน่งจากลิงก์ Google Maps ที่ผู้ใช้ส่ง) ----
+  curated('kabinburi-sport-club', 'กบินทร์บุรี สปอร์ตคลับ', 'Kabin Buri Sport Club', 'ปราจีนบุรี',
+    ['KBSC', 'กบินทร์บุรี', 'Kabinburi', 'วังดาล'], ['สกอร์การ์ดของสนาม: 196 ม.11 ต.วังดาล อ.กบินทร์บุรี จ.ปราจีนบุรี 25110', 'https://maps.app.goo.gl/qooV85nXYBS5T79F8'], '2026-09-28'),
   curated('toscana-valley', 'ทอสคาน่า วัลเลย์ คันทรีคลับ', 'Toscana Valley Country Club', 'นครราชสีมา',
     ['ทอสคาน่า', 'Toskana', 'โป่งตาลอง'], ['https://www.golflux.com/destination/nakhon-ratchasima-golf-courses/'], '2026-09-27'),
 ];
@@ -152,6 +156,7 @@ export const COURSE_GEO = {
   'mountain-creek': { lat: 14.82843, lon: 101.60340, source: 'OpenStreetMap' },
   'bonanza': { lat: 14.59297, lon: 101.43526, source: 'OpenStreetMap' },
   'toscana-valley': { lat: 14.51758, lon: 101.50741, source: 'OpenStreetMap' },
+  'kabinburi-sport-club': { lat: 14.03125, lon: 101.66486, source: 'Google Maps (ลิงก์จากผู้ใช้)' },
 };
 for (const c of CURATED_COURSES) c.geo = COURSE_GEO[c.id] ?? null;
 
