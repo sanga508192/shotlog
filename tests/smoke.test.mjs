@@ -88,9 +88,13 @@ async function seedWeird() {
   ops.push({ store: 'practice', put: { id: id('pr'), date: undefined, topic: undefined, attempts: null } });
   ops.push({ store: 'userCourses', put: { id: 'uc1', display_name_th: 'สนามของฉัน', province: 'ขอนแก่น', origin: 'user', scorecard: { par: [4, 4, 3], hc: [1, 2, 3], tees: [{ id: 't1', name: 'ขาว', yards: [300, null, 150] }], unit: 'm', sources: [], checked_at: '2026-09-27' } } });
   ops.push({ store: 'settings', put: { key: 'share_layout', value: 'diagonal' } });
-  ops.push({ store: 'settings', put: { key: 'course_holes:dancoon', value: { holes: { 1: { tee: { lat: 16.48, lon: 102.72 }, green: { lat: 16.483, lon: 102.721 } }, 2: { tee: { lat: 'bad' } }, x: 5 } } } });
+  ops.push({ store: 'settings', put: { key: 'course_holes:dancoon', value: { holes: { 1: { tee: { lat: 16.48, lon: 102.72 }, green: { lat: 16.483, lon: 102.721 }, front: { lat: 16.4829, lon: 102.7209 }, back: 'bad', hazards: [{ lat: 16.481, lon: 102.7205, kind: 'water' }, { kind: 'bunker' }, 7] }, 2: { tee: { lat: 'bad' } }, x: 5 } } } });
   ops.push({ store: 'settings', put: { key: 'course_holes:kirimaya', value: 'garbage' } });
   ops.push({ store: 'settings', put: { key: 'coach_goal', value: 'nope' } });
+  ops.push({ store: 'settings', put: { key: 'course_rating:dancoon:white', value: { cr: 'x', slope: 999 } } });
+  ops.push({ store: 'settings', put: { key: 'course_rating:kirimaya:default', value: 'garbage' } });
+  ops.push({ store: 'settings', put: { key: 'map_auto_hole', value: 'maybe' } });
+  ops.push({ store: 'settings', put: { key: 'my_handicap', value: 'abc' } });
   ops.push({ store: 'settings', put: { key: 'drill_clips', value: { 'putt-circle': [null, { url: 'javascript:x' }, { url: 'https://youtu.be/dQw4w9WgXcQ', title: '<b>x</b>' }, { url: 'https://tiktok.com/@a/video/1' }], 'short-landing': 7 } } });
   ops.push({ store: 'settings', put: { key: 'priority_topics', value: null } });
   ops.push({ store: 'settings', put: { key: 'friends', value: [{ name: 'Tom' }, null, 'bad'] } });

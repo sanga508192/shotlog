@@ -502,6 +502,18 @@ export function buildPlan(focus, goal, practice = []) {
 // ---------- ระยะไม้จริงจาก GPS ----------
 // ระยะช็อต = จากจุดที่ตีช็อตนี้ ถึงจุดที่ตีช็อตถัดไป (จับ GPS ตอนจดช็อตขณะยืนอยู่ที่จุดตี)
 // ช็อตแรกของหลุมใช้หมุดแท่นทีแทนได้ถ้าไม่มี GPS
+// ไม้ที่ระยะกลางใกล้ระยะที่ต้องการที่สุด (ต้องมีข้อมูลอย่างน้อย 3 ครั้ง และต่างไม่เกิน 12% หรือ 12 ม.)
+export function suggestClub(meters, rows) {
+  if (!Number.isFinite(meters) || meters <= 0) return null;
+  let best = null;
+  for (const r of rows) {
+    if (r.n < 3 || r.category === 'putter') continue;
+    const diff = Math.abs(r.median - meters);
+    if (diff <= Math.max(12, meters * 0.12) && (!best || diff < best.diff)) best = { ...r, diff };
+  }
+  return best;
+}
+
 export const GPS_MAX_ACC = 25;   // เมตร: ตำแหน่งคลาดเคลื่อนเกินนี้ไม่นำมาคิด
 
 export function shotDistances(shots, teePin = null) {

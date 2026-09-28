@@ -53,7 +53,17 @@ export const fmtDist = (m, unit) => (m == null ? '–' : String(Math.round(toUni
 export const holesKey = (courseId) => `course_holes:${courseId}`;
 const valid = (p) => p && Number.isFinite(p.lat) && Number.isFinite(p.lon) && Math.abs(p.lat) <= 90 && Math.abs(p.lon) <= 180;
 
-// { [เลขหลุม]: { tee, green, est: { tee, green }, conf } } เฉพาะหมุดที่ถูกต้อง
+export const HAZARD_KINDS = [
+  { v: 'water', th: 'น้ำ', icon: '💧' },
+  { v: 'bunker', th: 'บังเกอร์', icon: '🏖️' },
+  { v: 'other', th: 'จุดอื่น', icon: '📌' },
+];
+export const MAX_HAZARDS = 6;
+const clean = (p) => ({ lat: p.lat, lon: p.lon });
+const validHazard = (z) => valid(z) && HAZARD_KINDS.some((k) => k.v === z.kind);
+
+// { [เลขหลุม]: { tee, green, front, back, hazards, est: { tee, green }, conf } } เฉพาะหมุดที่ถูกต้อง
+// front/back = ขอบหน้า/หลังกรีน · hazards = [{ lat, lon, kind }] (ผู้ใช้วางเองเท่านั้น)
 // หมุดที่ผู้ใช้วางเองมาก่อนเสมอ หมุดไหนยังไม่วางใช้หมุดเริ่มต้นของแอป (est = เป็นค่าประมาณ)
 export function courseHoles(courseId) {
   const out = {};
@@ -61,18 +71,23 @@ export function courseHoles(courseId) {
   for (const [n, h] of Object.entries(base)) {
     out[n] = {
       tee: { lat: h.tee[0], lon: h.tee[1] }, green: { lat: h.green[0], lon: h.green[1] },
-      est: { tee: true, green: true }, conf: h.conf,
+      front: null, back: null, hazards: [], est: { tee: true, green: true }, conf: h.conf,
     };
   }
   const raw = st.setting(holesKey(courseId), null)?.holes;
   if (!raw || typeof raw !== 'object') return out;
   for (const [n, h] of Object.entries(raw)) {
-    const cur = out[n] ?? { tee: null, green: null, est: { tee: false, green: false }, conf: null };
+    const cur = out[n] ?? { tee: null, green: null, front: null, back: null, hazards: [], est: { tee: false, green: false }, conf: null };
     for (const which of ['tee', 'green']) {
       if (valid(h?.[which])) {
-        cur[which] = { lat: h[which].lat, lon: h[which].lon };
+        cur[which] = clean(h[which]);
         cur.est = { ...cur.est, [which]: false };
       }
+    }
+    for (const which of ['front', 'back']) if (valid(h?.[which])) cur[which] = clean(h[which]);
+    if (Array.isArray(h?.hazards)) {
+      cur.hazards = h.hazards.filter(validHazard)
+        .slice(0, MAX_HAZARDS).map((z) => ({ ...clean(z), kind: z.kind }));
     }
     if (cur.tee || cur.green) out[n] = cur;
   }
@@ -84,14 +99,42 @@ export const holesSource = (courseId) => COURSE_HOLES[courseId]?.source ?? null;
 
 export const holeReady = (h) => !!(h?.tee && h?.green);
 
-export async function setHolePoint(courseId, n, which, point) {
+const round7 = (p) => ({ lat: Math.round(p.lat * 1e7) / 1e7, lon: Math.round(p.lon * 1e7) / 1e7 });
+
+async function updateHole(courseId, n, fn) {
   const cur = st.setting(holesKey(courseId), null);
   const holes = { ...(cur?.holes || {}) };
-  const h = { ...(holes[n] || {}) };
-  if (point) h[which] = { lat: Math.round(point.lat * 1e7) / 1e7, lon: Math.round(point.lon * 1e7) / 1e7 };
-  else delete h[which];
-  holes[n] = h;
+  holes[n] = fn({ ...(holes[n] || {}) });
   await st.setSetting(holesKey(courseId), { holes, updated_at: st.nowIso() });
+}
+
+// which: tee | green | front | back
+export async function setHolePoint(courseId, n, which, point) {
+  await updateHole(courseId, n, (h) => {
+    if (point) h[which] = round7(point);
+    else delete h[which];
+    return h;
+  });
+}
+
+export async function addHazard(courseId, n, point, kind) {
+  if (!HAZARD_KINDS.some((k) => k.v === kind)) throw new Error('ชนิดอุปสรรคไม่ถูกต้อง');
+  await updateHole(courseId, n, (h) => {
+    const list = Array.isArray(h.hazards) ? h.hazards.filter(validHazard) : [];
+    if (list.length >= MAX_HAZARDS) throw new Error(`วางอุปสรรคได้สูงสุด ${MAX_HAZARDS} จุดต่อหลุม`);
+    return { ...h, hazards: [...list, { ...round7(point), kind }] };
+  });
+}
+
+// ย้ายหรือลบอุปสรรคตามลำดับ (point = null คือลบ)
+export async function setHazard(courseId, n, index, point) {
+  await updateHole(courseId, n, (h) => {
+    const list = Array.isArray(h.hazards) ? h.hazards.filter(validHazard) : [];
+    if (!list[index]) return h;
+    if (point) list[index] = { ...list[index], ...round7(point) };
+    else list.splice(index, 1);
+    return { ...h, hazards: list };
+  });
 }
 
 // ระยะหลุมจากสกอร์การ์ดของแท่นที่ใช้ (ไว้เทียบกับที่วัดจากหมุด)

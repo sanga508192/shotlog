@@ -719,3 +719,34 @@ a.map-card { display: flex; align-items: center; gap: 12px; text-decoration: non
 .clip-bar .mini { background: rgba(255,255,255,.15); color: #fff; }
 .drill-areas { margin-bottom: 4px; }
 .drill-areas .chip { text-decoration: none; }
+
+/* Strokes Gained */
+.sg-row { display: flex; flex-direction: column; gap: 4px; padding: 6px 0; }
+.sg-bar { position: relative; height: 10px; border-radius: 6px; background: var(--surface-2); overflow: hidden; }
+.sg-bar::after { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--muted); }
+.sg-bar span { position: absolute; top: 0; bottom: 0; border-radius: 6px; }
+.sg-bar span.neg { right: 50%; background: #e0754d; }
+.sg-bar span.pos { left: 50%; background: #3aa76d; }
+.sg-bar i { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--text); }
+.sg-worst { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: .82rem; margin-top: 8px; }
+.sg-worst a { background: var(--surface-2); padding: 3px 9px; border-radius: 999px; text-decoration: none; color: inherit; }
+
+/* แผนที่: ขอบกรีน อุปสรรค ไม้แนะนำ */
+.mp-edge { display: block; width: 10px; height: 10px; border-radius: 50%; background: #fff; border: 2px solid #1b6e3c; box-shadow: 0 1px 3px rgba(0,0,0,.5); }
+.mp-hz { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px 2px 4px; border-radius: 999px; background: rgba(15, 20, 18, .82); color: #fff; font-size: .8rem; white-space: nowrap; box-shadow: 0 1px 4px rgba(0,0,0,.5); }
+.mp-hz b { font-weight: 700; }
+.map-club { margin: 0; max-width: 520px; font-size: .84rem; text-align: center; color: #fff; background: rgba(15, 20, 18, .72); padding: 5px 10px; border-radius: 10px; }
+.map-club small { opacity: .75; }
+.map-steps.more { flex-wrap: wrap; justify-content: center; }
+.map-step.small { font-size: .78rem; padding: 5px 9px; min-height: 0; }
+.map-hz-list { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.map-gps span { margin-right: 6px; }
+
+/* แฮนดิแคปโดยประมาณ */
+.hcp { display: flex; flex-direction: column; gap: 8px; }
+.hcp-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.hcp-head > b { font-size: 2rem; line-height: 1; color: var(--brand); }
+.hcp-head span { flex: 1; min-width: 140px; font-size: .86rem; }
+.rating-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; align-items: center; padding: 8px 0; border-top: 1px dashed var(--line); }
+.rating-form > span { grid-column: 1 / -1; font-size: .86rem; }
+.rating-form .input { min-width: 0; }

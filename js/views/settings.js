@@ -106,6 +106,10 @@ export function settingsView(_p, ctx) {
       <h2>หน่วยระยะเริ่มต้น</h2>
       ${chips('unit', 'unit', UNITS, st.setting('distance_unit', 'm'))}
 
+      <h2>แผนที่หลุม</h2>
+      <label class="card row gap toggle-row"><input type="checkbox" ${st.setting('map_auto_hole', true) === false ? '' : 'checked'} data-change="autoHole">
+        <span>เปลี่ยนหลุมให้เองเมื่อเดินถึงแท่นทีหลุมถัดไป <small class="muted">(ใช้ GPS และหมุดแท่นที)</small></span></label>
+
       <h2>คำที่ใช้บ่อย (ปุ่มเติมหมายเหตุ)</h2>
       <textarea class="input" rows="5" data-change="phrases" placeholder="หนึ่งบรรทัดต่อหนึ่งคำ">${esc(st.setting('phrases', []).join('\n'))}</textarea>
 
@@ -188,6 +192,7 @@ export function settingsView(_p, ctx) {
         ctx.rerender();
       },
       unit: async (el) => { await st.setSetting('distance_unit', el.dataset.v); ctx.rerender(); },
+      autoHole: async (el) => { await st.setSetting('map_auto_hole', el.checked); toast(el.checked ? 'เปิดการเปลี่ยนหลุมอัตโนมัติ' : 'ปิดการเปลี่ยนหลุมอัตโนมัติ'); },
       myName: async (el) => {
         const v = el.value.trim();
         if (v) await st.setSetting('my_name', v); else ctx.rerender();

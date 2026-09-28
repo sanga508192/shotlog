@@ -1,9 +1,12 @@
 // หน้าโค้ชพัฒนาเกม: เป้าหมาย → สโตรกหายไปไหน → จุดที่ควรแก้ → โฟกัสรอบหน้า → แผนซ้อม
 import * as st from '../state.js';
-import { esc, header, fmtDate } from '../ui.js';
+import { esc, header, fmtDate, toast } from '../ui.js';
 import { GOALS, analyzeGame, budgetOver, fmtSigned, clubDistances } from '../coach.js';
 import { courseHoles, toUnit, unitTh } from '../holemap.js';
 import { drillCard, clipActions } from './drills.js';
+import { analyzeSG } from '../sg.js';
+import { estimateHandicap, ratingKey, validRating } from '../handicap.js';
+import { ME, playerHoleScore } from '../group.js';
 
 export function coachData(goalV = st.setting('coach_goal', null)) {
   return analyzeGame({
@@ -87,6 +90,68 @@ export function clubDistanceHtml() {
   </div>`;
 }
 
+// Strokes Gained ต่อ 18 หลุม เทียบค่าที่นักกอล์ฟระดับเป้าหมายมักเสีย
+export function sgHtml(goal) {
+  const r = analyzeSG({ rounds: st.rounds(), holesOf: st.holesOf, shotsOf: st.shotsOf, penaltiesOf: st.penaltiesOf }, goal.score);
+  if (r.holesComplete < 9) {
+    return `<div class="card small">ต้องมีหลุมที่ข้อมูลครบอย่างน้อย 9 หลุม (ตอนนี้ ${r.holesComplete}${r.holesLogged ? ` จาก ${r.holesLogged} หลุมที่จดรายช็อต` : ''})
+      <ul class="find"><li>ทุกช็อตมี <b>ระยะก่อนตี</b> — เปิด 📍 GPS ตอนบันทึก และวางหมุดกรีนในแผนที่หลุม แอปเติมให้เอง</li>
+      <li>จด <b>ระยะพัตแรก</b> (ช่อง "ก่อนตี" ของพัต) และจุดจบของแต่ละช็อต</li>
+      <li>ลูกโทษให้ระบุว่าเกิดหลังช็อตไหน</li></ul>
+      Strokes Gained บอกได้ชัดว่าเสียสโตรกตรงไหนเทียบนักกอล์ฟเก่ง ๆ แม้สกอร์รวมจะเท่ากัน</div>`;
+  }
+  const max = Math.max(1, ...r.cats.map((c) => Math.abs(c.yours)), ...r.cats.map((c) => Math.abs(c.target)));
+  const w = (v) => `${Math.min(50, (Math.abs(v) / max) * 50).toFixed(1)}%`;
+  const rows = r.cats.map((c) => {
+    const tone = c.diff >= 0.3 ? 'ok' : c.diff > -0.7 ? 'near' : 'far';
+    return `<div class="sg-row ${tone}">
+      <div class="leak-head"><span class="leak-name">${c.icon} ${esc(c.th)}</span>
+        <span class="leak-num"><b>${fmtSigned(c.yours)}</b> <small>ระดับเป้า ${fmtSigned(c.target)}</small></span></div>
+      <div class="sg-bar" aria-hidden="true"><span class="${c.yours < 0 ? 'neg' : 'pos'}" style="width:${w(c.yours)}"></span><i style="${c.target < 0 ? 'right' : 'left'}:${(50 - Math.min(50, (Math.abs(c.target) / max) * 50)).toFixed(1)}%"></i></div>
+      <div class="leak-sub">${esc(c.sub)} · ${c.shots} ช็อต</div>
+    </div>`;
+  }).join('');
+  const worst = r.worst.filter((x) => x.sg <= -0.8).slice(0, 3);
+  return `<div class="card leaks">${rows}
+    <div class="leak-total">รวม <b>${fmtSigned(r.total)}</b> สโตรก/18 หลุม <small>ระดับเป้า ${fmtSigned(-Math.max(0, goal.score - 72))}</small></div>
+    ${worst.length ? `<div class="sg-worst"><b>ช็อตที่เสียมากที่สุด</b>${worst.map((x) => `<a href="#/round/${encodeURIComponent(x.roundId)}/hole/${x.hole.number}">หลุม ${x.hole.number} ช็อตที่ ${x.shot.sequence} <b>${fmtSigned(x.sg)}</b></a>`).join('')}</div>` : ''}
+  </div>
+  <p class="note">เทียบกับนักกอล์ฟแฮนดิแคป 0 (ค่าโดยประมาณ) · ติดลบ = เสียสโตรก · "ระดับเป้า" คือที่นักกอล์ฟ${esc(goal.th)}มักเสียในหมวดนั้น · จาก ${r.holesComplete} หลุมที่ข้อมูลครบ</p>`;
+}
+
+// รอบ 18 หลุมที่มีสกอร์ของเราครบ เรียงเก่า→ใหม่
+function handicapRounds() {
+  return st.rounds().filter((r) => r.status !== 'playing')
+    .sort((a, b) => String(a.played_at || '').localeCompare(String(b.played_at || '')) || String(a.created_at || '').localeCompare(String(b.created_at || '')))
+    .map((r) => {
+      const holes = [];
+      for (const h of st.holesOf(r.id)) {
+        const sc = playerHoleScore(h, ME, st.shotsOf(h.id), st.penaltiesOf(h.id));
+        if (sc?.final && Number.isInteger(h.par)) holes.push({ par: h.par, hc: h.hc_index ?? null, strokes: sc.strokes });
+      }
+      return { id: r.id, courseId: r.course_id, teeId: r.tee_id ?? null, name: r.course_name_snapshot, tee: r.tee_name, date: r.played_at, holes };
+    });
+}
+
+export function handicapHtml() {
+  const prior = Number.isFinite(Number(st.setting('my_handicap', null))) && st.setting('my_handicap', null) !== null ? Number(st.setting('my_handicap')) : null;
+  const r = estimateHandicap(handicapRounds(), (c, t) => st.setting(ratingKey(c, t), null), prior);
+  const forms = r.missing.slice(0, 4).map((m) => `<form class="rating-form" data-submit="rating" data-course="${esc(m.courseId)}" data-tee="${esc(m.teeId ?? '')}">
+      <span><b>${esc(m.name || 'สนาม')}</b>${m.tee ? ` · แท่น${esc(m.tee)}` : ''} <small class="muted">${m.count} รอบ</small></span>
+      <input class="input" name="cr" type="number" inputmode="decimal" step="0.1" min="50" max="90" placeholder="Course Rating เช่น 71.8" required aria-label="Course Rating">
+      <input class="input" name="slope" type="number" inputmode="numeric" min="55" max="155" placeholder="Slope เช่น 128" required aria-label="Slope">
+      <button class="mini primary">บันทึก</button>
+    </form>`).join('');
+  const head = r.index != null
+    ? `<div class="hcp-head"><b>${r.index.toFixed(1)}</b><span>จาก ${r.used.length} รอบ 18 หลุมล่าสุด<br><small class="muted">รอบดีสุด: ${r.used.slice().sort((a, b) => a.diff - b.diff).slice(0, 3).map((u) => u.diff.toFixed(1)).join(', ')}</small></span>
+        <button type="button" class="mini" data-act="useHcp" data-v="${Math.round(r.index)}">ใช้ ${Math.round(r.index)} เป็นแต้มต่อของฉัน</button></div>`
+    : `<p class="small">ต้องมีรอบ 18 หลุมที่ใส่ Course Rating/Slope อย่างน้อย 3 รอบ (ตอนนี้ ${r.used.length} รอบ)</p>`;
+  return `<div class="card hcp">${head}
+    ${forms ? `<p class="small">ใส่ <b>Course Rating</b> และ <b>Slope</b> ของแท่นที่เล่น (มักพิมพ์ในสกอร์การ์ด) ใส่ครั้งเดียวใช้กับทุกรอบของสนาม/แท่นนั้น</p>${forms}` : ''}
+    <p class="note">คำนวณตามสูตร World Handicap System จากสกอร์ที่จด · ไม่ใช่แฮนดิแคปทางการ (ต้องลงทะเบียนกับสมาคมกอล์ฟ) · รอบ 9 หลุมยังไม่นับ</p>
+  </div>`;
+}
+
 export function focusListHtml(cues) {
   return `<ol class="cues">${cues.map((c) => `<li><b>${esc(c.text)}</b><span>${esc(c.why)}</span></li>`).join('')}</ol>`;
 }
@@ -146,6 +211,12 @@ export function coachView(_p, ctx) {
       ${shotOk || a.stats.some((s) => s.yours != null) ? `<h2>สถิติหลักเทียบเป้า</h2>
       <div class="stat-grid">${statTiles(a)}</div>` : ''}
 
+      <h2>Strokes Gained <span class="badge ok">รายหมวด</span></h2>
+      ${sgHtml(g)}
+
+      <h2>แฮนดิแคปโดยประมาณ <span class="badge ok">WHS</span></h2>
+      ${handicapHtml()}
+
       <h2>ระยะไม้จริงของคุณ <span class="badge ok">GPS</span></h2>
       ${clubDistanceHtml()}
 
@@ -160,6 +231,18 @@ export function coachView(_p, ctx) {
     </div>`,
     actions: {
       ...clipActions(),
+      rating: async (form) => {
+        const v = validRating({ cr: form.cr.value, slope: form.slope.value });
+        if (!v) { toast('Course Rating ต้องอยู่ระหว่าง 50–90 และ Slope 55–155'); return; }
+        await st.setSetting(ratingKey(form.dataset.course, form.dataset.tee || null), v);
+        toast('บันทึกแล้ว');
+        ctx.rerender();
+      },
+      useHcp: async (el) => {
+        await st.setSetting('my_handicap', Number(el.dataset.v));
+        toast(`ตั้งแต้มต่อของฉันเป็น ${el.dataset.v} แล้ว (ใช้ในเกมก๊วน)`);
+        ctx.rerender();
+      },
       goal: async (el) => {
         await st.setSetting('coach_goal', el.dataset.v);
         ctx.rerender();

@@ -5,34 +5,39 @@ import { esc, toast } from '../ui.js';
 import { TileMap } from '../map.js';
 import {
   courseHoles, holeReady, setHolePoint, distM, bearing, destination, fmtDist, unitTh, scorecardLength, YD, isEstimated,
+  HAZARD_KINDS, MAX_HAZARDS, addHazard, setHazard,
 } from '../holemap.js';
 import { watchPosition, lastPosition, getPosition } from '../geo.js';
-import { clubDistances, GPS_MAX_ACC } from '../coach.js';
+import { clubDistances, suggestClub, GPS_MAX_ACC } from '../coach.js';
 
 // สถานะที่อยู่ข้ามการเปลี่ยนหลุม (ของสนามที่เปิดอยู่)
 // edit = กดแก้หมุดเอง (อยู่จนกดเสร็จ) · editHole = หลุมที่กำลังวางหมุดใหม่ (อยู่โหมดวางจนออกจากหลุมนั้น)
 const M = { courseId: null, edit: false, editHole: null, placing: null, targets: {}, openKey: null };
 const NEAR_M = 800;          // อยู่ใกล้กรีนกว่านี้ วัดระยะจากตัวผู้เล่นแทนแท่นที
+const AT_TEE_M = 35;         // ยืนห่างแท่นทีหลุมถัดไปไม่เกินนี้ = ถึงหลุมถัดไปแล้ว
+const CLOSER_M = 20;         // และต้องใกล้แท่นทีหลุมถัดไปมากกว่ากรีนหลุมนี้อย่างน้อยเท่านี้ (บางสนามแท่นทีอยู่ติดกรีนหลุมก่อน)
 const FRESH_MS = 20000;
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
-// ระยะไดรเวอร์จริงของผู้ใช้ (จาก GPS) ใช้วางจุดเป้าเริ่มต้น ถ้ายังไม่มีข้อมูลใช้ 230 หลา
-function driverM() {
-  const rows = clubDistances({
+// ระยะไม้จริงของผู้ใช้ (จาก GPS)
+function clubRows() {
+  return clubDistances({
     rounds: st.rounds(), holesOf: st.holesOf, shotsOf: st.shotsOf, penaltiesOf: st.penaltiesOf, clubOf: st.club,
     teeOf: (r, h) => courseHoles(r.course_id)[h.number]?.tee ?? null,
   });
-  const d = rows.find((r) => r.category === 'driver' && r.n >= 3);
-  return d ? d.median : 230 * YD;
 }
 
 const pinHtml = {
   tee: '<span class="mp mp-tee" aria-label="แท่นที"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11M9 14h6l-1 3h-4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="3.5" r="2.5" fill="currentColor"/></svg></span>',
   green: '<span class="mp mp-green" aria-label="กรีน"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 20V4l9 4-9 4" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><ellipse cx="8" cy="20.5" rx="5" ry="1.5" fill="currentColor"/></svg></span>',
   target: '<span class="mp-target" aria-label="จุดเป้า"></span>',
+  edge: '<span class="mp-edge" aria-hidden="true"></span>',
   me: '<span class="mp-me" aria-label="ตำแหน่งของคุณ"></span>',
 };
+
+const hzKind = (z) => HAZARD_KINDS.find((k) => k.v === z.kind);
+const hazardHtml = (z, dist) => `<span class="mp-hz" aria-label="${esc(hzKind(z)?.th ?? '')}">${hzKind(z)?.icon ?? '📌'}${dist ? `<b>${dist}</b>` : ''}</span>`;
 
 export function mapView([courseId, numStr, query], ctx) {
   const course = st.course(courseId);
@@ -58,6 +63,9 @@ export function mapView([courseId, numStr, query], ctx) {
 
   let map = null;
   let gps = null;
+  const rows = clubRows();
+  const driver = rows.find((r) => r.category === 'driver' && r.n >= 3);
+  const driverM = () => (driver ? driver.median : 230 * YD);   // ยังไม่มีข้อมูลใช้ 230 หลา
   let gpsErr = null;
   let stopGps = null;
   let root = null;
@@ -124,23 +132,31 @@ export function mapView([courseId, numStr, query], ctx) {
       }
       pins.push({ id: 'tee', at: h.tee, html: pinHtml.tee, cls: 'pin-tee' });
       pins.push({ id: 'green', at: h.green, html: pinHtml.green, cls: 'pin-green' });
+      for (const e of ['front', 'back']) if (h[e]) pins.push({ id: e, at: h[e], html: pinHtml.edge, cls: 'pin-edge' });
+      (h.hazards || []).forEach((z, i) => pins.push({ id: `hz${i}`, at: z, html: hazardHtml(z, fmtDist(distM(s.at, z), u)), cls: 'pin-hz' }));
       if (t) {
         pins.push({
           id: 'target', at: t, html: pinHtml.target, cls: 'pin-target', drag: true,
           onDrag: (p) => { M.targets[n] = p; map._renderOverlay(); },
-          onDrop: (p) => { M.targets[n] = p; map._renderOverlay(); },
+          onDrop: (p) => { M.targets[n] = p; map._renderOverlay(); const c = root?.querySelector('#map-club'); if (c) c.innerHTML = clubNote(); },
         });
       }
     } else {
       if (h.tee && h.green) lines.push({ a: h.tee, b: h.green, cls: 'tm-line edit', label: fmtDist(distM(h.tee, h.green), u) });
-      for (const which of ['tee', 'green']) {
+      for (const which of ['tee', 'green', 'front', 'back']) {
         if (!h[which]) continue;
+        const edge = which === 'front' || which === 'back';
         pins.push({
-          id: `${which}-edit`, at: h[which], html: pinHtml[which], cls: `pin-${which}${M.placing === which ? ' placing' : ''}`, drag: true,
+          id: `${which}-edit`, at: h[which], html: edge ? pinHtml.edge : pinHtml[which], cls: `pin-${edge ? 'edge' : which}${M.placing === which ? ' placing' : ''}`, drag: true,
           onDrag: () => {},
           onDrop: async (p) => { await setHolePoint(courseId, n, which, p); refresh(); },
         });
       }
+      (h.hazards || []).forEach((z, i) => pins.push({
+        id: `hz${i}-edit`, at: z, html: hazardHtml(z, ''), cls: 'pin-hz', drag: true,
+        onDrag: () => {},
+        onDrop: async (p) => { await setHazard(courseId, n, i, p); refresh(); },
+      }));
     }
     return { lines, pins, circles };
   }
@@ -155,6 +171,10 @@ export function mapView([courseId, numStr, query], ctx) {
     if (!h.green) return `📍 ${acc}`;
     const d = distM(gps, h.green);
     if (d > 2000) return `<span class="muted">📍 อยู่ห่างหลุมนี้ ${(d / 1000).toFixed(1)} กม.</span>`;
+    if (h.front || h.back) {
+      const part = (p, th) => (p ? `<span>${th} <b>${fmtDist(distM(gps, p), u)}</b></span>` : '');
+      return `📍 ${part(h.front, 'หน้า')}<span>กลาง <b>${fmtDist(d, u)}</b></span>${part(h.back, 'หลัง')} ${unitTh(u)} <small>${acc}</small>`;
+    }
     return `📍 ถึงกลางกรีน <b>${fmtDist(d, u)}</b> ${unitTh(u)} <small>${acc}</small>`;
   }
 
@@ -163,6 +183,18 @@ export function mapView([courseId, numStr, query], ctx) {
     const u = unit();
     const len = holeReady(h) ? distM(h.tee, h.green) : null;
     return `หลุม ${n}${par ? ` · พาร์ ${par}` : ''}${len ? ` · ${fmtDist(len, u)} ${unitTh(u)}` : ''}`;
+  }
+
+  // ไม้แนะนำสำหรับช็อตถัดไป: จากจุดเริ่ม (ตัวผู้เล่น/แท่นที) ถึงจุดเป้า หรือถึงกลางกรีนถ้าไม่มีจุดเป้า
+  function clubNote() {
+    const h = H();
+    if (!holeReady(h) || !rows.length) return '';
+    const t = target();
+    const d = distM(start().at, t ?? h.green);
+    const c = suggestClub(d, rows);
+    if (!c) return '';
+    const u = unit();
+    return `<p class="map-club">🏌️ ${t ? 'ถึงจุดเป้า' : 'ถึงกลางกรีน'} ${fmtDist(d, u)} ${unitTh(u)} → <b>${esc(c.label)}</b> <small>ระยะกลางของคุณ ${fmtDist(c.median, u)}</small></p>`;
   }
 
   // หมุดเริ่มต้นที่ยังไม่มีใครตรวจ: เตือนทุกครั้ง
@@ -183,6 +215,7 @@ export function mapView([courseId, numStr, query], ctx) {
           ${n < count ? `<a class="map-round" href="${hrefHole(n + 1)}" aria-label="หลุมถัดไป">›</a>` : '<span class="map-round off">›</span>'}
         </div>
         ${estNote()}
+        <div id="map-club">${clubNote()}</div>
         <p class="map-hint">${s?.me ? 'วัดจากตำแหน่งของคุณ' : 'วัดจากแท่นที'} · แตะแผนที่หรือลากจุดเหลืองเพื่อดูระยะ</p>
         <div class="map-tools">
           <button type="button" class="map-pill" data-act="recenter">⤢ ทั้งหลุม</button>
@@ -192,13 +225,24 @@ export function mapView([courseId, numStr, query], ctx) {
     const len = holeReady(h) ? distM(h.tee, h.green) : null;
     const scl = scorecardLength(sc, n, round?.tee_id);
     const scInUnit = scl ? Math.round(scl.unit === u ? scl.value : scl.unit === 'yd' ? scl.value * YD : scl.value / YD) : null;
+    const hz = HAZARD_KINDS.find((k) => M.placing === `hz:${k.v}`);
     const hint = M.placing === 'tee' ? `แตะบนแผนที่ตรง<b>แท่นที</b>ที่คุณใช้ของหลุม ${n}`
       : M.placing === 'green' ? `แตะบนแผนที่ตรง<b>กลางกรีน</b>หลุม ${n}`
-        : 'ลากหมุดเพื่อปรับให้ตรง หรือเลือกหมุดที่จะวางใหม่';
+        : M.placing === 'front' ? 'แตะที่<b>ขอบหน้ากรีน</b> (ฝั่งที่ตีเข้ามา)'
+          : M.placing === 'back' ? 'แตะที่<b>ขอบหลังกรีน</b>'
+            : hz ? `แตะจุดที่อยากรู้ระยะของ<b>${hz.th}</b> เช่น ขอบที่ต้องตีข้าม`
+              : 'ลากหมุดเพื่อปรับให้ตรง หรือเลือกหมุดที่จะวางใหม่';
+    const hzList = h.hazards?.length
+      ? `<div class="map-hz-list">${h.hazards.map((z, i) => `<button type="button" class="map-pill" data-act="delHz" data-i="${i}" aria-label="ลบ${esc(hzKind(z)?.th)}">${hzKind(z)?.icon} ลบ</button>`).join('')}</div>` : '';
     return `<div class="map-steps">
         <button type="button" class="map-step${M.placing === 'tee' ? ' on' : ''}${h.tee ? ' done' : ''}" data-act="place" data-v="tee">🏌️ แท่นที${h.tee ? ' ✓' : ''}</button>
         <button type="button" class="map-step${M.placing === 'green' ? ' on' : ''}${h.green ? ' done' : ''}" data-act="place" data-v="green">⛳ กลางกรีน${h.green ? ' ✓' : ''}</button>
       </div>
+      ${holeReady(h) ? `<div class="map-steps more">
+        <button type="button" class="map-step small${M.placing === 'front' ? ' on' : ''}${h.front ? ' done' : ''}" data-act="place" data-v="front">หน้ากรีน${h.front ? ' ✓' : ''}</button>
+        <button type="button" class="map-step small${M.placing === 'back' ? ' on' : ''}${h.back ? ' done' : ''}" data-act="place" data-v="back">หลังกรีน${h.back ? ' ✓' : ''}</button>
+        ${(h.hazards?.length ?? 0) < MAX_HAZARDS ? HAZARD_KINDS.map((k) => `<button type="button" class="map-step small${M.placing === `hz:${k.v}` ? ' on' : ''}" data-act="place" data-v="hz:${k.v}">＋${k.icon} ${k.th}</button>`).join('') : ''}
+      </div>${hzList}` : ''}
       ${estNote()}
       <p class="map-hint">${hint} · ลาก/ถ่างนิ้วเพื่อหาหลุม</p>
       ${len ? `<p class="map-check">วัดจากหมุด <b>${fmtDist(len, u)}</b> ${unitTh(u)}${scInUnit ? ` · สกอร์การ์ด${scl.tee ? ` (${esc(scl.tee)})` : ''} ${scInUnit} ${unitTh(u)}` : ''}</p>` : ''}
@@ -223,7 +267,14 @@ export function mapView([courseId, numStr, query], ctx) {
     if (editing()) {
       if (!M.placing) return;
       const which = M.placing;
+      if (which.startsWith('hz:')) {
+        await addHazard(courseId, n, p, which.slice(3));
+        M.placing = null;
+        refresh();
+        return;
+      }
       await setHolePoint(courseId, n, which, p);
+      if (which === 'front' || which === 'back') { M.placing = null; refresh(); return; }
       const h = H();
       M.placing = which === 'tee' && !h.green ? 'green' : null;
       if (holeReady(h) && which === 'green') fitHole();
@@ -232,6 +283,20 @@ export function mapView([courseId, numStr, query], ctx) {
     }
     M.targets[n] = p;
     refresh();
+  }
+
+  // ยืนที่แท่นทีหลุมถัดไป (ใกล้กว่ากรีนหลุมนี้ชัดเจน) → เปิดหลุมถัดไปให้เอง (ปิดได้ในค่าตั้ง)
+  let advanced = false;
+  function autoAdvance() {
+    if (advanced || editing() || n >= count || !gpsUsable() || st.setting('map_auto_hole', true) === false) return;
+    const next = courseHoles(courseId)[n + 1];
+    const h = H();
+    const dTee = next?.tee ? distM(gps, next.tee) : Infinity;
+    if (dTee > AT_TEE_M) return;
+    if (h.green && distM(gps, h.green) < dTee + CLOSER_M) return;
+    advanced = true;
+    toast(`ถึงแท่นทีหลุม ${n + 1} แล้ว เปิดหลุม ${n + 1} ให้`);
+    ctx.go(hrefHole(n + 1));
   }
 
   return {
@@ -260,6 +325,8 @@ export function mapView([courseId, numStr, query], ctx) {
         if (first && !holeReady(H()) && map.zoom < 12) map.setView({ center: pos, zoom: 17 });
         map._renderOverlay();
         if (first && !editing()) root.querySelector('#map-panel').innerHTML = panel();
+        else if (!editing()) { const c = root.querySelector('#map-club'); if (c) c.innerHTML = clubNote(); }
+        autoAdvance();
       }, (err) => {
         gpsErr = err.code === 1 ? 'เปิดสิทธิ์ตำแหน่งเพื่อดูระยะจากตัวคุณ' : 'ยังหาตำแหน่งไม่ได้';
         root.querySelector('#map-gps').innerHTML = gpsCard();
@@ -272,6 +339,7 @@ export function mapView([courseId, numStr, query], ctx) {
       edit: () => { M.edit = true; M.placing = null; refresh(); },
       done: () => { M.edit = false; M.editHole = null; M.placing = null; fitHole(); refresh(); toast('บันทึกหมุดแล้ว'); },
       place: (el) => { M.placing = M.placing === el.dataset.v ? null : el.dataset.v; refresh(); },
+      delHz: async (el) => { await setHazard(courseId, n, Number(el.dataset.i), null); refresh(); },
       gpsHere: async (el) => {
         if (!M.placing) return;
         el.disabled = true;
