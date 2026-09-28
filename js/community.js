@@ -9,6 +9,8 @@ const TTL = 12 * 3600 * 1000;
 const KINDS = ['tee', 'green', 'front', 'back'];
 const cacheKey = (id) => `cpins:${id}`;
 const sentKey = (id) => `cpins_sent:${id}`;
+// ออฟไลน์/สัญญาณหลุด (TypeError จาก fetch) หรือเซิร์ฟเวอร์ยังไม่มีฟังก์ชันนี้ (404) = ลองใหม่ครั้งหน้า ไม่นับเป็นข้อผิดพลาด
+export const quietError = (err) => err instanceof TypeError || err?.status === 404;
 const valid = (p) => p && Number.isFinite(p.lat) && Number.isFinite(p.lon) && Math.abs(p.lat) <= 90 && Math.abs(p.lon) <= 180;
 
 export const shareable = (courseId) => CURATED_COURSES.some((c) => c.id === courseId);
@@ -32,7 +34,7 @@ export async function refreshPins(courseId, { force = false } = {}) {
   try {
     rows = await cloud.communityPins(courseId);
   } catch (err) {
-    if (err?.status === 404) return false;   // เซิร์ฟเวอร์ยังไม่ได้อัปเดตฐานข้อมูล (ยังไม่มีฟังก์ชันนี้)
+    if (quietError(err)) return false;
     throw err;
   }
   const clean = (Array.isArray(rows) ? rows : [])
@@ -77,7 +79,7 @@ export function scheduleShare(courseId, onDone) {
   clearTimeout(timers.get(courseId));
   timers.set(courseId, setTimeout(() => {
     timers.delete(courseId);
-    shareMine(courseId).then((sent) => sent && onDone?.()).catch((err) => logError('share pins', err));
+    shareMine(courseId).then((sent) => sent && onDone?.()).catch((err) => { if (!quietError(err)) logError('share pins', err); });
   }, 3000));
 }
 

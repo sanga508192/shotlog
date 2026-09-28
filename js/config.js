@@ -5,6 +5,11 @@
 export const SUPABASE_URL = 'https://erycbfpvfhehhsskxtrf.supabase.co';
 export const SUPABASE_ANON_KEY = 'sb_publishable_aoOQe9Z0N_a6M_hzpOjNCg_yhPdNbyL';
 
+// ภาพดาวเทียมของแผนที่หลุม: ใส่ API key ของ ArcGIS Location Platform ก่อนเปิดให้คนทั่วไปใช้/เก็บเงิน
+// (ปล่อยว่าง = ใช้บริการสาธารณะของ Esri ซึ่งไม่อนุญาตให้ใช้เชิงพาณิชย์)
+// key นี้อยู่ในโค้ดฝั่งเครื่องผู้ใช้ จึงต้องจำกัดใน ArcGIS: สิทธิ์เฉพาะ Basemaps และ Referrer เฉพาะโดเมนของแอป
+export const ESRI_API_KEY = '';
+
 // ระบบสมาชิก (ขั้นที่ 2): เปิดเมื่อ deploy Edge Functions และตั้งค่า Stripe แล้ว
 export const BILLING_ENABLED = false;
 // ราคาสำหรับแสดงในแอปเท่านั้น ราคาที่เก็บจริงมาจาก Stripe (แก้ใน Stripe แล้วต้องแก้ตรงนี้ให้ตรงกัน)

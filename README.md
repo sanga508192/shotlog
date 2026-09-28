@@ -32,7 +32,7 @@
 ### ภาพดาวเทียม (Esri World Imagery)
 
 ใช้ภาพจาก `server.arcgisonline.com` พร้อมเครดิต “Esri, Maxar, Earthstar Geographics” บนแผนที่เสมอ ไม่ต้องใช้คีย์สำหรับทดลองใช้
-**ก่อนเปิดให้ผู้ใช้ทั่วไปหรือเก็บเงิน** ควรสมัคร ArcGIS Location Platform (มีโควตาฟรี) แล้วเปลี่ยน `tileUrl` ใน `js/map.js` ไปใช้บริการภาพพื้นฐานแบบมีคีย์ และตรวจเงื่อนไขการใช้เชิงพาณิชย์
+**ก่อนเปิดให้ผู้ใช้ทั่วไปหรือเก็บเงิน** สมัคร ArcGIS Location Platform แล้วใส่ API key (สิทธิ์ Basemaps, จำกัด Referrer เป็นโดเมนของแอป) ที่ `ESRI_API_KEY` ใน `js/config.js` แอปจะเปลี่ยนไปใช้ `ibasemaps-api.arcgis.com/.../World_Imagery/MapServer/tile/{z}/{y}/{x}?token=` และแสดง “Powered by Esri” เอง (ขั้นตอนเต็มใน `docs/launch-checklist.md`)
 พื้นที่ต่างจังหวัดบางแห่งไม่มีภาพระดับละเอียดสุด แอปตรวจภาพ “Map data not yet available” แล้วใช้ระดับที่มีแทนเอง
 
 ### แหล่งข้อมูลสนาม
@@ -61,6 +61,10 @@ npm test
 Service Worker ต้องใช้ HTTPS หรือ localhost การเปิดไฟล์ `index.html` ตรง ๆ จะไม่มีการทำงานออฟไลน์
 
 ทุกครั้งที่แก้ไฟล์ของแอป ให้เปลี่ยน `VERSION` ใน `sw.js` เพื่อให้เครื่องผู้ใช้ได้รับรุ่นใหม่ ถ้าเพิ่มไฟล์ใหม่ ให้เพิ่มชื่อไฟล์ใน `ASSETS` ด้วย
+
+## ก่อนเปิดตัว
+
+เช็กลิสต์ทีละขั้น (ฐานข้อมูล, ArcGIS, โดเมน, อีเมล, PDPA, การชำระเงิน) อยู่ที่ `docs/launch-checklist.md` ร่างนโยบายความเป็นส่วนตัวและข้อตกลงอยู่ที่ `docs/privacy-policy-draft.md` และ `docs/terms-draft.md` (ยังเป็นร่าง ต้องเติมข้อมูลผู้ให้บริการและให้นักกฎหมายตรวจก่อนใช้)
 
 ## เปิดบริการสำรอง/ซิงก์บนคลาวด์ (Supabase)
 

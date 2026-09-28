@@ -1,6 +1,6 @@
 // เก็บไฟล์แอปทั้งหมดไว้ในเครื่อง เพื่อเปิดใช้ได้เมื่อไม่มีสัญญาณ
 // เปลี่ยน VERSION ทุกครั้งที่แก้ไฟล์ในรายการ เพื่อให้เครื่องผู้ใช้ได้รุ่นใหม่
-const VERSION = 'shotlog-v0.14.0';
+const VERSION = 'shotlog-v0.14.1';
 const ASSETS = [
   './',
   './index.html',
@@ -75,7 +75,7 @@ const DEV = ['localhost', '127.0.0.1'].includes(location.hostname);
 
 // ภาพดาวเทียมของแผนที่หลุม: ใช้ภาพที่เคยโหลดก่อน (เปิดในสนามที่สัญญาณอ่อนได้) เก็บไม่เกินราว 3,000 ภาพ
 const TILE_CACHE = 'shotlog-tiles';
-const TILE_HOST = 'server.arcgisonline.com';
+const TILE_HOSTS = ['server.arcgisonline.com', 'ibasemaps-api.arcgis.com'];
 const TILE_MAX = 3000;
 let tilePuts = 0;
 
@@ -97,7 +97,7 @@ async function tileFetch(req) {
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
-  if (req.method === 'GET' && url.hostname === TILE_HOST && url.pathname.includes('/World_Imagery/')) {
+  if (req.method === 'GET' && TILE_HOSTS.includes(url.hostname) && url.pathname.includes('/World_Imagery/')) {
     event.respondWith(tileFetch(req));
     return;
   }

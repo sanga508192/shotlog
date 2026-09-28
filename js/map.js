@@ -1,10 +1,15 @@
 // แผนที่ภาพดาวเทียมขนาดเล็ก เขียนเองเพื่อให้หมุนได้ (แท่นทีอยู่ล่าง กรีนอยู่บน) และเก็บภาพไว้ใช้ตอนสัญญาณอ่อน
 // ภาพจาก Esri World Imagery ต้องแสดงเครดิตบนแผนที่เสมอ
 import { mercator, unmercator, metersPerPixel } from './holemap.js';
+import { ESRI_API_KEY } from './config.js';
 
-export const TILE_HOST = 'server.arcgisonline.com';
-export const tileUrl = (z, x, y) => `https://${TILE_HOST}/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`;
-export const ATTRIBUTION = 'ภาพ © Esri, Maxar, Earthstar Geographics';
+// มี API key → ใช้บริการแบบมีสิทธิ์ของ ArcGIS Location Platform (ใช้เชิงพาณิชย์ได้ตามแพ็กเกจ)
+// ไม่มี → บริการสาธารณะ (ใช้ทดลอง/ส่วนตัวเท่านั้น)
+export const TILE_HOST = ESRI_API_KEY ? 'ibasemaps-api.arcgis.com' : 'server.arcgisonline.com';
+export const tileUrl = (z, x, y) => (ESRI_API_KEY
+  ? `https://${TILE_HOST}/arcgis/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}?token=${encodeURIComponent(ESRI_API_KEY)}`
+  : `https://${TILE_HOST}/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`);
+export const ATTRIBUTION = `${ESRI_API_KEY ? 'Powered by Esri · ' : ''}ภาพ © Esri, Maxar, Earthstar Geographics`;
 const TS = 256;
 const MAX_NATIVE = 19;   // ภาพละเอียดสุดที่ขอ เกินจากนี้ขยายภาพเดิม
 
