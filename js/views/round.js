@@ -13,7 +13,7 @@ import { playersOf } from '../group.js';
 import { deleteRound } from './main.js';
 import { liveCardHtml, liveActions } from './live.js';
 import { watchPosition, lastPosition } from '../geo.js';
-import { courseHoles, distM, toUnit, unitTh } from '../holemap.js';
+import { courseHoles, distM, toUnit, unitTh, confirmedPoint } from '../holemap.js';
 import { shotDistances, GPS_MAX_ACC } from '../coach.js';
 
 // ---------- สถานะฟอร์มจดช็อต (อยู่ข้ามการ render) ----------
@@ -320,8 +320,10 @@ export function holeView([roundId, numStr], ctx) {
             const pos = lastPosition(20000);
             if (pos && pos.accuracy <= GPS_MAX_ACC) {
               shot.gps = { lat: pos.lat, lon: pos.lon, acc: Math.round(pos.accuracy), at: st.nowIso() };
-              if (pins?.green && shot.shot_type !== 'putt' && shot.distance_before == null) {
-                shot.distance_before = Math.round(toUnit(distM(pos, pins.green), shot.distance_unit === 'yd' ? 'yd' : 'm'));
+              // เติมระยะถึงกรีนจากหมุดที่ยืนยันแล้วเท่านั้น (หมุดประมาณอาจผิดหลุม จะกลายเป็นข้อมูลผิดถาวร)
+              const green = confirmedPoint(pins, 'green');
+              if (green && shot.shot_type !== 'putt' && shot.distance_before == null) {
+                shot.distance_before = Math.round(toUnit(distM(pos, green), shot.distance_unit === 'yd' ? 'yd' : 'm'));
                 shot.measurement_method = shot.measurement_method ?? 'gps';
               }
             } else {

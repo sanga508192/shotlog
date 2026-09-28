@@ -47,7 +47,7 @@ const clubOf = (id) => st.club(id);
 
 export function launchView(_p, ctx) {
   const du = st.setting('map_unit', 'yd');
-  const su = st.setting('speed_unit', 'mph');
+  const su = SPEED_UNITS.some((u) => u.v === st.setting('speed_unit', 'mph')) ? st.setting('speed_unit', 'mph') : 'mph';
   const hand = st.setting('hand', 'right') === 'left' ? 'left' : 'right';
   const period = PERIODS.some((x) => x.v === st.setting('launch_period', 'all')) ? st.setting('launch_period', 'all') : 'all';
   const dist = (m) => (m == null ? '–' : String(Math.round(toUnit(m, du))));

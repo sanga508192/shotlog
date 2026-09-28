@@ -116,6 +116,8 @@ export function courseHoles(courseId) {
 }
 
 export const isEstimated = (h) => !!(h?.est?.tee || h?.est?.green);
+// หมุดที่ไม่ใช่ค่าประมาณจากภาพดาวเทียม ใช้คำนวณข้อมูลที่บันทึกถาวร (ระยะช็อต ระยะไม้) · ค่าประมาณอาจผิดทั้งหลุม
+export const confirmedPoint = (h, which) => (h?.[which] && !h.est?.[which] ? h[which] : null);
 // หมุดจากผู้เล่นคนอื่นที่ใช้อยู่ในหลุมนี้ (ไม่นับหมุดที่เราวางเอง) → { n, gps } ของหมุดที่มีคนวางมากสุด
 export function crowdOf(h) {
   const list = ['tee', 'green'].filter((k) => h?.src?.[k] === 'crowd').map((k) => h.crowd[k]);

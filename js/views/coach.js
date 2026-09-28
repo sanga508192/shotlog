@@ -2,7 +2,7 @@
 import * as st from '../state.js';
 import { esc, header, fmtDate, toast } from '../ui.js';
 import { GOALS, analyzeGame, budgetOver, fmtSigned, clubDistances } from '../coach.js';
-import { courseHoles, toUnit, unitTh } from '../holemap.js';
+import { courseHoles, toUnit, unitTh, confirmedPoint } from '../holemap.js';
 import { drillCard, clipActions } from './drills.js';
 import { analyzeSG } from '../sg.js';
 import { estimateHandicap, ratingKey, validRating } from '../handicap.js';
@@ -70,7 +70,7 @@ function statTiles(a) {
 export function clubDistanceHtml() {
   const rows = clubDistances({
     rounds: st.rounds(), holesOf: st.holesOf, shotsOf: st.shotsOf, penaltiesOf: st.penaltiesOf, clubOf: st.club,
-    teeOf: (r, h) => courseHoles(r.course_id)[h.number]?.tee ?? null,
+    teeOf: (r, h) => confirmedPoint(courseHoles(r.course_id)[h.number], 'tee'),
   });
   if (!rows.length) {
     return `<div class="card small">เปิด <b>📍 จับตำแหน่ง GPS ตอนบันทึก</b> ในหน้าจดช็อต แล้วบันทึกช็อตขณะยืนที่จุดตี

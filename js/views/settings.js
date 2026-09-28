@@ -205,7 +205,14 @@ export function settingsView(_p, ctx) {
         if (el.checked) {
           toast('เปิดแชร์หมุดแล้ว หมุดจะส่งตอนเปิดแผนที่หลุมของสนามนั้น');
         } else {
-          try { await stopSharing(); toast('ปิดแชร์และลบหมุดที่เคยแชร์แล้ว'); } catch (err) { toast(`ลบหมุดที่แชร์ไม่สำเร็จ: ${err.message}`); }
+          try {
+            await stopSharing();
+            toast('ปิดแชร์และลบหมุดที่เคยแชร์แล้ว');
+          } catch (err) {
+            await st.setSetting('share_pins', true);
+            el.checked = true;
+            toast(`ลบหมุดที่แชร์ไม่สำเร็จ (${err instanceof TypeError ? 'ไม่มีสัญญาณ' : err.message}) ลองปิดอีกครั้งเมื่อมีเน็ต`);
+          }
         }
       },
       autoHole: async (el) => { await st.setSetting('map_auto_hole', el.checked); toast(el.checked ? 'เปิดการเปลี่ยนหลุมอัตโนมัติ' : 'ปิดการเปลี่ยนหลุมอัตโนมัติ'); },

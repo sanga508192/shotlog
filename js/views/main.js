@@ -1,4 +1,5 @@
 import * as st from '../state.js';
+import { unpublishLive } from './live.js';
 import { esc, header, fmtDate, toast, chips } from '../ui.js';
 import { CURATED_COURSES, ISAN_PROVINCES, searchCourses, findDuplicateCourse, sortByDistance, fmtKm, prefillFromScorecard, teeTotal, teeColor } from '../courses.js';
 import { getPosition, lastPosition } from '../geo.js';
@@ -52,6 +53,7 @@ export async function deleteRound(roundId, { after } = {}) {
     ...pens.map((p) => ({ store: 'penalties', del: p.id })),
   ];
   await st.commit(ops);
+  if (round.live_token) unpublishLive(round.live_token);
   after?.();
   toast('ลบรอบแล้ว', {
     label: 'เลิกทำ',

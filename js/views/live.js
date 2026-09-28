@@ -44,6 +44,7 @@ export function boardData(round) {
 const live = (round) => round?.live_token && (!round.live_until || Date.parse(round.live_until) > Date.now());
 
 function friendly(err) {
+  if (err instanceof TypeError) return 'ไม่มีสัญญาณอินเทอร์เน็ต ลองใหม่อีกครั้ง';
   if (err?.status === 404) return 'เซิร์ฟเวอร์ยังไม่เปิดใช้สกอร์สด (ผู้ดูแลต้องอัปเดตฐานข้อมูล)';
   if (err?.status === 403 || err?.code === '42501') return 'ต้องเป็นสมาชิกจึงแชร์สกอร์สดได้';
   if (err?.status === 401) return 'เข้าสู่ระบบใหม่ก่อน';
@@ -76,10 +77,17 @@ export function watchLive() {
       clearTimeout(timers.get(id));
       timers.set(id, setTimeout(() => {
         timers.delete(id);
-        publish(id).catch((err) => logError('live board', err));
+        // ออฟไลน์กลางสนามเป็นเรื่องปกติ: ไม่บันทึกเป็นข้อผิดพลาด จดครั้งถัดไปก็ส่งใหม่
+        publish(id).catch((err) => { if (!(err instanceof TypeError)) logError('live board', err); });
       }, DEBOUNCE_MS));
     }
   });
+}
+
+// ปิดบอร์ดของรอบที่ถูกลบ (ไม่รอผล · ไม่สำเร็จก็หมดอายุเองใน 2 วัน)
+export function unpublishLive(token) {
+  if (!token || !cloud.enabled() || !cloud.session()) return;
+  cloud.unpublishBoard(token).catch((err) => { if (!(err instanceof TypeError)) logError('live unpublish', err); });
 }
 
 // การ์ดในหน้าสกอร์การ์ด/แชร์

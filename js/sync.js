@@ -5,7 +5,11 @@ import * as cloud from './cloud.js';
 import { DATA_STORES, STORE_KEYS, sameData } from './logic.js';
 
 const PAGE = 500;
+const MIN_PAGE = 25;
 const PUSH_BATCH = 200;
+// ขนาดข้อมูลต่อคำขอ: บันทึกเครื่องซ้อมหนึ่งรายการใหญ่ได้ราว 50 KB · คำขอใหญ่เกินจะหมดเวลาบนสัญญาณมือถือและค้างส่งซ้ำตลอด
+const PUSH_BYTES = 400 * 1024;
+let pageSize = PAGE;   // ดึงหน้าละกี่รายการ: หมดเวลา → ลดลงครึ่งหนึ่งในรอบถัดไป · สำเร็จ → ค่อย ๆ เพิ่มกลับ
 const LOCAL_ONLY_SETTINGS = new Set(['last_export_at']);
 const SYNCED = new Set(DATA_STORES);
 
@@ -16,6 +20,7 @@ let api = {
 };
 export function _setApi(a) { api = a; }
 export function _stop() { clearTimeout(timer); }
+export const _pageSize = () => pageSize;
 
 const keyOf = (store, id) => `${store}|${id}`;
 const idOf = (op) => ('put' in op ? op.put[STORE_KEYS[op.store] || 'id'] : op.del);
@@ -95,7 +100,13 @@ async function pull() {
   let cursor = st.meta('pull_cursor', 0);
   const seenStores = new Set();
   for (;;) {
-    const rows = await api.pull(cursor, PAGE);
+    let rows;
+    try {
+      rows = await api.pull(cursor, pageSize);
+    } catch (err) {
+      if (err?.timeout) pageSize = Math.max(MIN_PAGE, Math.floor(pageSize / 2));
+      throw err;
+    }
     const ops = [];
     for (const row of rows) {
       cursor = Math.max(cursor, Number(row.seq));
@@ -120,24 +131,39 @@ async function pull() {
     }
     ops.push(metaOp('pull_cursor', cursor));
     await st.commit(ops, { raw: true });
-    if (rows.length < PAGE) break;
+    const asked = pageSize;
+    pageSize = Math.min(PAGE, pageSize * 2);
+    if (rows.length < asked) break;
   }
   return seenStores;
 }
 
 // ---------- ส่งขึ้นคลาวด์ ----------
 
+// แบ่งคิวเป็นชุดละไม่เกิน 200 รายการ และไม่เกินราว 400 KB
+function pushBatches(entries) {
+  const out = [];
+  let cur = { batch: [], drop: [], bytes: 0 };
+  for (const e of entries) {
+    const rec = st.S[e.store].get(e.id) ?? null;
+    const base = st.S.syncrev.get(e.key)?.rev ?? null;
+    if (!rec && base == null) { cur.drop.push(e); continue; }   // สร้างแล้วลบก่อนเคยขึ้นคลาวด์
+    const item = { store: e.store, id: e.id, base_rev: base, deleted: !rec, data: rec };
+    const size = JSON.stringify(item).length;
+    if (cur.batch.length && (cur.batch.length >= PUSH_BATCH || cur.bytes + size > PUSH_BYTES)) {
+      out.push(cur);
+      cur = { batch: [], drop: [], bytes: 0 };
+    }
+    cur.batch.push({ e, rec, item });
+    cur.bytes += size;
+  }
+  if (cur.batch.length || cur.drop.length) out.push(cur);
+  return out;
+}
+
 async function push() {
   const entries = [...st.S.outbox.values()].filter((e) => !st.S.conflicts.has(e.key));
-  for (let i = 0; i < entries.length; i += PUSH_BATCH) {
-    const batch = [];
-    const drop = [];
-    for (const e of entries.slice(i, i + PUSH_BATCH)) {
-      const rec = st.S[e.store].get(e.id) ?? null;
-      const base = st.S.syncrev.get(e.key)?.rev ?? null;
-      if (!rec && base == null) { drop.push(e); continue; }   // สร้างแล้วลบก่อนเคยขึ้นคลาวด์
-      batch.push({ e, rec, item: { store: e.store, id: e.id, base_rev: base, deleted: !rec, data: rec } });
-    }
+  for (const { batch, drop } of pushBatches(entries)) {
     const ops = drop.filter((e) => st.S.outbox.get(e.key)?.t === e.t).map((e) => ({ store: 'outbox', del: e.key }));
     if (batch.length) {
       const results = await api.push(batch.map((b) => b.item));

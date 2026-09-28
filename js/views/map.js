@@ -5,7 +5,7 @@ import { esc, toast } from '../ui.js';
 import { TileMap } from '../map.js';
 import {
   courseHoles, holeReady, setHolePoint, distM, bearing, destination, fmtDist, unitTh, scorecardLength, YD, isEstimated,
-  HAZARD_KINDS, MAX_HAZARDS, addHazard, setHazard, crowdOf,
+  HAZARD_KINDS, MAX_HAZARDS, addHazard, setHazard, crowdOf, confirmedPoint,
 } from '../holemap.js';
 import { refreshPins, scheduleShare, shareable, sharing } from '../community.js';
 import * as cloud from '../cloud.js';
@@ -28,7 +28,7 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 function clubRows() {
   const gps = clubDistances({
     rounds: st.rounds(), holesOf: st.holesOf, shotsOf: st.shotsOf, penaltiesOf: st.penaltiesOf, clubOf: st.club,
-    teeOf: (r, h) => courseHoles(r.course_id)[h.number]?.tee ?? null,
+    teeOf: (r, h) => confirmedPoint(courseHoles(r.course_id)[h.number], 'tee'),
   });
   const have = new Set(gps.filter((r) => r.n >= 3).map((r) => r.club_id));
   const sim = launchCarryRows([...st.S.practice.values()], st.club).filter((r) => !have.has(r.clubId));
@@ -301,12 +301,14 @@ export function mapView([courseId, numStr, query], ctx) {
 
   // ยืนที่แท่นทีหลุมถัดไป (ใกล้กว่ากรีนหลุมนี้ชัดเจน) → เปิดหลุมถัดไปให้เอง (ปิดได้ในค่าตั้ง)
   let advanced = false;
+  let wasAway = false;   // เปิดหน้านี้ขณะยืนที่แท่นทีถัดไปอยู่แล้ว = ตั้งใจดูหลุมนี้ ไม่ต้องพาไปต่อ
   function autoAdvance() {
     if (advanced || editing() || n >= count || !gpsUsable() || st.setting('map_auto_hole', true) === false) return;
     const next = courseHoles(courseId)[n + 1];
     const h = H();
     const dTee = next?.tee ? distM(gps, next.tee) : Infinity;
-    if (dTee > AT_TEE_M) return;
+    if (dTee > AT_TEE_M + 30) wasAway = true;
+    if (dTee > AT_TEE_M || !wasAway) return;
     if (h.green && distM(gps, h.green) < dTee + CLOSER_M) return;
     advanced = true;
     toast(`ถึงแท่นทีหลุม ${n + 1} แล้ว เปิดหลุม ${n + 1} ให้`);

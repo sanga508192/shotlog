@@ -29,7 +29,7 @@ async function req(path, { method = 'GET', body, auth = true } = {}) {
     });
     text = await res.text();
   } catch (err) {
-    if (err?.name === 'AbortError') throw new TypeError('เครือข่ายช้าเกินไป ลองใหม่ภายหลัง');
+    if (err?.name === 'AbortError') throw Object.assign(new TypeError('เครือข่ายช้าเกินไป ลองใหม่ภายหลัง'), { timeout: true });
     throw err;
   } finally {
     clearTimeout(timer);
