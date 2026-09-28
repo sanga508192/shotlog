@@ -138,7 +138,8 @@ export const STAT_DEFS = [
   { k: 'blow', th: 'หลุมดับเบิ้ลขึ้นไป', unit: '/18', better: 'low' },
 ];
 
-export function analyzeGame({ rounds, holesOf, shotsOf, penaltiesOf, clubLabel = () => null, practice = [] }, goalV) {
+// simIssues = ปัญหาจากเครื่องซ้อม (launch.js simSummary().issues) ใช้ร่วมจัดแผนซ้อมและโฟกัสรอบหน้า
+export function analyzeGame({ rounds, holesOf, shotsOf, penaltiesOf, clubLabel = () => null, practice = [], simIssues = [] }, goalV) {
   const finished = rounds.filter((r) => r.status !== 'playing')
     .sort((a, b) => String(a.played_at || '').localeCompare(String(b.played_at || '')) || String(a.created_at || '').localeCompare(String(b.created_at || '')));
 
@@ -233,7 +234,10 @@ export function analyzeGame({ rounds, holesOf, shotsOf, penaltiesOf, clubLabel =
     });
   }
 
-  const plan = buildPlan(focus, goal, practice);
+  const sc = simCue(simIssues);
+  if (sc && cues.length < 3) cues.push(sc);
+
+  const plan = buildPlan(focus, goal, practice, simIssues);
   const confidence = n >= 54 ? 'good' : n >= 18 ? 'fair' : n >= 9 ? 'low' : 'none';
   return {
     goal, avgScore, best: recent.length ? Math.min(...recent.map((x) => x.score18)) : null, trend,
@@ -519,20 +523,42 @@ const STARTER = {
   par: ['approach-center', 'short-updown', 'putt-circle'],
 };
 
-// แผนซ้อมสัปดาห์: เรื่องอันดับ 1 สองแบบฝึก อันดับ 2 หนึ่งแบบฝึก พัตสั้นเป็นประจำ แล้วเติมจากเรื่องถัดไปให้ครบ 3–4 แบบฝึก
-export function buildPlan(focus, goal, practice = []) {
+// โฟกัสรอบหน้าจากเครื่องซ้อม: ลูกโค้งเป็นประจำ → วางแผนทีออฟเผื่อทิศที่ลูกโค้ง (แก้วงสวิงใช้เวลา แต่เล่นรอบนี้ให้ดีได้เลย)
+export function simCue(simIssues = []) {
+  const c = simIssues.find((i) => i.k === 'curve' && i.dir);
+  if (!c) return null;
+  const r = c.dir === 'right';
+  return {
+    text: `ทีออฟ: ตั้งทีฝั่ง${r ? 'ขวา' : 'ซ้าย'}ของแท่น แล้วเล็งไปขอบ${r ? 'ซ้าย' : 'ขวา'}ของแฟร์เวย์ ให้ลูกโค้งกลับเข้ากลาง`,
+    why: `จากเครื่องซ้อม: ${c.detail[0]}`,
+    src: 'sim',
+  };
+}
+
+// แผนซ้อมสัปดาห์: เรื่องอันดับ 1 จากการออกรอบสองแบบฝึก อันดับ 2 หนึ่งแบบฝึก พัตสั้นเป็นประจำ
+// มีผลจากเครื่องซ้อม → แทรกแบบฝึกของปัญหาอันดับ 1 จากเครื่องซ้อมเป็นแบบฝึกที่ 2 (ไม่มีข้อมูลออกรอบ → ใช้เครื่องซ้อมนำ)
+export function buildPlan(focus, goal, practice = [], sim = []) {
+  const d = (i, j) => focus[i]?.drills[j];
+  const s = (i, j) => sim[i]?.drills?.[j];
   let ids;
   let basis;
   if (focus.length) {
-    const d = (i, j) => focus[i]?.drills[j];
-    ids = [d(0, 0), d(0, 1), d(1, 0), 'putt-circle', d(0, 2), d(1, 1), d(2, 0), d(2, 1)].filter(Boolean);
+    ids = sim.length
+      ? [d(0, 0), s(0, 0), d(0, 1), d(1, 0), 'putt-circle', s(1, 0), d(0, 2), d(2, 0)]
+      : [d(0, 0), d(0, 1), d(1, 0), 'putt-circle', d(0, 2), d(1, 1), d(2, 0), d(2, 1)];
     basis = focus.slice(0, 2).map((f) => f.th);
+  } else if (sim.length) {
+    ids = [s(0, 0), s(0, 1), s(1, 0), ...(STARTER[goal.v] ?? STARTER[90])];
+    basis = [];
   } else {
     ids = STARTER[goal.v] ?? STARTER[90];
     basis = [];
   }
-  const items = [...new Set(ids)].slice(0, 4).map((id) => ({ ...drill(id), history: drillHistory(practice, id) }));
-  return { items, minutes: items.reduce((a, d) => a + d.minutes, 0), basis };
+  if (sim.length) basis.push(`${sim[0].th} (จากเครื่องซ้อม)`);
+  const fromCourse = new Set(focus.flatMap((f) => f.drills));
+  const items = [...new Set(ids.filter(Boolean))].filter((id) => drill(id)).slice(0, 4)
+    .map((id) => ({ ...drill(id), history: drillHistory(practice, id), fromSim: !fromCourse.has(id) && sim.some((x) => x.drills?.includes(id)) }));
+  return { items, minutes: items.reduce((a, x) => a + x.minutes, 0), basis };
 }
 
 // ---------- ระยะไม้จริงจาก GPS ----------

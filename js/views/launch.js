@@ -4,7 +4,7 @@ import * as st from '../state.js';
 import { esc, header, toast, fmtDate } from '../ui.js';
 import {
   readLaunchFile, rawClub, guessClub, toShots, buildRecords, isLaunch, sessionShots, clubStats, launchIssues, clubTrend, sessionKey, sessionDate,
-  DIST_UNITS, SPEED_UNITS, METRICS, num,
+  DIST_UNITS, SPEED_UNITS, METRICS, num, inBetweenFor,
 } from '../launch.js';
 import { drill, drillHistory } from '../coach.js';
 import { drillCard, clipActions } from './drills.js';
@@ -61,13 +61,7 @@ export function launchView(_p, ctx) {
   const chosen = periodFilter(all, period);
   const shots = chosen.flatMap(sessionShots);
   const stats = clubStats(shots, clubOf);
-  // ไม้ในกระเป๋าเรียงจากยาวไปสั้น: มีไม้อื่นอยู่ระหว่างสองไม้ = ช่องว่างนั้นแค่ไม่ได้ตีครั้งนี้
-  const bagOrder = st.bagClubs().filter((c) => c.category !== 'putter').map((c) => c.id);
-  const inBetween = (a, b) => {
-    const i = bagOrder.indexOf(a.clubId), j = bagOrder.indexOf(b.clubId);
-    return i >= 0 && j >= 0 && Math.abs(i - j) > 1;
-  };
-  const issues = launchIssues(stats, { hand, fmt, inBetween });
+  const issues = launchIssues(stats, { hand, fmt, inBetween: inBetweenFor(st.bagClubs()) });
   const practice = [...st.S.practice.values()];
 
   // ---------- ตรวจไฟล์ก่อนบันทึก ----------

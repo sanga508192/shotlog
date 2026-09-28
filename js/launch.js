@@ -383,6 +383,15 @@ export function gapping(stats, { big = 18, small = 5, inBetween = () => false } 
 
 const fmtDeg = (x) => `${x > 0 ? '+' : ''}${x.toFixed(1)}°`;
 
+// ไม้ในกระเป๋าเรียงจากยาวไปสั้น: มีไม้อื่นอยู่ระหว่างสองไม้ = ช่องว่างนั้นแค่ไม่ได้ตีครั้งนี้
+export function inBetweenFor(bag) {
+  const order = bag.filter((c) => c.category !== 'putter').map((c) => c.id);
+  return (a, b) => {
+    const i = order.indexOf(a.clubId), j = order.indexOf(b.clubId);
+    return i >= 0 && j >= 0 && Math.abs(i - j) > 1;
+  };
+}
+
 // ปัญหาที่ควรแก้ก่อน เรียงตามความรุนแรง · hand: 'right' | 'left' · fmt(m) แสดงระยะในหน่วยผู้ใช้
 export function launchIssues(stats, { hand = 'right', fmt = (m) => `${Math.round(m)} ม.`, inBetween } = {}) {
   const issues = [];
@@ -416,7 +425,7 @@ export function launchIssues(stats, { hand = 'right', fmt = (m) => `${Math.round
       // แนวสวิงลบ = ตัดจากขวาไปซ้าย: ถนัดขวาคือ "นอกเข้าใน" ถนัดซ้ายคือ "ในออกนอก"
       const outIn = path != null && Math.abs(path) >= 3 ? ((path < 0) === (hand === 'right') ? 'ตัดจากนอกเข้าใน' : 'ตีจากในออกนอก') : null;
       add({
-        k: 'curve', sev: Math.abs(m), th: `ลูกโค้ง${right ? 'ขวา' : 'ซ้าย'} (${name})`,
+        k: 'curve', dir: right ? 'right' : 'left', sev: Math.abs(m), th: `ลูกโค้ง${right ? 'ขวา' : 'ซ้าย'} (${name})`,
         detail: [`Face to Path เฉลี่ย ${fmtDeg(m)} · ${Math.round((right ? pos : 1 - pos) * 100)}% ของช็อตโค้ง${right ? 'ขวา' : 'ซ้าย'}`,
           outIn ? `แนวสวิง (Club Path) เฉลี่ย ${fmtDeg(path)} — ${outIn} เป็นสาเหตุหลัก` : '', 'เป้าหมาย: −2° ถึง +2°'].filter(Boolean),
         drills: ['sim-face-path'],
@@ -482,7 +491,7 @@ export function launchIssues(stats, { hand = 'right', fmt = (m) => `${Math.round
 export function launchCarryRows(practice, clubOf) {
   const shots = practice.filter(isLaunch).flatMap(sessionShots).filter((s) => s.clubId);
   return clubStats(shots, clubOf).filter((s) => s.clubId && s.nCarry >= 5)
-    .map((s) => ({ clubId: s.clubId, label: s.label, category: s.category, median: s.carry, p25: s.p25, p75: s.p75, n: s.nCarry, src: 'sim' }));
+    .map((s) => ({ clubId: s.clubId, label: s.label, category: s.category, median: s.carry, total: s.total, p25: s.p25, p75: s.p75, n: s.nCarry, src: 'sim' }));
 }
 
 // ค่ากลางของไม้ในแต่ละครั้งที่ซ้อม (เก่า→ใหม่) สำหรับดูพัฒนาการ
@@ -497,4 +506,75 @@ export function clubTrend(sessions, key, clubOf) {
   return [...bySession.values()].sort((a, b) => a.date.localeCompare(b.date))
     .map((x) => ({ date: x.date, s: clubStats(x.shots, clubOf).find((c) => c.key === key) }))
     .filter((x) => x.s && x.s.nCarry >= 3);
+}
+
+// ---------- ส่งต่อให้หน้าโค้ช: ปัญหาจากเครื่องซ้อม พัฒนาการ และเทียบระยะในสนาม ----------
+
+// ค่าหลักของวงสวิงรวมทุกไม้ (ถ่วงตามจำนวนลูก) ใช้ดูว่าปัญหาแต่ละข้อดีขึ้นไหมในแต่ละครั้งที่ซ้อม
+export function launchMetrics(stats) {
+  const wavg = (list, k, w) => {
+    const xs = list.filter((s) => s[k] != null && s[w] > 0);
+    const n = xs.reduce((a, s) => a + s[w], 0);
+    return n ? xs.reduce((a, s) => a + s[k] * s[w], 0) / n : null;
+  };
+  const all = stats.reduce((a, s) => a + s.n, 0);
+  return {
+    f2p: wavg(stats.filter((s) => s.f2pN >= 3 && s.category !== 'wedge'), 'f2p', 'f2pN'),
+    ld: wavg(stats.filter((s) => s.good >= 3), 'ld', 'good'),
+    driverSpin: stats.find((s) => s.category === 'driver' && s.good >= 3)?.spin ?? null,
+    mishit: all ? stats.reduce((a, s) => a + (s.n - s.good), 0) / all : null,
+  };
+}
+
+// ปัญหาที่มีตัวเลขติดตามได้: ค่า goal คือช่วงเป้าหมาย · closer(a, b) = a ใกล้เป้ากว่า b
+export const ISSUE_METRIC = {
+  curve: { k: 'f2p', th: 'Face to Path เฉลี่ย', fmt: fmtDeg, goal: '−2° ถึง +2°', closer: (a, b) => Math.abs(a) < Math.abs(b) },
+  start: { k: 'ld', th: 'ทิศออกตัวเฉลี่ย', fmt: fmtDeg, goal: '−2° ถึง +2°', closer: (a, b) => Math.abs(a) < Math.abs(b) },
+  driver: { k: 'driverSpin', th: 'สปินไดรเวอร์', fmt: (v) => `${Math.round(v).toLocaleString('en-US')} รอบ/นาที`, goal: '2,000–3,000', closer: (a, b) => Math.abs(a - 2500) < Math.abs(b - 2500) },
+  contact: { k: 'mishit', th: 'ช็อตพลาด', fmt: (v) => `${Math.round(v * 100)}%`, goal: 'ต่ำกว่า 10%', closer: (a, b) => a < b },
+};
+
+// เซสชัน (ไฟล์เดียวกันรวมเป็นครั้งเดียว) เรียงเก่า→ใหม่
+export function launchSessions(practice) {
+  const m = new Map();
+  for (const p of practice) {
+    if (!isLaunch(p)) continue;
+    const k = sessionKey(p);
+    if (!m.has(k)) m.set(k, { key: k, date: sessionDate(p), shots: [] });
+    m.get(k).shots.push(...sessionShots(p));
+  }
+  return [...m.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+const daysBefore = (ymd, days) => new Date(Date.parse(`${ymd}T00:00:00Z`) - days * 86400000).toISOString().slice(0, 10);
+
+// สรุปสำหรับหน้าโค้ช: ใช้เฉพาะการซ้อม 60 วันล่าสุด (นานกว่านั้นวงสวิงอาจเปลี่ยนไปแล้ว)
+// คืน null = ไม่เคยนำเข้า · stale = มีแต่ข้อมูลเก่า · history = ค่าของปัญหาอันดับ 1 รายครั้ง (เก่า→ใหม่)
+export function simSummary(practice, clubOf, { hand = 'right', fmt, inBetween, today, days = 60 } = {}) {
+  const sessions = launchSessions(practice);
+  if (!sessions.length) return null;
+  const lastDate = sessions.at(-1).date;
+  const recent = today ? sessions.filter((s) => s.date && s.date >= daysBefore(today, days)) : sessions;
+  if (!recent.length) return { stale: true, lastDate, issues: [], top: null, history: [], sessions: 0, shots: 0 };
+  const shots = recent.flatMap((s) => s.shots);
+  const issues = launchIssues(clubStats(shots, clubOf), { hand, fmt, inBetween });
+  const top = issues.find((i) => ISSUE_METRIC[i.k]) ?? null;
+  const history = top
+    ? recent.map((s) => ({ date: s.date, value: launchMetrics(clubStats(s.shots, clubOf))[ISSUE_METRIC[top.k].k] })).filter((x) => x.value != null).slice(-5)
+    : [];
+  return { stale: false, lastDate, issues, top, history, sessions: recent.length, shots: shots.length };
+}
+
+// เทียบระยะในสนาม (GPS: ระยะจริงถึงจุดตีถัดไป ≈ ระยะรวม) กับระยะรวมจากเครื่องซ้อม · ไม้ที่มีข้อมูลทั้งสองแหล่ง
+export function compareDistances(gpsRows, simRows) {
+  const rows = [];
+  for (const g of gpsRows) {
+    if (g.n < 3) continue;
+    const s = simRows.find((r) => r.clubId === g.club_id);
+    const sim = s?.total ?? s?.median;
+    if (!sim) continue;
+    rows.push({ clubId: g.club_id, label: g.label, course: g.median, sim, diff: g.median - sim, pct: (g.median - sim) / sim });
+  }
+  const avgPct = rows.length ? rows.reduce((a, r) => a + r.pct, 0) / rows.length : null;
+  return { rows, avgPct };
 }

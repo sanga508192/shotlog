@@ -7,12 +7,54 @@ import { drillCard, clipActions } from './drills.js';
 import { analyzeSG } from '../sg.js';
 import { estimateHandicap, ratingKey, validRating } from '../handicap.js';
 import { ME, playerHoleScore } from '../group.js';
+import { simSummary, inBetweenFor, launchCarryRows, compareDistances, ISSUE_METRIC } from '../launch.js';
 
+const distFmt = () => { const u = st.setting('map_unit', 'yd'); return (m) => `${Math.round(toUnit(m, u))} ${unitTh(u)}`; };
+
+// ผลจากเครื่องซ้อม 60 วันล่าสุด (null = ไม่เคยนำเข้า)
+export function simData() {
+  return simSummary([...st.S.practice.values()], st.club, {
+    hand: st.setting('hand', 'right') === 'left' ? 'left' : 'right', fmt: distFmt(), inBetween: inBetweenFor(st.bagClubs()), today: st.todayLocal(),
+  });
+}
+
+// ใช้ทั้งหน้าโค้ช หน้าแรก และหน้าเริ่มรอบ: แผนซ้อมและโฟกัสรอบหน้ารวมผลจากเครื่องซ้อมด้วย
 export function coachData(goalV = st.setting('coach_goal', null)) {
-  return analyzeGame({
+  const sim = simData();
+  const a = analyzeGame({
     rounds: st.rounds(), holesOf: st.holesOf, shotsOf: st.shotsOf, penaltiesOf: st.penaltiesOf,
     clubLabel: (id) => st.club(id)?.label ?? null, practice: [...st.S.practice.values()],
+    simIssues: sim && !sim.stale ? sim.issues : [],
   }, goalV);
+  return { ...a, sim };
+}
+
+function simHtml(sim) {
+  if (!sim) return '';
+  const head = '<h2>จากเครื่องซ้อม <span class="badge ok">Garmin R10</span></h2>';
+  if (sim.stale) {
+    return `${head}<div class="card small">ซ้อมกับเครื่องล่าสุด ${esc(fmtDate(sim.lastDate))} นานเกิน 60 วัน แผนซ้อมจึงยังไม่ใช้ผลนั้น
+      <a class="mini" href="#/launch">นำเข้าเซสชันใหม่ ›</a></div>`;
+  }
+  if (!sim.issues.length) {
+    return `${head}<div class="card ok small">${sim.shots < 10 ? 'ช็อตจากเครื่องซ้อมยังน้อย (ต้องอย่างน้อย 10 ช็อต)' : 'ไม่พบปัญหาเด่นจากเครื่องซ้อม'} · <a href="#/launch">ดูรายละเอียด ›</a></div>`;
+  }
+  const m = sim.top ? ISSUE_METRIC[sim.top.k] : null;
+  const h = sim.history;
+  let trend = '';
+  if (m && h.length) {
+    const last = h.at(-1).value, prev = h.length > 1 ? h.at(-2).value : null;
+    const tone = prev == null ? '' : m.closer(last, prev) ? 'good' : m.closer(prev, last) ? 'bad' : '';
+    trend = `<div class="sim-trend"><span>${esc(m.th)}</span>
+      <div class="sim-steps">${h.map((x) => `<span><small>${esc(fmtDate(x.date))}</small><b>${esc(m.fmt(x.value))}</b></span>`).join('<i>→</i>')}</div>
+      <small class="${tone}">${prev == null ? 'ซ้อมอีกครั้งเพื่อดูว่าดีขึ้นไหม' : tone === 'good' ? 'ดีขึ้นจากครั้งก่อน' : tone === 'bad' ? 'แย่ลงจากครั้งก่อน' : 'เท่าเดิม'} · เป้าหมาย ${esc(m.goal)}</small></div>`;
+  }
+  return `${head}<div class="card sim-coach">
+    <p class="note">${sim.sessions} ครั้ง · ${sim.shots} ช็อต ใน 60 วันล่าสุด · ใช้จัดแผนซ้อมด้านล่างด้วย</p>
+    ${sim.issues.slice(0, 2).map((i, n) => `<div class="sim-issue"><b><span class="rank">${n + 1}</span> ${esc(i.th)}</b><small>${esc(i.detail[0] || '')}</small></div>`).join('')}
+    ${trend}
+    <a class="mini" href="#/launch">รายละเอียดจากเครื่องซ้อม ›</a>
+  </div>`;
 }
 
 const f1 = (x) => (x == null ? '–' : (Math.round(x * 10) / 10).toFixed(1).replace(/\.0$/, ''));
@@ -72,12 +114,23 @@ export function clubDistanceHtml() {
     rounds: st.rounds(), holesOf: st.holesOf, shotsOf: st.shotsOf, penaltiesOf: st.penaltiesOf, clubOf: st.club,
     teeOf: (r, h) => confirmedPoint(courseHoles(r.course_id)[h.number], 'tee'),
   });
+  const simRows = launchCarryRows([...st.S.practice.values()], st.club);
   if (!rows.length) {
     return `<div class="card small">เปิด <b>📍 จับตำแหน่ง GPS ตอนบันทึก</b> ในหน้าจดช็อต แล้วบันทึกช็อตขณะยืนที่จุดตี
-      แอปจะรู้ระยะจริงของแต่ละไม้ (นับเฉพาะทีออฟและช็อตเข้ากรีนที่สัมผัสดี)</div>`;
+      แอปจะรู้ระยะจริงของแต่ละไม้ (นับเฉพาะทีออฟและช็อตเข้ากรีนที่สัมผัสดี)
+      ${simRows.length ? '<br>ตอนนี้แผนที่หลุมใช้ระยะลอยจาก<a href="#/launch">เครื่องซ้อม</a>แนะนำไม้ไปก่อน' : ''}</div>`;
   }
   const unit = st.setting('map_unit', 'yd');
   const u = (m) => Math.round(toUnit(m, unit));
+  const cmp = compareDistances(rows, simRows);
+  const pctTxt = cmp.avgPct == null ? '' : Math.abs(cmp.avgPct) < 0.06
+    ? 'ระยะในสนามใกล้เคียงกับตอนซ้อม เลือกไม้ตามระยะซ้อมได้'
+    : cmp.avgPct < 0 ? `ในสนามได้ระยะน้อยกว่าตอนซ้อมเฉลี่ย ${Math.round(-cmp.avgPct * 100)}% เลือกไม้ตามระยะในสนาม (บนสุดของตาราง) ไม่ใช่ระยะซ้อม`
+      : `ในสนามได้ระยะมากกว่าตอนซ้อมเฉลี่ย ${Math.round(cmp.avgPct * 100)}% (ลูกกลิ้งไกลหรือพื้นแข็ง)`;
+  const cmpHtml = cmp.rows.length ? `<div class="dist-cmp"><b>เทียบกับเครื่องซ้อม</b>
+      <table><thead><tr><th>ไม้</th><th>ในสนาม</th><th>เครื่องซ้อม</th><th>ต่าง</th></tr></thead><tbody>
+      ${cmp.rows.map((r) => `<tr><td>${esc(r.label)}</td><td>${u(r.course)}</td><td>${u(r.sim)}</td><td class="${r.pct < -0.06 ? 'bad' : r.pct > 0.06 ? 'good' : ''}">${r.diff > 0 ? '+' : ''}${u(r.diff)}</td></tr>`).join('')}
+      </tbody></table><p class="note">${esc(pctTxt)} · เครื่องซ้อมใช้ระยะรวม (ลอย + กลิ้ง)</p></div>` : '';
   const top = Math.max(...rows.map((r) => r.p75)) * 1.08;
   const pct = (m) => `${((m / top) * 100).toFixed(1)}%`;
   return `<div class="card club-dist">
@@ -87,6 +140,7 @@ export function clubDistanceHtml() {
       <span class="cd-num"><b>${u(r.median)}</b> <small>${u(r.p25)}–${u(r.p75)} · ${r.n} ครั้ง</small></span>
     </div>`).join('')}
     <p class="note">ระยะกลาง (${unitTh(unit)}) และช่วงปกติจากช็อตที่จับ GPS · นับเฉพาะทีออฟและช็อตเข้ากรีนที่สัมผัสดี ไม่รวมช็อตที่โดนลูกโทษ · ไม้ที่จางยังมีข้อมูลไม่ถึง 3 ครั้ง</p>
+    ${cmpHtml}
   </div>`;
 }
 
@@ -154,7 +208,7 @@ export function handicapHtml() {
 }
 
 export function focusListHtml(cues) {
-  return `<ol class="cues">${cues.map((c) => `<li><b>${esc(c.text)}</b><span>${esc(c.why)}</span></li>`).join('')}</ol>`;
+  return `<ol class="cues">${cues.map((c) => `<li${c.src === 'sim' ? ' class="sim"' : ''}><b>${esc(c.text)}</b><span>${esc(c.why)}</span></li>`).join('')}</ol>`;
 }
 
 export function coachView(_p, ctx) {
@@ -206,6 +260,8 @@ export function coachView(_p, ctx) {
       </div>`).join('')
     : `<div class="card ok small">ทุกหมวดอยู่ในงบของเป้า${esc(g.th)}แล้ว ลองเลือกเป้าที่ยากขึ้นด้านบน</div>`}` : ''}
 
+      ${simHtml(a.sim)}
+
       ${a.cues.length ? `<h2>โฟกัสรอบหน้า</h2>
       <div class="card">${focusListHtml(a.cues)}<p class="note">แสดงในหน้าเริ่มรอบใหม่ด้วย</p></div>` : ''}
 
@@ -223,7 +279,7 @@ export function coachView(_p, ctx) {
 
       <h2 id="plan">แผนซ้อมสัปดาห์นี้</h2>
       <p class="note">${a.plan.basis.length ? `เน้น: ${esc(a.plan.basis.join(' และ '))} · ` : 'แผนเริ่มต้นตามเป้า · '}ซ้อม 2–3 ครั้งต่อสัปดาห์ ครั้งละราว ${a.plan.minutes} นาที · บันทึกผลทุกครั้งเพื่อดูพัฒนาการ</p>
-      <div class="drills">${a.plan.items.map((d) => drillCard(d, { history: d.history })).join('')}</div>
+      <div class="drills">${a.plan.items.map((d) => drillCard(d, { history: d.history, badge: d.fromSim ? 'จากเครื่องซ้อม' : '' })).join('')}</div>
 
       <div class="card small coach-foot">
         <p>งบสโตรกและเป้าสถิติเป็นค่าประมาณเพื่อวางแผนสำหรับนักกอล์ฟสมัครเล่น ไม่ใช่มาตรฐานตายตัว · ยิ่งจดรายช็อตครบ ผลยิ่งแม่น</p>

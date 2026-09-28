@@ -126,11 +126,11 @@ export function clipActions() {
   };
 }
 
-export function drillCard(d, { history = [], record = true } = {}) {
+export function drillCard(d, { history = [], record = true, badge = '' } = {}) {
   const hist = history.length
     ? `<div class="drill-hist">${history.map((h) => `<span>${esc(fmtDate(h.date))} <b>${h.successes ?? '–'}/${h.attempts}</b></span>`).join('')}</div>` : '';
   return `<div class="drill" id="drill-${esc(d.id)}">
-    <div class="row between"><span class="tag">${esc(d.area)}</span><span class="small muted">~${d.minutes} นาที · ${d.attempts} ลูก</span></div>
+    <div class="row between"><span class="tag">${esc(d.area)}</span>${badge ? `<span class="badge ok">${esc(badge)}</span>` : ''}<span class="small muted">~${d.minutes} นาที · ${d.attempts} ลูก</span></div>
     <h3>${esc(d.name)}</h3>
     <p class="small">${esc(d.why)}</p>
     <details><summary>วิธีซ้อม</summary><ol>${d.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol><p class="small"><b>เกณฑ์:</b> ${esc(d.pass)}</p></details>
