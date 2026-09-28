@@ -132,6 +132,13 @@ async function handle(req, body, url) {
     return { status: 200, body: issue(id, email) };
   }
   if (p === '/auth/v1/logout') { tokens.delete(auth); return { status: 204, body: null }; }
+  // อ่านได้โดยไม่ต้องเข้าสู่ระบบ
+  try {
+    if (p === '/rest/v1/rpc/community_pins') return { status: 200, body: (await asUser(db, uid, 'select * from public.community_pins($1)', [body.course])).rows };
+    if (p === '/rest/v1/rpc/get_board') return { status: 200, body: (await asUser(db, uid, 'select public.get_board($1) as b', [body.board])).rows[0].b };
+  } catch (e) {
+    return pgError(e);
+  }
   if (!uid) return { status: 401, body: { message: 'JWT expired or missing' } };
   try {
     if (p === '/functions/v1/billing') return await mockBilling(uid, body);
@@ -143,6 +150,10 @@ async function handle(req, body, url) {
       const r = await asUser(db, uid, 'select public.push_records($1::jsonb) as r', [JSON.stringify(body.items)]);
       return { status: 200, body: r.rows[0].r };
     }
+    if (p === '/rest/v1/rpc/share_course_pins') return { status: 200, body: (await asUser(db, uid, 'select public.share_course_pins($1, $2::jsonb) as n', [body.course, JSON.stringify(body.pins)])).rows[0].n };
+    if (p === '/rest/v1/rpc/unshare_all_pins') { await asUser(db, uid, 'select public.unshare_all_pins()'); return { status: 204, body: null }; }
+    if (p === '/rest/v1/rpc/publish_board') return { status: 200, body: (await asUser(db, uid, 'select public.publish_board($1, $2::jsonb) as e', [body.board, JSON.stringify(body.payload)])).rows[0].e };
+    if (p === '/rest/v1/rpc/unpublish_board') { await asUser(db, uid, 'select public.unpublish_board($1)', [body.board]); return { status: 204, body: null }; }
     if (p === '/rest/v1/rpc/can_sync') return { status: 200, body: (await asUser(db, uid, 'select public.can_sync() as r')).rows[0].r };
     if (p === '/rest/v1/rpc/delete_my_account') { await asUser(db, uid, 'select public.delete_my_account()'); return { status: 204, body: null }; }
     if (p === '/rest/v1/records') {

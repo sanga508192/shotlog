@@ -97,6 +97,14 @@ export const pull = (cursor, limit) =>
 export const canSync = () => req('/rest/v1/rpc/can_sync', { method: 'POST', body: {} });
 export const deleteAccount = () => req('/rest/v1/rpc/delete_my_account', { method: 'POST', body: {} });
 
+// ---------- หมุดสนามที่แชร์ และสกอร์บอร์ดสด ----------
+
+export const sharePins = (course, pins) => req('/rest/v1/rpc/share_course_pins', { method: 'POST', body: { course, pins } });
+export const unshareAllPins = () => req('/rest/v1/rpc/unshare_all_pins', { method: 'POST', body: {} });
+export const communityPins = (course) => req('/rest/v1/rpc/community_pins', { method: 'POST', auth: false, body: { course } });
+export const publishBoard = (board, payload) => req('/rest/v1/rpc/publish_board', { method: 'POST', body: { board, payload } });
+export const unpublishBoard = (board) => req('/rest/v1/rpc/unpublish_board', { method: 'POST', body: { board } });
+
 // ---------- สมาชิก ----------
 
 export async function entitlement() {

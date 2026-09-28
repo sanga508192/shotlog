@@ -2,6 +2,7 @@
 // คำนวณล้วน ๆ ทดสอบด้วย node:test ได้ ข้อมูลหมุดเก็บในค่าตั้ง course_holes:<id> (ซิงก์ไปกับบัญชี)
 import * as st from './state.js';
 import { COURSE_HOLES } from './holedata.js';
+import { cachedPins } from './community.js';
 
 const R = 6371008.8;   // รัศมีโลกเฉลี่ย (เมตร)
 const rad = (d) => (d * Math.PI) / 180;
@@ -62,8 +63,11 @@ export const MAX_HAZARDS = 6;
 const clean = (p) => ({ lat: p.lat, lon: p.lon });
 const validHazard = (z) => valid(z) && HAZARD_KINDS.some((k) => k.v === z.kind);
 
-// { [เลขหลุม]: { tee, green, front, back, hazards, est: { tee, green }, conf } } เฉพาะหมุดที่ถูกต้อง
+// { [เลขหลุม]: { tee, green, front, back, hazards, est, conf, src, crowd } } เฉพาะหมุดที่ถูกต้อง
 // front/back = ขอบหน้า/หลังกรีน · hazards = [{ lat, lon, kind }] (ผู้ใช้วางเองเท่านั้น)
+// ลำดับความเชื่อถือ: หมุดที่เราวางเอง > ค่ากลางจากผู้เล่นคนอื่น > หมุดประมาณของแอป
+// src.tee/src.green = 'mine' | 'crowd' | 'app' · crowd.tee/crowd.green = { n, gps } จำนวนผู้เล่นที่วาง
+const blank = () => ({ tee: null, green: null, front: null, back: null, hazards: [], est: { tee: false, green: false }, conf: null, src: {}, crowd: {} });
 // หมุดที่ผู้ใช้วางเองมาก่อนเสมอ หมุดไหนยังไม่วางใช้หมุดเริ่มต้นของแอป (est = เป็นค่าประมาณ)
 export function courseHoles(courseId) {
   const out = {};
@@ -72,16 +76,33 @@ export function courseHoles(courseId) {
     out[n] = {
       tee: { lat: h.tee[0], lon: h.tee[1] }, green: { lat: h.green[0], lon: h.green[1] },
       front: null, back: null, hazards: [], est: { tee: true, green: true }, conf: h.conf,
+      src: { tee: 'app', green: 'app' }, crowd: {},
     };
+  }
+  // ค่ากลางจากผู้เล่นคนอื่น: ใช้แทนหมุดประมาณเมื่อมีอย่างน้อย 2 คน หรือมีคนวางด้วย GPS ในสนาม
+  for (const r of cachedPins(courseId)) {
+    const cur = out[r.hole] ?? blank();
+    const trusted = r.n >= 2 || r.gps >= 1;
+    if (r.kind === 'tee' || r.kind === 'green') {
+      if (cur[r.kind] && !trusted) continue;
+      cur[r.kind] = clean(r);
+      cur.est = { ...cur.est, [r.kind]: false };
+      cur.src = { ...cur.src, [r.kind]: 'crowd' };
+      cur.crowd = { ...cur.crowd, [r.kind]: { n: r.n, gps: r.gps } };
+    } else if (!cur[r.kind]) {
+      cur[r.kind] = clean(r);
+    }
+    out[r.hole] = cur;
   }
   const raw = st.setting(holesKey(courseId), null)?.holes;
   if (!raw || typeof raw !== 'object') return out;
   for (const [n, h] of Object.entries(raw)) {
-    const cur = out[n] ?? { tee: null, green: null, front: null, back: null, hazards: [], est: { tee: false, green: false }, conf: null };
+    const cur = out[n] ?? blank();
     for (const which of ['tee', 'green']) {
       if (valid(h?.[which])) {
         cur[which] = clean(h[which]);
         cur.est = { ...cur.est, [which]: false };
+        cur.src = { ...cur.src, [which]: 'mine' };
       }
     }
     for (const which of ['front', 'back']) if (valid(h?.[which])) cur[which] = clean(h[which]);
@@ -95,6 +116,11 @@ export function courseHoles(courseId) {
 }
 
 export const isEstimated = (h) => !!(h?.est?.tee || h?.est?.green);
+// หมุดจากผู้เล่นคนอื่นที่ใช้อยู่ในหลุมนี้ (ไม่นับหมุดที่เราวางเอง) → { n, gps } ของหมุดที่มีคนวางมากสุด
+export function crowdOf(h) {
+  const list = ['tee', 'green'].filter((k) => h?.src?.[k] === 'crowd').map((k) => h.crowd[k]);
+  return list.length ? list.reduce((a, b) => (b.n > a.n ? b : a)) : null;
+}
 export const holesSource = (courseId) => COURSE_HOLES[courseId]?.source ?? null;
 
 export const holeReady = (h) => !!(h?.tee && h?.green);
@@ -111,7 +137,8 @@ async function updateHole(courseId, n, fn) {
 // which: tee | green | front | back
 export async function setHolePoint(courseId, n, which, point) {
   await updateHole(courseId, n, (h) => {
-    if (point) h[which] = round7(point);
+    // via: 'gps' = ยืนวางในสนามจริง (เชื่อถือได้มากกว่าแตะบนแผนที่) ใช้ตอนแชร์หมุด
+    if (point) h[which] = { ...round7(point), ...(point.via === 'gps' ? { via: 'gps' } : {}) };
     else delete h[which];
     return h;
   });

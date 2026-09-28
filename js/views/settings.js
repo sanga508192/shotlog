@@ -7,6 +7,7 @@ import { linkedOwner, restoreBackup } from '../sync.js';
 import { friends } from './group.js';
 import { recentErrors, clearErrors } from '../errors.js';
 import * as sync from '../sync.js';
+import { stopSharing } from '../community.js';
 
 const stamp = () => st.todayLocal();
 
@@ -109,6 +110,8 @@ export function settingsView(_p, ctx) {
       <h2>แผนที่หลุม</h2>
       <label class="card row gap toggle-row"><input type="checkbox" ${st.setting('map_auto_hole', true) === false ? '' : 'checked'} data-change="autoHole">
         <span>เปลี่ยนหลุมให้เองเมื่อเดินถึงแท่นทีหลุมถัดไป <small class="muted">(ใช้ GPS และหมุดแท่นที)</small></span></label>
+      <label class="card row gap toggle-row"><input type="checkbox" ${st.setting('share_pins', false) === true ? 'checked' : ''} data-change="sharePins">
+        <span>แชร์หมุดแท่นที/กรีนที่ฉันวางเองให้ผู้เล่นคนอื่น <small class="muted">(ไม่ระบุตัวตน · เฉพาะสนามในรายชื่อ · ต้องเข้าสู่ระบบ · ปิดแล้วลบหมุดที่เคยแชร์ทั้งหมด)</small></span></label>
 
       <h2>คำที่ใช้บ่อย (ปุ่มเติมหมายเหตุ)</h2>
       <textarea class="input" rows="5" data-change="phrases" placeholder="หนึ่งบรรทัดต่อหนึ่งคำ">${esc(st.setting('phrases', []).join('\n'))}</textarea>
@@ -192,6 +195,19 @@ export function settingsView(_p, ctx) {
         ctx.rerender();
       },
       unit: async (el) => { await st.setSetting('distance_unit', el.dataset.v); ctx.rerender(); },
+      sharePins: async (el) => {
+        if (el.checked && !cloud.session()) {
+          el.checked = false;
+          toast('เข้าสู่ระบบก่อน แล้วค่อยเปิดแชร์หมุด');
+          return;
+        }
+        await st.setSetting('share_pins', el.checked);
+        if (el.checked) {
+          toast('เปิดแชร์หมุดแล้ว หมุดจะส่งตอนเปิดแผนที่หลุมของสนามนั้น');
+        } else {
+          try { await stopSharing(); toast('ปิดแชร์และลบหมุดที่เคยแชร์แล้ว'); } catch (err) { toast(`ลบหมุดที่แชร์ไม่สำเร็จ: ${err.message}`); }
+        }
+      },
       autoHole: async (el) => { await st.setSetting('map_auto_hole', el.checked); toast(el.checked ? 'เปิดการเปลี่ยนหลุมอัตโนมัติ' : 'ปิดการเปลี่ยนหลุมอัตโนมัติ'); },
       myName: async (el) => {
         const v = el.value.trim();

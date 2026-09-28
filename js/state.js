@@ -67,6 +67,13 @@ export async function load() {
 
 // sync.js ต่อเข้ามาตรงนี้: outboxFor คืนรายการ outbox ที่ต้องเขียนใน transaction เดียวกัน
 export const hooks = { outboxFor: null, afterCommit: null, changed: null };
+
+// ผู้ฟังเพิ่มเติม (เช่น สกอร์บอร์ดสด) ได้รายการที่เพิ่งเขียน และรู้ว่ามาจากคลาวด์ (raw) หรือไม่
+const listeners = new Set();
+export function onCommit(fn) {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
 const NO_STAMP = new Set(['settings', 'favorites', 'meta', 'outbox', 'syncrev', 'conflicts']);
 
 // เขียนหลายรายการใน transaction เดียว แล้วค่อยอัปเดตหน่วยความจำเมื่อสำเร็จ
@@ -85,6 +92,9 @@ export async function commit(ops, { raw = false } = {}) {
   version++;
   hooks.changed?.();
   if (!raw) hooks.afterCommit?.();
+  for (const fn of listeners) {
+    try { fn(all, raw); } catch { /* ผู้ฟังพังต้องไม่ทำให้การบันทึกล้ม */ }
+  }
 }
 
 export const put = (store, obj) => commit([{ store, put: obj }]);

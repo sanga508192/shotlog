@@ -4,6 +4,7 @@ import { esc, header, toast } from '../ui.js';
 import { LAYOUTS, renderScorecard, shareBlob, saveBlob } from '../share.js';
 import { scorecardData } from './group.js';
 import { openCropper } from './cropper.js';
+import { liveCardHtml, liveActions } from './live.js';
 
 // รูปก๊วนเก็บไว้ในหน่วยความจำระหว่างเปิดแอปเท่านั้น ไม่บันทึกลงเครื่องหรือคลาวด์
 const photos = new Map();
@@ -121,6 +122,7 @@ export function shareView([roundId], ctx) {
         <button type="button" class="btn" data-act="save" disabled>💾 บันทึกรูป</button>
         <a class="btn" href="#/round/${roundId}/card">กลับสกอร์การ์ด</a>
       </div>
+      ${liveCardHtml(round)}
     </div>`,
     mount(el) { root = el; paint(); },
     unmount() {
@@ -129,6 +131,7 @@ export function shareView([roundId], ctx) {
       document.querySelector('#cropper [data-q="cancel"]')?.click();   // ออกจากหน้านี้ ปิดหน้าปรับรูปด้วย
     },
     actions: {
+      ...liveActions(ctx, roundId),
       layout: async (el) => {
         if (el.dataset.v === layout) return;
         layout = el.dataset.v;

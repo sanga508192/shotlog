@@ -5,8 +5,11 @@ import { esc, toast } from '../ui.js';
 import { TileMap } from '../map.js';
 import {
   courseHoles, holeReady, setHolePoint, distM, bearing, destination, fmtDist, unitTh, scorecardLength, YD, isEstimated,
-  HAZARD_KINDS, MAX_HAZARDS, addHazard, setHazard,
+  HAZARD_KINDS, MAX_HAZARDS, addHazard, setHazard, crowdOf,
 } from '../holemap.js';
+import { refreshPins, scheduleShare, shareable, sharing } from '../community.js';
+import * as cloud from '../cloud.js';
+import { logError } from '../errors.js';
 import { watchPosition, lastPosition, getPosition } from '../geo.js';
 import { clubDistances, suggestClub, GPS_MAX_ACC } from '../coach.js';
 
@@ -149,7 +152,7 @@ export function mapView([courseId, numStr, query], ctx) {
         pins.push({
           id: `${which}-edit`, at: h[which], html: edge ? pinHtml.edge : pinHtml[which], cls: `pin-${edge ? 'edge' : which}${M.placing === which ? ' placing' : ''}`, drag: true,
           onDrag: () => {},
-          onDrop: async (p) => { await setHolePoint(courseId, n, which, p); refresh(); },
+          onDrop: async (p) => { await setHolePoint(courseId, n, which, p); shareLater(); refresh(); },
         });
       }
       (h.hazards || []).forEach((z, i) => pins.push({
@@ -197,10 +200,13 @@ export function mapView([courseId, numStr, query], ctx) {
     return `<p class="map-club">🏌️ ${t ? 'ถึงจุดเป้า' : 'ถึงกลางกรีน'} ${fmtDist(d, u)} ${unitTh(u)} → <b>${esc(c.label)}</b> <small>ระยะกลางของคุณ ${fmtDist(c.median, u)}</small></p>`;
   }
 
-  // หมุดเริ่มต้นที่ยังไม่มีใครตรวจ: เตือนทุกครั้ง
+  // หมุดจากผู้เล่นคนอื่น (ค่ากลาง) · หมุดเริ่มต้นที่ยังไม่มีใครตรวจ: เตือนทุกครั้ง
   function estNote() {
     const h = H();
-    if (!isEstimated(h)) return '';
+    const crowd = crowdOf(h);
+    if (!isEstimated(h)) {
+      return crowd ? `<p class="map-crowd">👥 หมุดจากผู้เล่น ${crowd.n} คน${crowd.gps ? ` (วางในสนาม ${crowd.gps} คน)` : ''} — ถ้าไม่ตรงกด ✏️ แก้หมุด</p>` : '';
+    }
     return `<p class="map-est">⚠️ หมุด${h.est.tee && h.est.green ? '' : h.est.tee ? 'แท่นที' : 'กรีน'}ประมาณจากภาพดาวเทียม (ความมั่นใจ${h.conf === 'mid' ? 'ปานกลาง' : 'ต่ำ'}) ยังไม่ได้ตรวจในสนาม — ถ้าไม่ตรงกด ✏️ แก้หมุด</p>`;
   }
 
@@ -244,6 +250,7 @@ export function mapView([courseId, numStr, query], ctx) {
         ${(h.hazards?.length ?? 0) < MAX_HAZARDS ? HAZARD_KINDS.map((k) => `<button type="button" class="map-step small${M.placing === `hz:${k.v}` ? ' on' : ''}" data-act="place" data-v="hz:${k.v}">＋${k.icon} ${k.th}</button>`).join('') : ''}
       </div>${hzList}` : ''}
       ${estNote()}
+      ${shareable(courseId) ? `<label class="map-share"><input type="checkbox" data-change="sharePins"${sharing() ? ' checked' : ''}> แชร์หมุดที่ฉันวางให้ผู้เล่นคนอื่น <small>(ไม่ระบุตัวตน)</small></label>` : ''}
       <p class="map-hint">${hint} · ลาก/ถ่างนิ้วเพื่อหาหลุม</p>
       ${len ? `<p class="map-check">วัดจากหมุด <b>${fmtDist(len, u)}</b> ${unitTh(u)}${scInUnit ? ` · สกอร์การ์ด${scl.tee ? ` (${esc(scl.tee)})` : ''} ${scInUnit} ${unitTh(u)}` : ''}</p>` : ''}
       <div class="map-tools">
@@ -252,6 +259,8 @@ export function mapView([courseId, numStr, query], ctx) {
         ${n < count ? `<a class="map-pill" href="${hrefHole(n + 1)}">หลุม ${n + 1} ›</a>` : ''}
       </div>`;
   }
+
+  const shareLater = () => scheduleShare(courseId, () => refresh());
 
   function refresh() {
     if (!root) return;
@@ -274,6 +283,7 @@ export function mapView([courseId, numStr, query], ctx) {
         return;
       }
       await setHolePoint(courseId, n, which, p);
+      shareLater();
       if (which === 'front' || which === 'back') { M.placing = null; refresh(); return; }
       const h = H();
       M.placing = which === 'tee' && !h.green ? 'green' : null;
@@ -316,6 +326,13 @@ export function mapView([courseId, numStr, query], ctx) {
       map = new TileMap(el.querySelector('#hole-map'), { onTap: (p) => { onTap(p).catch((e) => toast(e.message)); } });
       map.setOverlay(overlay);
       initialView();
+      refreshPins(courseId).then((changed) => {
+        if (!changed || !root) return;
+        const was = holeReady(H());
+        refresh();
+        if (!was && holeReady(H())) fitHole();
+      }).catch((err) => logError('community pins', err));
+      shareLater();   // หมุดที่แก้ตอนออฟไลน์ ส่งตอนมีเน็ต
       stopGps = watchPosition((pos) => {
         const first = !gps;
         gps = pos;
@@ -340,13 +357,23 @@ export function mapView([courseId, numStr, query], ctx) {
       done: () => { M.edit = false; M.editHole = null; M.placing = null; fitHole(); refresh(); toast('บันทึกหมุดแล้ว'); },
       place: (el) => { M.placing = M.placing === el.dataset.v ? null : el.dataset.v; refresh(); },
       delHz: async (el) => { await setHazard(courseId, n, Number(el.dataset.i), null); refresh(); },
+      sharePins: async (el) => {
+        if (el.checked && !cloud.session()) {
+          el.checked = false;
+          toast('เข้าสู่ระบบก่อน แล้วค่อยเปิดแชร์หมุด (เมนู ฉัน → บัญชี)');
+          return;
+        }
+        await st.setSetting('share_pins', el.checked);
+        if (el.checked) { shareLater(); toast('จะแชร์หมุดที่คุณวางเองในสนามนี้และสนามอื่นในรายชื่อ'); }
+        else toast('ปิดการแชร์แล้ว ลบหมุดที่เคยแชร์ได้ในหน้าตั้งค่า');
+      },
       gpsHere: async (el) => {
         if (!M.placing) return;
         el.disabled = true;
         try {
           const pos = (gps && Date.now() - gps.at < 15000) ? gps : await getPosition({ highAccuracy: true, maxAge: 5000, timeout: 20000 });
           if (pos.accuracy > GPS_MAX_ACC && !confirm(`ตำแหน่งตอนนี้คลาดเคลื่อนได้ ±${Math.round(pos.accuracy)} เมตร ใช้เลยหรือไม่? (รอสักครู่ในที่โล่งจะแม่นขึ้น)`)) return;
-          await onTap(pos);
+          await onTap({ ...pos, via: 'gps' });
         } finally {
           el.disabled = false;
         }

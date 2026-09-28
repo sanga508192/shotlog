@@ -12,6 +12,7 @@ import { scanView } from './views/scan.js';
 import { shareView } from './views/share.js';
 import { coachView } from './views/coach.js';
 import { mapView } from './views/map.js';
+import { watchLive } from './views/live.js';
 import { drillsView } from './views/drills.js';
 import { resumeHref } from './views/main.js';
 import * as sync from './sync.js';
@@ -232,6 +233,7 @@ async function start() {
     return;
   }
   watchOtherTabs();
+  watchLive();
   updateOnline();
   render(true);
   if (cloud.enabled() && cloud.session() && sync.linkedOwner()) sync.syncNow().catch(() => {});

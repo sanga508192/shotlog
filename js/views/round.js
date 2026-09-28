@@ -11,6 +11,7 @@ import {
 } from './group.js';
 import { playersOf } from '../group.js';
 import { deleteRound } from './main.js';
+import { liveCardHtml, liveActions } from './live.js';
 import { watchPosition, lastPosition } from '../geo.js';
 import { courseHoles, distM, toUnit, unitTh } from '../holemap.js';
 import { shotDistances, GPS_MAX_ACC } from '../coach.js';
@@ -465,6 +466,7 @@ export function scorecardView([roundId], ctx) {
         <a class="btn" href="#/round/${roundId}/pars">⛳ พาร์ / HC</a>
         ${logShots ? `<a class="btn" href="#/round/${roundId}/summary">📊 สรุปการเล่นของฉัน</a>` : ''}
       </div>
+      ${round.status === 'playing' || round.live_token ? liveCardHtml(round) : ''}
       ${myFlags.length ? `<details class="card small"><summary>ข้อมูลรายช็อตของฉันที่ยังไม่ครบ (${myFlags.length})</summary><ul>${myFlags.map((f) => `<li>${esc(f)}</li>`).join('')}</ul></details>` : ''}
       ${round.status === 'playing' ? `
         <button type="button" class="btn primary block" data-act="finishRound">จบรอบ${incomplete ? ` (${incomplete} หลุมยังไม่จบ)` : ''}</button>`
@@ -472,6 +474,7 @@ export function scorecardView([roundId], ctx) {
       <button type="button" class="btn danger block" data-act="deleteRound">ลบรอบนี้</button>
     </div>`,
     actions: {
+      ...liveActions(ctx, roundId),
       goHole: (el) => ctx.go(`#/round/${roundId}/hole/${el.dataset.n}`),
       finishRound: async () => {
         let status = 'complete';

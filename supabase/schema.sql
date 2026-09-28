@@ -238,3 +238,150 @@ insert into public.entitlements (user_id, plan, status, current_period_end, sour
 grant usage on schema public to service_role;
 grant select, insert, update, delete on public.entitlements, public.billing_customers, public.stripe_events to service_role;
 grant select on public.app_config to service_role;
+
+-- ============================================================
+-- ขั้นที่ 3: หมุดสนามที่ผู้ใช้เลือกแชร์ (ไม่ระบุตัวตน) และสกอร์บอร์ดสดให้เพื่อนดู
+-- ============================================================
+
+-- หมุดแท่นที/กรีน/ขอบกรีนของสนามในรายชื่อของแอป เก็บแยกรายคน คนอื่นเห็นเฉพาะค่ากลางรวม
+create table if not exists public.course_pins (
+  owner_id   uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  course_id  text not null check (course_id ~ '^[a-z0-9-]{1,80}$'),
+  hole       int  not null check (hole between 1 and 27),
+  kind       text not null check (kind in ('tee', 'green', 'front', 'back')),
+  lat        double precision not null check (lat between -90 and 90),
+  lon        double precision not null check (lon between -180 and 180),
+  via        text check (via in ('gps', 'map')),
+  updated_at timestamptz not null default now(),
+  primary key (owner_id, course_id, hole, kind)
+);
+alter table public.course_pins enable row level security;
+revoke all on public.course_pins from anon, authenticated;
+
+-- แทนที่หมุดทั้งหมดของผู้ใช้ในสนามนี้ (ส่ง [] = เลิกแชร์สนามนี้)
+create or replace function public.share_course_pins(course text, pins jsonb)
+returns int
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  uid uuid := auth.uid();
+  p   jsonb;
+  n   int := 0;
+begin
+  if uid is null then
+    raise exception 'not authenticated' using errcode = '28000';
+  end if;
+  if jsonb_typeof(pins) <> 'array' or jsonb_array_length(pins) > 108 then
+    raise exception 'pins must be an array of at most 108' using errcode = '22023';
+  end if;
+  delete from course_pins where owner_id = uid and course_id = course;
+  for p in select value from jsonb_array_elements(pins) loop
+    insert into course_pins (owner_id, course_id, hole, kind, lat, lon, via)
+      values (uid, course, (p ->> 'hole')::int, p ->> 'kind', (p ->> 'lat')::float8, (p ->> 'lon')::float8, p ->> 'via')
+      on conflict (owner_id, course_id, hole, kind) do update
+        set lat = excluded.lat, lon = excluded.lon, via = excluded.via, updated_at = now();
+    n := n + 1;
+  end loop;
+  return n;
+end;
+$$;
+
+create or replace function public.unshare_all_pins()
+returns void
+language sql security definer
+set search_path = public
+as $$
+  delete from course_pins where owner_id = auth.uid();
+$$;
+
+-- ค่ากลางของหมุดจากทุกคนที่แชร์ (ไม่บอกว่าใครวาง) อ่านได้แม้ไม่ได้เข้าสู่ระบบ
+create or replace function public.community_pins(course text)
+returns table (hole int, kind text, lat double precision, lon double precision, n int, gps int)
+language sql stable security definer
+set search_path = public
+as $$
+  select c.hole, c.kind,
+         percentile_cont(0.5) within group (order by c.lat),
+         percentile_cont(0.5) within group (order by c.lon),
+         count(*)::int,
+         (count(*) filter (where c.via = 'gps'))::int
+  from course_pins c
+  where c.course_id = course
+  group by c.hole, c.kind
+  order by c.hole, c.kind;
+$$;
+
+-- สกอร์บอร์ดสด: เจ้าของรอบส่งสรุปสกอร์ขึ้นมา คนที่มีลิงก์ (token สุ่ม) เปิดดูได้โดยไม่ต้องมีบัญชี
+-- หมดอายุ 2 วันหลังอัปเดตครั้งล่าสุด · เป็นฟีเจอร์แชร์ จึงต้องมีสิทธิ์สมาชิก (can_sync)
+create table if not exists public.live_boards (
+  token      text primary key check (token ~ '^[A-Za-z0-9_-]{20,64}$'),
+  owner_id   uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  data       jsonb not null,
+  updated_at timestamptz not null default now(),
+  expires_at timestamptz not null default now() + interval '2 days'
+);
+alter table public.live_boards enable row level security;
+revoke all on public.live_boards from anon, authenticated;
+
+create or replace function public.publish_board(board text, payload jsonb)
+returns timestamptz
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  uid uuid := auth.uid();
+  exp timestamptz := now() + interval '2 days';
+begin
+  if uid is null then
+    raise exception 'not authenticated' using errcode = '28000';
+  end if;
+  if not can_sync() then
+    raise exception 'subscription required' using errcode = '42501';
+  end if;
+  if jsonb_typeof(payload) <> 'object' or pg_column_size(payload) > 60000 then
+    raise exception 'invalid board' using errcode = '22023';
+  end if;
+  delete from live_boards where expires_at < now();
+  insert into live_boards (token, owner_id, data, updated_at, expires_at)
+    values (board, uid, payload, now(), exp)
+    on conflict (token) do update
+      set data = excluded.data, updated_at = now(), expires_at = exp
+      where live_boards.owner_id = uid;
+  if not found then
+    raise exception 'not your board' using errcode = '42501';
+  end if;
+  return exp;
+end;
+$$;
+
+create or replace function public.get_board(board text)
+returns jsonb
+language sql stable security definer
+set search_path = public
+as $$
+  select jsonb_build_object('data', b.data, 'updated_at', b.updated_at)
+  from live_boards b
+  where b.token = board and b.expires_at > now();
+$$;
+
+create or replace function public.unpublish_board(board text)
+returns void
+language sql security definer
+set search_path = public
+as $$
+  delete from live_boards where token = board and owner_id = auth.uid();
+$$;
+
+revoke all on function public.share_course_pins(text, jsonb) from public, anon;
+revoke all on function public.unshare_all_pins() from public, anon;
+revoke all on function public.community_pins(text) from public;
+revoke all on function public.publish_board(text, jsonb) from public, anon;
+revoke all on function public.get_board(text) from public;
+revoke all on function public.unpublish_board(text) from public, anon;
+grant execute on function public.share_course_pins(text, jsonb) to authenticated;
+grant execute on function public.unshare_all_pins() to authenticated;
+grant execute on function public.publish_board(text, jsonb) to authenticated;
+grant execute on function public.unpublish_board(text) to authenticated;
+grant execute on function public.community_pins(text) to anon, authenticated;
+grant execute on function public.get_board(text) to anon, authenticated;
