@@ -4,6 +4,7 @@ import { DIMENSIONS } from '../constants.js';
 import { summarize, pct, practiceSuggestion } from '../logic.js';
 import { drill } from '../coach.js';
 import { clipsHtml, clipActions } from './drills.js';
+import { isLaunch, sessionShots } from '../launch.js';
 
 const open = new Set();   // หัวข้อที่เปิดดูช็อตต้นทาง
 
@@ -116,7 +117,8 @@ export function summaryView([roundId], ctx) {
 
 export function practiceView(_p, ctx) {
   const sm = summarize(st.shotRows(null), [...st.S.holes.values()], st.setting('priority_topics', []));
-  const sessions = [...st.S.practice.values()].sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || String(b.created_at || '').localeCompare(String(a.created_at || '')));
+  const launch = [...st.S.practice.values()].filter(isLaunch);
+  const sessions = [...st.S.practice.values()].filter((p) => !isLaunch(p)).sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || String(b.created_at || '').localeCompare(String(a.created_at || '')));
   const byTopic = new Map();
   for (const s of sessions) {
     if (!byTopic.has(s.topic)) byTopic.set(s.topic, []);
@@ -126,6 +128,7 @@ export function practiceView(_p, ctx) {
     html: `${header('ฝึกซ้อม')}<div class="page">
       <a class="card coach-link" href="#/coach"><b>📋 แผนซ้อมสัปดาห์นี้</b><span>แบบฝึกที่เลือกจากจุดที่เสียสโตรกมากที่สุด ›</span></a>
       <a class="card coach-link" href="#/drills"><b>🎬 แบบฝึกและคลิปสอน</b><span>แบบฝึกทั้งหมด ค้นคลิปสอนใน YouTube และเก็บคลิปที่ชอบไว้ดูซ้ำ ›</span></a>
+      <a class="card coach-link" href="#/launch"><b>📈 เครื่องซ้อม (Garmin R10)</b><span>${launch.length ? `${launch.reduce((a, p) => a + sessionShots(p).length, 0)} ช็อตที่นำเข้า · ดูระยะไม้ ทิศทาง และแบบฝึกที่ควรทำ ›` : 'นำเข้าไฟล์จาก Garmin Golf เพื่อวิเคราะห์และเลือกแบบฝึกให้ ›'}</span></a>
       <h2>เรื่องที่เสนอจากการออกรอบ</h2>
       ${sm.topics.length ? `<p class="note">จาก ${sm.shotCount} ช็อต ${sm.roundCount} รอบ — คุณเลือกเองว่าจะฝึกเรื่องใด</p>${sm.topics.slice(0, 5).map((t) => topicCard(t, { withSources: false })).join('')}`
     : '<p class="muted">ยังไม่มีอาการที่จดไว้จากการออกรอบ</p>'}

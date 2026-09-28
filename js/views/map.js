@@ -12,6 +12,7 @@ import * as cloud from '../cloud.js';
 import { logError } from '../errors.js';
 import { watchPosition, lastPosition, getPosition } from '../geo.js';
 import { clubDistances, suggestClub, GPS_MAX_ACC } from '../coach.js';
+import { launchCarryRows } from '../launch.js';
 
 // สถานะที่อยู่ข้ามการเปลี่ยนหลุม (ของสนามที่เปิดอยู่)
 // edit = กดแก้หมุดเอง (อยู่จนกดเสร็จ) · editHole = หลุมที่กำลังวางหมุดใหม่ (อยู่โหมดวางจนออกจากหลุมนั้น)
@@ -23,12 +24,15 @@ const FRESH_MS = 20000;
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
-// ระยะไม้จริงของผู้ใช้ (จาก GPS)
+// ระยะไม้จริงของผู้ใช้: จาก GPS ในสนามก่อน ไม้ที่ยังไม่มีข้อมูล GPS ใช้ระยะลอยจากเครื่องซ้อม (src: 'sim')
 function clubRows() {
-  return clubDistances({
+  const gps = clubDistances({
     rounds: st.rounds(), holesOf: st.holesOf, shotsOf: st.shotsOf, penaltiesOf: st.penaltiesOf, clubOf: st.club,
     teeOf: (r, h) => courseHoles(r.course_id)[h.number]?.tee ?? null,
   });
+  const have = new Set(gps.filter((r) => r.n >= 3).map((r) => r.club_id));
+  const sim = launchCarryRows([...st.S.practice.values()], st.club).filter((r) => !have.has(r.clubId));
+  return [...gps, ...sim];
 }
 
 const pinHtml = {
@@ -197,7 +201,7 @@ export function mapView([courseId, numStr, query], ctx) {
     const c = suggestClub(d, rows);
     if (!c) return '';
     const u = unit();
-    return `<p class="map-club">🏌️ ${t ? 'ถึงจุดเป้า' : 'ถึงกลางกรีน'} ${fmtDist(d, u)} ${unitTh(u)} → <b>${esc(c.label)}</b> <small>ระยะกลางของคุณ ${fmtDist(c.median, u)}</small></p>`;
+    return `<p class="map-club">🏌️ ${t ? 'ถึงจุดเป้า' : 'ถึงกลางกรีน'} ${fmtDist(d, u)} ${unitTh(u)} → <b>${esc(c.label)}</b> <small>${c.src === 'sim' ? 'ระยะลอยจากเครื่องซ้อม' : 'ระยะกลางของคุณ'} ${fmtDist(c.median, u)}</small></p>`;
   }
 
   // หมุดจากผู้เล่นคนอื่น (ค่ากลาง) · หมุดเริ่มต้นที่ยังไม่มีใครตรวจ: เตือนทุกครั้ง

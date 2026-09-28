@@ -16,6 +16,7 @@ import { shareView } from '../js/views/share.js';
 import { coachView } from '../js/views/coach.js';
 import { mapView } from '../js/views/map.js';
 import { drillsView } from '../js/views/drills.js';
+import { launchView } from '../js/views/launch.js';
 
 const ctx = { rerender() {}, go() {} };
 
@@ -91,6 +92,12 @@ async function seedWeird() {
   ops.push({ store: 'settings', put: { key: 'course_holes:dancoon', value: { holes: { 1: { tee: { lat: 16.48, lon: 102.72 }, green: { lat: 16.483, lon: 102.721 }, front: { lat: 16.4829, lon: 102.7209 }, back: 'bad', hazards: [{ lat: 16.481, lon: 102.7205, kind: 'water' }, { kind: 'bunker' }, 7] }, 2: { tee: { lat: 'bad' } }, x: 5 } } } });
   ops.push({ store: 'settings', put: { key: 'course_holes:kirimaya', value: 'garbage' } });
   ops.push({ store: 'settings', put: { key: 'coach_goal', value: 'nope' } });
+  ops.push({ store: 'practice', put: { id: 'L1', kind: 'launch', launch: { shots: 'bad' } } });
+  ops.push({ store: 'practice', put: { id: 'L2', kind: 'launch', date: 7, launch: { clubs: 5, sig: {}, shots: [null, [1, 2], ['7 Iron', 'x', null, null, null, null, null, 140]] } } });
+  ops.push({ store: 'practice', put: { id: 'L3', kind: 'launch', date: '2026-09-01', launch: { cols: 'x', clubs: { 'Driver': 'nope' }, shots: Array.from({ length: 12 }, (_, i) => ['Driver', 45, 65, 1.44, 11, 3, 3500, 200 + i, 15, 215, -3, -2, 2, 5]) } } });
+  ops.push({ store: 'settings', put: { key: 'launch_period', value: 'weird' } });
+  ops.push({ store: 'settings', put: { key: 'launch_club', value: 42 } });
+  ops.push({ store: 'settings', put: { key: 'speed_unit', value: 'warp' } });
   ops.push({ store: 'settings', put: { key: 'course_rating:dancoon:white', value: { cr: 'x', slope: 999 } } });
   ops.push({ store: 'settings', put: { key: 'course_rating:kirimaya:default', value: 'garbage' } });
   ops.push({ store: 'settings', put: { key: 'map_auto_hole', value: 'maybe' } });
@@ -114,6 +121,7 @@ function routesFor(ids) {
     ['coach', () => coachView([], ctx)],
     ['practice', () => practiceView([], ctx)],
     ['drills', () => drillsView([], ctx)],
+    ['launch', () => launchView([], ctx)],
     ['practice new', () => practiceNewView([''], ctx)],
     ['practice new drill', () => practiceNewView(['d=putt-circle'], ctx)],
     ['practice new bad', () => practiceNewView(['t=a|b|c&d=zzz'], ctx)],

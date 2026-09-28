@@ -781,3 +781,23 @@ a.map-card { display: flex; align-items: center; gap: 12px; text-decoration: non
 .lv-table td.bogey { background: rgba(224, 117, 77, .15); }
 .lv-table td.double { background: rgba(224, 117, 77, .32); }
 .lv-game { display: flex; flex-direction: column; gap: 4px; }
+
+/* เครื่องซ้อม (launch monitor) */
+.lm-imp { display: flex; flex-direction: column; gap: 8px; }
+.lm-map { width: 100%; border-collapse: collapse; font-size: .84rem; }
+.lm-map th, .lm-map td { padding: 5px 4px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+.lm-map th { font-weight: 600; color: var(--muted); font-size: .76rem; }
+.lm-map select { min-width: 0; width: 100%; padding: 4px 6px; }
+.lm-clubs .cd-row { row-gap: 2px; }
+.lm-sub { grid-column: 1 / -1; font-size: .74rem; color: var(--muted); padding-left: 2px; }
+.lm-sub .bad { color: #d24b2a; font-weight: 600; }
+.lm-scatter { width: 100%; max-width: 420px; display: block; margin: 0 auto 8px; }
+.lm-scatter circle { fill: var(--brand); fill-opacity: .7; }
+.lm-scatter .lm-axis { stroke: var(--muted); stroke-dasharray: 3 3; }
+.lm-scatter .lm-med { stroke: var(--text); stroke-opacity: .35; }
+.lm-scatter text { font-size: 10px; fill: var(--muted); }
+.lm-trend { width: 100%; border-collapse: collapse; font-size: .8rem; }
+.lm-trend th, .lm-trend td { padding: 4px; border-bottom: 1px solid var(--line); text-align: right; }
+.lm-trend th:first-child, .lm-trend td:first-child { text-align: left; }
+.lm-how ol { margin: 6px 0; padding-left: 20px; }
+.lm-session { align-items: center; }
