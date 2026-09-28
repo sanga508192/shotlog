@@ -1,7 +1,9 @@
 // โค้ชพัฒนาเกม: แยกว่าสโตรกเกินพาร์มาจากไหน เทียบกับ "งบสโตรก" ของเป้าหมาย แล้วเสนอโฟกัสรอบหน้าและแผนซ้อม
 // คำนวณล้วน ๆ จากข้อมูลที่จดในเครื่อง (ไม่ใช้ AI ภายนอก) ทดสอบด้วย node:test ได้
 import { ME, playerHoleScore } from './group.js';
-import { distM } from './holemap.js';
+import { shotPath, shotDistances, offLine, sideOf, landOf } from './shotgeo.js';
+
+export { GPS_MAX_ACC, shotDistances } from './shotgeo.js';
 
 // ---------- เป้าหมาย ----------
 // งบสโตรกเกินพาร์ต่อ 18 หลุม (พาร์ 72) แบ่งตามที่มา — รวมกันแล้วไม่เกินสกอร์เป้าหมาย
@@ -140,7 +142,8 @@ export const STAT_DEFS = [
 
 // simIssues = ปัญหาจากเครื่องซ้อม (launch.js simSummary().issues) ใช้ร่วมจัดแผนซ้อมและโฟกัสรอบหน้า
 // simDriver = ไดรเวอร์จากเครื่องซ้อม (launch.js driverProfile) ใช้ร่วมกับทีออฟในสนาม
-export function analyzeGame({ rounds, holesOf, shotsOf, penaltiesOf, clubLabel = () => null, clubOf = null, practice = [], simIssues = [], simDriver = null }, goalV) {
+// pinsOf(round, hole) → { tee, green } หมุดที่ยืนยันแล้ว ใช้หาทิศและจุดตกของทีออฟ · fmt(m) แสดงระยะในหน่วยผู้ใช้
+export function analyzeGame({ rounds, holesOf, shotsOf, penaltiesOf, clubLabel = () => null, clubOf = null, practice = [], simIssues = [], simDriver = null, pinsOf = () => null, fmt }, goalV) {
   const clubInfo = clubOf ?? ((id) => (clubLabel(id) ? { id, label: clubLabel(id), category: null } : null));
   const finished = rounds.filter((r) => r.status !== 'playing')
     .sort((a, b) => String(a.played_at || '').localeCompare(String(b.played_at || '')) || String(a.created_at || '').localeCompare(String(b.created_at || '')));
@@ -176,16 +179,17 @@ export function analyzeGame({ rounds, holesOf, shotsOf, penaltiesOf, clubLabel =
   const easy = recentHoles.filter((h) => h.hc != null && h.hc > 6);
 
   // ระดับช็อต: 10 รอบล่าสุดที่จดรายช็อต
-  const shotRoundIds = finished.filter((r) => r.shot_logging !== false).map((r) => r.id).slice(-10);
+  const shotRounds = finished.filter((r) => r.shot_logging !== false).slice(-10);
+  const shotRoundIds = shotRounds.map((r) => r.id);
   const facts = [];
   let holesLogged = 0;
-  for (const id of shotRoundIds) {
-    for (const h of holesOf(id)) {
+  for (const r of shotRounds) {
+    for (const h of holesOf(r.id)) {
       const shots = shotsOf(h.id);
       if (!shots.length) continue;
       holesLogged++;
       const f = holeFacts(h, shots, penaltiesOf(h.id));
-      if (f) facts.push(f);
+      if (f) facts.push(Object.assign(f, { pins: pinsOf(r, h) ?? null }));
     }
   }
   const n = facts.length;
@@ -226,7 +230,7 @@ export function analyzeGame({ rounds, holesOf, shotsOf, penaltiesOf, clubLabel =
   let pool = ranked.map((l) => ({ ...l, ...diagnose(l.k, ctx) }));
   // ทีออฟ/ไดรเวอร์เป็นอีกมุมของสโตรกที่หาย: ถ้าเสียมากพอให้ขึ้นเป็นจุดที่ควรแก้ด้วย
   // ลูกโทษส่วนใหญ่มาจากทีออฟ → รวมเป็นเรื่องเดียวกัน ไม่แสดงซ้ำ
-  const tee = teeAnalysis(facts, { clubOf: clubInfo, goal, driver: simDriver });
+  const tee = teeAnalysis(facts, { clubOf: clubInfo, goal, driver: simDriver, ...(fmt ? { fmt } : {}) });
   if (tee.enough && tee.gap >= 0.5) {
     const pen = pool.find((l) => l.k === 'pen');
     const merge = pen && tee.penStrokes >= 0.6 * sum('pen');
@@ -412,12 +416,19 @@ function bestTeeClub(facts, clubLabel, avoid) {
 // driver = ไดรเวอร์จากเครื่องซ้อม (launch.js driverProfile) · null = ไม่มี
 export const TEE_MIN = 6;
 
-export function teeAnalysis(facts, { clubOf = () => null, goal = goalOf('90'), driver = null } = {}) {
+// เบี่ยงจากแนวแท่นที→กลางกรีนเกินนี้ถือว่า "ลูกเลี้ยวออกทิศ" (ไม่ใช่ลูกตรงที่ระยะไม่พอข้ามอุปสรรค)
+const CURVED_M = 20;
+
+export function teeAnalysis(facts, { clubOf = () => null, goal = goalOf('90'), driver = null, fmt = (m) => `${Math.round(m)} ม.` } = {}) {
   const tees = facts.filter((f) => f.par >= 4).map((f) => {
     const s = f.shots[0];
     const pen = f.pens.filter((p) => p.related_shot_id_optional === s.id).reduce((a, p) => a + (Number(p.strokes) || 0), 0);
     const trouble = pen > 0 || s.end_lie === 'other' || f.shots[1]?.shot_type === 'recovery';
-    return { s, pen, trouble, fir: f.fir, over: f.over, club: s.club_id ? clubOf(s.club_id) : null };
+    const p0 = shotPath(f.shots, f.pins?.tee ?? null, f.pens)[0];
+    const line = p0?.start && p0.end && f.pins?.green ? offLine(p0.start, f.pins.green, p0.end) : null;
+    const mapSide = line ? sideOf(line.off, true) : null;
+    const direction = s.direction ?? (mapSide === 'left' || mapSide === 'right' ? mapSide : null);
+    return { s, pen, trouble, fir: f.fir, over: f.over, club: s.club_id ? clubOf(s.club_id) : null, direction, off: line?.off ?? null, landed: !!landOf(s) };
   });
   const n = tees.length;
   const enough = n >= TEE_MIN;
@@ -428,14 +439,14 @@ export function teeAnalysis(facts, { clubOf = () => null, goal = goalOf('90'), d
   const penHoles = tees.filter((t) => t.pen > 0).length;
   const out = tees.filter((t) => t.trouble && !t.pen).length;
   const misses = tees.filter((t) => t.fir === false || t.trouble);
-  const dir = side(misses.map((t) => t.s), 'direction', 'left', 'right');
+  const dir = side(misses, 'direction', 'left', 'right');
   const fl = faults(tees.map((t) => t.s));
   const badContact = [...fl.m.values()].reduce((a, c) => a + c, 0);
   const spread = {
     n: known.length,
     fw: known.filter((t) => t.fir).length,
-    left: misses.filter((t) => t.s.direction === 'left').length,
-    right: misses.filter((t) => t.s.direction === 'right').length,
+    left: misses.filter((t) => t.direction === 'left').length,
+    right: misses.filter((t) => t.direction === 'right').length,
   };
   spread.unk = misses.length - spread.left - spread.right;
 
@@ -478,6 +489,12 @@ export function teeAnalysis(facts, { clubOf = () => null, goal = goalOf('90'), d
   const missSide = dir?.v ?? driver?.side ?? null;
   const problem = (gap != null && gap >= 0.5) || simBad;
 
+  const placed = tees.filter((t) => t.off != null);
+  const avgOff = placed.length >= 3 ? avg(placed.map((t) => Math.abs(t.off))) : null;
+  const penPlaced = tees.filter((t) => t.pen > 0 && t.landed && t.off != null);
+  const penStraight = penPlaced.filter((t) => Math.abs(t.off) < CURVED_M).length;
+  const penCurved = penPlaced.length - penStraight;
+
   const pct = (x) => `${Math.round(x)}%`;
   const th = (v) => (v === 'left' ? 'ซ้าย' : 'ขวา');
   const find = [];
@@ -486,6 +503,8 @@ export function teeAnalysis(facts, { clubOf = () => null, goal = goalOf('90'), d
   if (alt) find.push(`${alt.label} ลงแฟร์เวย์ ${pct(alt.fir)} (${alt.n} หลุม) ตรงกว่าไดรเวอร์`);
   if (dir?.v) find.push(`ทีออฟที่พลาดไปทาง${th(dir.v)} ${pctTxt(dir.rate)} (${dir.n} ครั้งที่ระบุทิศ)`);
   if (penHoles) find.push(`ทีออฟโดนลูกโทษ (OB/น้ำ) ${penHoles} หลุม = ${perRound(penStrokes).toFixed(1)} สโตรก/รอบ`);
+  if (penPlaced.length) find.push(`ทีออฟที่โดนลูกโทษ (จากจุดที่ปักบนแผนที่): ลูกตรงแต่ลงอุปสรรค (ระยะไม่พอข้าม/เลยไป) ${penStraight} · ลูกเลี้ยวออกทิศ ${penCurved}`);
+  if (avgOff != null) find.push(`จุดที่ทีออฟไปจบ ${placed.length} หลุม: เบี่ยงจากแนวไปกรีนเฉลี่ย ${fmt(avgOff)}`);
   if (out) find.push(`ทีออฟลงพื้นที่ยากจนต้องตีออก ${out} หลุม`);
   if (fl.m.size) find.push(`ทีออฟที่สัมผัสไม่ดี: ${fl.text}`);
   if (missCost != null && missCost > 0) find.push(`หลุมที่ทีออฟพลาดเสียมากกว่าหลุมที่ลงแฟร์เวย์เฉลี่ย ${missCost.toFixed(1)} สโตรก`);
@@ -502,7 +521,8 @@ export function teeAnalysis(facts, { clubOf = () => null, goal = goalOf('90'), d
   const hints = [];
   if (n && tees.filter((t) => !t.club).length > n * 0.3) hints.push('ระบุไม้ที่ใช้ทีออฟ เพื่อเทียบไดรเวอร์กับไม้อื่น');
   if (n && known.length < n * 0.7) hints.push('ระบุจุดจบของทีออฟ (แฟร์เวย์/รัฟ/บังเกอร์) ทุกหลุม');
-  if (misses.length >= 3 && spread.unk > misses.length / 2) hints.push('ทีออฟที่พลาดแฟร์เวย์ ระบุทิศ (ซ้าย/ขวา) ด้วย แอปจะบอกได้ว่าควรเล็งอย่างไร');
+  if (misses.length >= 3 && spread.unk > misses.length / 2) hints.push('ทีออฟที่พลาดแฟร์เวย์ ระบุทิศ (ซ้าย/ขวา) หรือปักจุดที่ลูกไปจบบนแผนที่ แอปจะบอกได้ว่าควรเล็งอย่างไร');
+  if (penHoles && penPlaced.length < penHoles) hints.push('ทีออฟที่ลงน้ำ/OB ปักจุดที่ลูกไปบนแผนที่ด้วย จะรู้ว่าพลาดเพราะระยะหรือเพราะลูกเลี้ยว');
 
   let sideCue = null;
   if (missSide) {
@@ -519,6 +539,9 @@ export function teeAnalysis(facts, { clubOf = () => null, goal = goalOf('90'), d
   if (alt && (drv.pen >= 2 || alt.fir - drv.fir >= 20)) {
     cue = { text: `หลุมแคบหรือมี OB/น้ำ ทีออฟด้วย ${alt.label} แทนไดรเวอร์`, why: `${alt.label} ลงแฟร์เวย์ ${pct(alt.fir)} · ไดรเวอร์ ${pct(drv.fir)}` };
     if (sideCue) cue2 = { ...sideCue, text: `หลุมที่ยังใช้ไดรเวอร์: ${sideCue.text.replace(/^ทีออฟ: /, '')}` };
+  } else if (penStraight >= 2 && penStraight >= penCurved) {
+    cue = { text: 'หลุมที่มีน้ำหรืออุปสรรคขวาง ดูระยะที่ต้องข้ามบนแผนที่ก่อนตี ถ้าไม่ถึงแน่ ๆ ให้วางลูกก่อนอุปสรรค', why: `ทีออฟลงอุปสรรคทั้งที่ลูกตรง ${penStraight} ครั้ง` };
+    if (sideCue) cue2 = sideCue;
   } else if (sideCue) {
     cue = sideCue;
   } else if (badContact >= 3) {
@@ -532,12 +555,12 @@ export function teeAnalysis(facts, { clubOf = () => null, goal = goalOf('90'), d
   const drills = [];
   if (missSide) drills.push('driver-curve');
   if (badContact >= 3 || (driver && ((driver.mishit ?? 0) >= 0.15 || (driver.sf != null && driver.sf < 1.38)))) drills.push('driver-strike');
-  if (alt || penHoles >= 2) drills.push('tee-club-test');
+  if (alt || penHoles >= 2 || penStraight >= 2) drills.push('tee-club-test');
   drills.push('tee-gate');
   if (driver) drills.splice(1, 0, 'sim-driver-window');
 
   return {
-    n, enough, fir, known: known.length, penHoles, penStrokes, penPerRound: perRound(penStrokes), out, dir, spread,
+    n, enough, fir, known: known.length, penHoles, penStrokes, penPerRound: perRound(penStrokes), out, dir, spread, placed: placed.length, avgOff, penStraight, penCurved,
     faults: fl, byResult, missCost, cost, byClub, drv, alt, driver, missSide, gap, problem, find, hints, cue, cue2, drills: [...new Set(drills)],
   };
 }
@@ -765,8 +788,7 @@ export function buildPlan(focus, goal, practice = [], sim = [], tee = null) {
 }
 
 // ---------- ระยะไม้จริงจาก GPS ----------
-// ระยะช็อต = จากจุดที่ตีช็อตนี้ ถึงจุดที่ตีช็อตถัดไป (จับ GPS ตอนจดช็อตขณะยืนอยู่ที่จุดตี)
-// ช็อตแรกของหลุมใช้หมุดแท่นทีแทนได้ถ้าไม่มี GPS
+// ระยะช็อต = จากจุดตีถึงจุดที่ลูกไปจบ (หมุดที่ปักบนแผนที่ หรือจุดตีช็อตถัดไปจาก GPS) ดู shotgeo.js
 // ไม้ที่ระยะกลางใกล้ระยะที่ต้องการที่สุด (ต้องมีข้อมูลอย่างน้อย 3 ครั้ง และต่างไม่เกิน 12% หรือ 12 ม.)
 export function suggestClub(meters, rows) {
   if (!Number.isFinite(meters) || meters <= 0) return null;
@@ -777,23 +799,6 @@ export function suggestClub(meters, rows) {
     if (diff <= Math.max(12, meters * 0.12) && (!best || diff < best.diff)) best = { ...r, diff };
   }
   return best;
-}
-
-export const GPS_MAX_ACC = 25;   // เมตร: ตำแหน่งคลาดเคลื่อนเกินนี้ไม่นำมาคิด
-
-export function shotDistances(shots, teePin = null) {
-  const list = shots.filter((s) => s.counted !== false).sort((a, b) => a.sequence - b.sequence);
-  const posOf = (s, i) => {
-    const g = s.gps;
-    if (g && Number.isFinite(g.lat) && Number.isFinite(g.lon) && (g.acc ?? 0) <= GPS_MAX_ACC) return g;
-    return i === 0 && teePin ? teePin : null;
-  };
-  const out = new Map();
-  for (let i = 0; i < list.length - 1; i++) {
-    const a = posOf(list[i], i), b = posOf(list[i + 1], i + 1);
-    if (a && b) out.set(list[i].id, distM(a, b));
-  }
-  return out;
 }
 
 // ควอนไทล์แบบเฉลี่ยระหว่างสองค่าที่ใกล้ที่สุด
@@ -810,8 +815,9 @@ export function clubDistances({ rounds, holesOf, shotsOf, penaltiesOf, clubOf, t
     for (const h of holesOf(r.id)) {
       const shots = shotsOf(h.id);
       if (shots.length < 2) continue;
-      const penalized = new Set(penaltiesOf(h.id).map((p) => p.related_shot_id_optional).filter(Boolean));
-      for (const [id, d] of shotDistances(shots, teeOf(r, h))) {
+      const pens = penaltiesOf(h.id);
+      const penalized = new Set(pens.map((p) => p.related_shot_id_optional).filter(Boolean));
+      for (const [id, d] of shotDistances(shots, teeOf(r, h), pens)) {
         const s = shots.find((x) => x.id === id);
         const club = clubOf(s.club_id);
         if (!club || club.category === 'putter' || !['tee', 'approach'].includes(s.shot_type)) continue;

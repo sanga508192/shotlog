@@ -739,6 +739,23 @@ a.map-card { display: flex; align-items: center; gap: 12px; text-decoration: non
 .mp-hz b { font-weight: 700; }
 .map-club { margin: 0; max-width: 520px; font-size: .84rem; text-align: center; color: #fff; background: rgba(15, 20, 18, .72); padding: 5px 10px; border-radius: 10px; }
 .map-club small { opacity: .75; }
+.map-club b.pen { color: #ffb4a6; }
+.map-warn { margin: 0; max-width: 520px; font-size: .8rem; text-align: center; color: #fff; background: rgba(29, 95, 209, .9); padding: 5px 10px; border-radius: 10px; }
+/* ช็อตบนแผนที่: เส้นช็อต หมุดเลขช็อต จุดทีออฟรอบก่อน และหมุดลูกที่ปัก */
+.tm-shot { stroke: #fff; stroke-width: 2; stroke-dasharray: 6 5; stroke-linecap: round; opacity: .9; }
+.mp-shot { position: absolute; left: -12px; top: -12px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: #13201a; color: #fff; border: 2px solid #fff; font-size: .74rem; font-weight: 800; box-shadow: 0 1px 4px rgba(0, 0, 0, .6); }
+.mp-shot.pen { background: #c0352b; }
+.mp-shot.start { background: #1d5fd1; }
+.mp-hist { position: absolute; left: -6px; top: -6px; width: 12px; height: 12px; border-radius: 50%; background: rgba(255, 255, 255, .85); border: 2px solid rgba(0, 0, 0, .55); }
+.mp-hist.pen { background: #ff5a47; }
+.mp-ball { position: absolute; left: -16px; top: -16px; width: 32px; height: 32px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff 0 45%, #dfe6e2 70%); border: 3px solid #ffe14d; box-shadow: 0 0 0 4px rgba(0, 0, 0, .35), 0 2px 8px rgba(0, 0, 0, .6); }
+.mp-ball::after { content: ""; position: absolute; inset: -14px; border-radius: 50%; }
+.land-pick { z-index: 60; }
+.land-pick .map-view { touch-action: none; }
+.lp-read { margin: 0; font-size: 1rem; font-weight: 700; text-align: center; color: #ffe14d; background: rgba(0, 0, 0, .55); padding: 6px 14px; border-radius: 999px; max-width: 100%; }
+.land-btn { text-align: left; }
+.land-btn small { display: block; font-weight: 400; font-size: .76rem; opacity: .75; }
+.land-btn.on { border-color: var(--brand-2); background: var(--brand-soft); }
 .map-steps.more { flex-wrap: wrap; justify-content: center; }
 .map-step.small { font-size: .78rem; padding: 5px 9px; min-height: 0; }
 .map-hz-list { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }

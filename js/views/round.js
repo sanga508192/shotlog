@@ -13,8 +13,10 @@ import { playersOf } from '../group.js';
 import { deleteRound } from './main.js';
 import { liveCardHtml, liveActions } from './live.js';
 import { watchPosition, lastPosition } from '../geo.js';
-import { courseHoles, distM, toUnit, unitTh, confirmedPoint } from '../holemap.js';
-import { shotDistances, GPS_MAX_ACC } from '../coach.js';
+import { courseHoles, distM, toUnit, unitTh, confirmedPoint, holeReady } from '../holemap.js';
+import { GPS_MAX_ACC } from '../coach.js';
+import { shotPath, landOf } from '../shotgeo.js';
+import { openLandPicker, landInfo, landText, sideTh } from './landpick.js';
 
 // ---------- สถานะฟอร์มจดช็อต (อยู่ข้ามการ render) ----------
 
@@ -68,13 +70,14 @@ function assessBadge(a) {
 function shotCard(s, editingId, gpsM = null, unit = 'm') {
   const c = st.club(s.club_id);
   const { bits, lie, dist } = shotSummary(s);
-  // พัตไม่แสดงระยะ GPS (คลาดเคลื่อนหลายเมตร มากกว่าระยะพัต)
-  const gpsTxt = s.shot_type === 'putt' ? '' : gpsM != null ? `📍 ${Math.round(toUnit(gpsM, unit))} ${unitTh(unit)}` : s.gps ? '📍' : '';
+  // พัตไม่แสดงระยะ GPS (คลาดเคลื่อนหลายเมตร มากกว่าระยะพัต) · 📌 = ปักจุดที่ลูกไปจบบนแผนที่
+  const pin = landOf(s) ? '📌' : '📍';
+  const gpsTxt = s.shot_type === 'putt' ? '' : gpsM != null ? `${pin} ${Math.round(toUnit(gpsM, unit))} ${unitTh(unit)}` : s.gps || s.land ? pin : '';
   return `<div class="shot${s.id === editingId ? ' editing' : ''}${s.counted === false ? ' void' : ''}">
     <button type="button" class="shot-main" data-act="edit" data-id="${s.id}">
       <span class="seq">${s.sequence}</span>
       <span class="shot-body">
-        <span><strong>${esc(c?.label ?? 'ไม่ระบุไม้')}</strong> · ${esc(label(SHOT_TYPES, s.shot_type))} ${assessBadge(s.assessment)}${gpsTxt ? ` <span class="gps-dist" title="ระยะช็อตจาก GPS">${gpsTxt}</span>` : ''}
+        <span><strong>${esc(c?.label ?? 'ไม่ระบุไม้')}</strong> · ${esc(label(SHOT_TYPES, s.shot_type))} ${assessBadge(s.assessment)}${gpsTxt ? ` <span class="gps-dist" title="ระยะช็อตจาก GPS หรือจุดที่ปักบนแผนที่">${gpsTxt}</span>` : ''}
           ${s.holed ? '<span class="badge good">ลงหลุม</span>' : ''}${s.counted === false ? '<span class="badge none">ไม่นับ</span>' : ''}</span>
         ${bits.length ? `<span class="small">${esc(bits.join(' · '))}</span>` : ''}
         ${lie || dist || s.raw_distance_text ? `<span class="small muted">${esc([lie, dist, s.raw_distance_text].filter(Boolean).join(' · '))}</span>` : ''}
@@ -93,7 +96,14 @@ function numInput(field, ph) {
   return `<input class="input" type="number" inputmode="decimal" step="any" min="0" placeholder="${ph}" value="${v ?? ''}" data-input="num" data-field="${field}">`;
 }
 
-function shotForm(bag, phrases, gpsOn = false) {
+// land = { can, text } ปุ่มปักจุดที่ลูกไปจบ (null = สนามนี้ยังไม่มีแผนที่)
+function landButton(land) {
+  if (!land || F.shot_type === 'putt') return '';
+  if (!land.can) return `<a class="btn block land-btn" href="${land.setup}">📍 วางหมุดแท่นทีและกรีนหลุมนี้ก่อน เพื่อปักจุดที่ลูกไปจบ</a>`;
+  return `<button type="button" class="btn block land-btn${F.land ? ' on' : ''}" data-act="land">📍 ${F.land ? `จุดที่ลูกไปจบ: ${esc(land.text || 'ปักแล้ว')} <small>แตะเพื่อแก้</small>` : 'ปักจุดที่ลูกไปจบบนแผนที่ <small>ลงน้ำ OB ลูกหาย หรืออยากรู้ระยะ</small>'}</button>`;
+}
+
+function shotForm(bag, phrases, gpsOn = false, land = null) {
   const showSymptoms = F.assessment === 'needs_work' || details;
   const title = mode === 'edit' ? `แก้ไขช็อตที่ ${F.sequence}` : mode === 'insert' ? `แทรกช็อตที่ ${F.sequence}` : `ช็อตที่ ${F.sequence}`;
   const clubOpts = bag.map((c) => ({ v: c.id, th: c.label }));
@@ -114,6 +124,7 @@ function shotForm(bag, phrases, gpsOn = false) {
       <div class="lbl">ระยะเทียบเป้า</div>${chips('set', 'distance_result', DISTANCE_RESULTS, F.distance_result)}
       <div class="lbl">ผลเทียบเป้าหมาย</div>${chips('set', 'target_result', TARGET_RESULTS, F.target_result)}
     </div>` : ''}
+    ${landButton(land)}
     <button type="button" class="linklike" data-act="details">${details ? '▴ ซ่อนรายละเอียด' : '▾ รายละเอียดเพิ่ม (ระยะ จุดเริ่ม/จบ ข้อความ)'}</button>
     ${details ? `<div class="details">
       <div class="lbl">จุดเริ่มต้น</div>${chips('set', 'start_lie', START_LIES, F.start_lie)}
@@ -136,11 +147,17 @@ function shotForm(bag, phrases, gpsOn = false) {
   </section>`;
 }
 
-function penaltySection(hole, shots) {
+const LAND_REASONS = ['ob_lost', 'penalty_area', 'unplayable'];
+
+function penaltySection(hole, shots, canLand = false) {
   const list = st.penaltiesOf(hole.id);
-  const rows = list.map((p) => `<div class="pen">
-      <span>+${p.strokes} ปรับ · ${esc(label(PENALTY_REASONS, p.reason))}${p.related_shot_id_optional ? ` · หลังช็อต ${shots.find((s) => s.id === p.related_shot_id_optional)?.sequence ?? '?'}` : ''}${p.note ? ` · ${esc(p.note)}` : ''}</span>
-      <button type="button" class="mini danger" data-act="penDel" data-id="${p.id}">ลบ</button></div>`).join('');
+  const rows = list.map((p) => {
+    const s = shots.find((x) => x.id === p.related_shot_id_optional);
+    const ask = canLand && s && !landOf(s) && LAND_REASONS.includes(p.reason);
+    return `<div class="pen">
+      <span>+${p.strokes} ปรับ · ${esc(label(PENALTY_REASONS, p.reason))}${p.related_shot_id_optional ? ` · หลังช็อต ${s?.sequence ?? '?'}${s && landOf(s) ? ' 📌' : ''}` : ''}${p.note ? ` · ${esc(p.note)}` : ''}</span>
+      <span class="row gap">${ask ? `<button type="button" class="mini" data-act="penLand" data-shot="${s.id}">📍 ปักจุดที่ลูกไป</button>` : ''}<button type="button" class="mini danger" data-act="penDel" data-id="${p.id}">ลบ</button></span></div>`;
+  }).join('');
   if (!pen) return `${rows}<button type="button" class="btn block" data-act="penOpen">＋ สโตรกปรับ</button>`;
   return `${rows}<div class="card">
     <h3>เพิ่มสโตรกปรับ</h3>
@@ -176,8 +193,33 @@ export function holeView([roundId, numStr], ctx) {
   const group = isGroupRound(round);
   const gpsOn = logShots && st.setting('gps_shots', false);
   const pins = round.course_id ? courseHoles(round.course_id)[num] : null;
-  const gpsDist = logShots ? shotDistances(shots, pins?.tee ?? null) : new Map();
   const unit = round.distance_unit === 'yd' ? 'yd' : 'm';
+  // ระยะช็อตที่บันทึกถาวรใช้หมุดแท่นทีที่ยืนยันแล้วเท่านั้น (หมุดประมาณอาจผิดตำแหน่ง)
+  const path = logShots ? shotPath(shots, confirmedPoint(pins, 'tee'), penalties) : [];
+  const gpsDist = new Map(path.filter((x) => x.dist != null).map((x) => [x.shot.id, x.dist]));
+  const canLand = !!round.course_id && holeReady(pins);
+  const teeShotOf = (seq) => seq === 1 && (hole.par ?? 4) >= 4;
+  // จุดตีของช็อตที่กำลังจด: แก้ไข = จากเส้นทางเดิม · ใหม่ = GPS ตอนนี้ (ถ้าเปิด) / แท่นที / จุดที่ลูกช็อตก่อนไปจบ
+  function draftStart() {
+    const teePt = pins?.tee ?? null;   // แสดงผลอย่างเดียว ใช้หมุดประมาณได้
+    const view = shotPath(shots, teePt, penalties);
+    if (mode === 'edit') return view.find((x) => x.shot.id === F.id)?.start ?? null;
+    if (gpsOn) { const pos = lastPosition(20000); if (pos && pos.accuracy <= GPS_MAX_ACC) return { lat: pos.lat, lon: pos.lon }; }
+    if (F.sequence === 1) return teePt;
+    const prev = view.filter((x) => x.shot.sequence < F.sequence).at(-1);
+    return prev && !prev.penalized ? landOf(prev.shot) : null;
+  }
+  const landSetup = round.course_id ? `#/map/${encodeURIComponent(round.course_id)}/${num}?r=${encodeURIComponent(roundId)}&edit=1` : null;
+  const landBtn = !logShots || !round.course_id ? null
+    : { can: canLand, setup: landSetup, text: F.land ? landText(landInfo(draftStart(), F.land, pins?.green, teeShotOf(F.sequence)), unit) : '' };
+  // จุดของช็อตอื่นในหลุม (ให้เห็นบริบทบนแผนที่)
+  const othersFor = (exceptId) => path.filter((x) => x.shot.id !== exceptId).flatMap((x) => [
+    x.start && x.shot.sequence > 1 ? { seq: x.shot.sequence, kind: 's', at: x.start, pen: false } : null,
+    landOf(x.shot) ? { seq: x.shot.sequence, kind: 'e', at: landOf(x.shot), pen: x.penalized } : null,
+  ]).filter(Boolean);
+  function pickLand({ seq, start, value, exceptId, onSave }) {
+    openLandPicker({ pins, n: num, seq, start, value, others: othersFor(exceptId), unit, teeShot: teeShotOf(seq), onSave });
+  }
 
   const html = `${header(`หลุม ${num} / ${holes.length}`, {
     back: `#/round/${roundId}/card`,
@@ -201,9 +243,9 @@ export function holeView([roundId, numStr], ctx) {
     ${group ? groupEntryHtml(round, hole) : ''}
 
     ${logShots ? `<div class="shots">${shots.length ? shots.map((s) => shotCard(s, mode === 'edit' ? F.id : null, gpsDist.get(s.id) ?? null, unit)).join('') : '<p class="muted center">ยังไม่มีช็อต</p>'}</div>
-    ${penaltySection(hole, shots)}
+    ${penaltySection(hole, shots, canLand)}
 
-    ${shotForm(bag, phrases, gpsOn)}
+    ${shotForm(bag, phrases, gpsOn, landBtn)}
 
     <section class="card">
       <h3>จบหลุม</h3>
@@ -262,6 +304,44 @@ export function holeView([roundId, numStr], ctx) {
         refresh();
       },
       details: () => { details = !details; refresh(); },
+      // ปักจุดที่ลูกไปจบ: เติมทิศให้ถ้ายังไม่ได้เลือก (ต้องรู้จุดตีจริงและกรีนที่ยืนยันแล้ว)
+      land: () => {
+        const start = draftStart();
+        const draftId = F.id;
+        pickLand({
+          seq: F.sequence, start, value: F.land, exceptId: F.id,
+          onSave: (p) => {
+            if (!F || F.id !== draftId) return;
+            F.land = p ? { ...p, at: st.nowIso() } : null;
+            let msg = p ? 'ปักจุดแล้ว — กดบันทึกช็อตเพื่อเก็บ' : 'ลบจุดแล้ว';
+            const green = confirmedPoint(pins, 'green');
+            // จุดตีที่เป็นหมุดแท่นทีประมาณ ไม่ใช้เติมข้อมูลที่บันทึกถาวร
+            const estTee = start && pins?.tee && !confirmedPoint(pins, 'tee') && start.lat === pins.tee.lat && start.lon === pins.tee.lon;
+            if (p && green && start && !estTee && F.direction == null) {
+              const side = landInfo(start, p, green, teeShotOf(F.sequence))?.side;
+              if (side === 'left' || side === 'right') {
+                F.direction = side;
+                msg = `ปักจุดแล้ว · ตั้งทิศเป็น${sideTh(side)}ให้ (แก้ได้) — กดบันทึกช็อตเพื่อเก็บ`;
+              }
+            }
+            refresh();
+            toast(msg);
+          },
+        });
+      },
+      penLand: (el) => {
+        const s = st.S.shots.get(el.dataset.shot);
+        if (!s) return;
+        const x = shotPath(st.shotsOf(hole.id), pins?.tee ?? null, st.penaltiesOf(hole.id)).find((y) => y.shot.id === s.id);
+        pickLand({
+          seq: s.sequence, start: x?.start ?? null, value: s.land, exceptId: s.id,
+          onSave: async (p) => {
+            await st.patch('shots', s.id, { land: p ? { ...p, at: st.nowIso() } : null });
+            refresh();
+            toast(p ? `ปักจุดที่ลูกช็อต ${s.sequence} ไปแล้ว` : 'ลบจุดแล้ว');
+          },
+        });
+      },
       num: (el) => {
         const raw = el.value.trim();
         const n = raw === '' ? null : Number(raw);
@@ -414,10 +494,16 @@ export function holeView([roundId, numStr], ctx) {
       penSave: async (el) => {
         if (el.disabled) return;
         el.disabled = true;
-        await st.put('penalties', { ...pen, hole_id: hole.id, round_id: roundId, note: pen.note.trim(), created_at: st.nowIso() });
+        const saved = { ...pen, hole_id: hole.id, round_id: roundId, note: pen.note.trim(), created_at: st.nowIso() };
+        await st.put('penalties', saved);
         pen = null;
         refresh();
-        toast('บันทึกสโตรกปรับแล้ว');
+        const s = saved.related_shot_id_optional ? st.S.shots.get(saved.related_shot_id_optional) : null;
+        if (canLand && s && !landOf(s) && LAND_REASONS.includes(saved.reason)) {
+          toast('บันทึกสโตรกปรับแล้ว · ปักจุดที่ลูกไปบนแผนที่ด้วย จะรู้ว่าพลาดเพราะระยะหรือเพราะทิศ', {
+            label: '📍 ปักจุด', run: () => document.querySelector(`[data-act="penLand"][data-shot="${s.id}"]`)?.click(),
+          });
+        } else toast('บันทึกสโตรกปรับแล้ว');
       },
       penDel: async (el) => {
         const p = st.S.penalties.get(el.dataset.id);

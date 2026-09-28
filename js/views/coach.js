@@ -21,10 +21,18 @@ export function simData() {
 // ใช้ทั้งหน้าโค้ช หน้าแรก และหน้าเริ่มรอบ: แผนซ้อมและโฟกัสรอบหน้ารวมผลจากเครื่องซ้อมด้วย
 export function coachData(goalV = st.setting('coach_goal', null)) {
   const sim = simData();
+  // หมุดหลุมที่ยืนยันแล้ว (ต่อสนาม คำนวณครั้งเดียว) ใช้หาทิศและจุดที่ทีออฟไปจบ
+  const byCourse = new Map();
+  const pinsOf = (r, h) => {
+    if (!r.course_id) return null;
+    if (!byCourse.has(r.course_id)) byCourse.set(r.course_id, courseHoles(r.course_id));
+    const p = byCourse.get(r.course_id)[h.number];
+    return p ? { tee: confirmedPoint(p, 'tee'), green: confirmedPoint(p, 'green') } : null;
+  };
   const a = analyzeGame({
     rounds: st.rounds(), holesOf: st.holesOf, shotsOf: st.shotsOf, penaltiesOf: st.penaltiesOf,
     clubLabel: (id) => st.club(id)?.label ?? null, clubOf: st.club, practice: [...st.S.practice.values()],
-    simIssues: sim && !sim.stale ? sim.issues : [], simDriver: sim && !sim.stale ? sim.driver : null,
+    simIssues: sim && !sim.stale ? sim.issues : [], simDriver: sim && !sim.stale ? sim.driver : null, pinsOf, fmt: distFmt(),
   }, goalV);
   return { ...a, sim };
 }
@@ -110,6 +118,8 @@ export function teeHtml(t, goal, sim) {
       ${sp.n ? `<div class="tee-spread" role="img" aria-label="ทีออฟ ${sp.n} หลุม: ซ้าย ${sp.left} แฟร์เวย์ ${sp.fw} ขวา ${sp.right} ไม่ระบุทิศ ${sp.unk}">
         <span class="l" style="width:${w(sp.left)}">${sp.left ? `ซ้าย ${sp.left}` : ''}</span><span class="f" style="width:${w(sp.fw)}">${sp.fw ? `แฟร์เวย์ ${sp.fw}` : ''}</span><span class="r" style="width:${w(sp.right)}">${sp.right ? `ขวา ${sp.right}` : ''}</span><span class="u" style="width:${w(sp.unk)}">${sp.unk ? `? ${sp.unk}` : ''}</span>
       </div><p class="note">ผลทีออฟ ${sp.n} หลุมพาร์ 4–5${sp.unk ? ' · "?" = พลาดแฟร์เวย์แต่ไม่ได้ระบุทิศ' : ''}</p>` : ''}
+      ${t.placed >= 3 ? `<p class="small">จุดที่ทีออฟไปจบ ${t.placed} หลุม (ปักบนแผนที่หรือ GPS) เบี่ยงจากแนวไปกรีนเฉลี่ย <b>${esc(fmt(t.avgOff))}</b></p>` : ''}
+      ${t.penStraight + t.penCurved ? `<p class="small">ทีออฟที่โดนลูกโทษ: ลูกตรงแต่ลงอุปสรรค (ระยะไม่พอข้าม/เลยไป) <b>${t.penStraight}</b> · ลูกเลี้ยวออกทิศ <b>${t.penCurved}</b></p>` : ''}
       ${res ? `<div class="tee-res"><b>สกอร์เฉลี่ยเทียบพาร์ต่อหลุม เมื่อทีออฟ…</b><div>${res}</div>
         ${t.cost != null && t.cost >= 0.3 ? `<p class="small">ทีออฟที่พลาดทำให้เสียราว <b>${f1(t.cost)}</b> สโตรก/รอบ เทียบกับหลุมที่ลงแฟร์เวย์</p>` : ''}</div>` : ''}
       ${clubs.length > 1 || (clubs.length && clubs[0].id) ? `<div class="dist-cmp"><b>แยกตามไม้ทีออฟ</b>

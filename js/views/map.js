@@ -13,6 +13,7 @@ import { logError } from '../errors.js';
 import { watchPosition, lastPosition, getPosition } from '../geo.js';
 import { clubDistances, suggestClub, GPS_MAX_ACC } from '../coach.js';
 import { launchCarryRows } from '../launch.js';
+import { shotPath, offLine } from '../shotgeo.js';
 
 // สถานะที่อยู่ข้ามการเปลี่ยนหลุม (ของสนามที่เปิดอยู่)
 // edit = กดแก้หมุดเอง (อยู่จนกดเสร็จ) · editHole = หลุมที่กำลังวางหมุดใหม่ (อยู่โหมดวางจนออกจากหลุมนั้น)
@@ -35,7 +36,7 @@ function clubRows() {
   return [...gps, ...sim];
 }
 
-const pinHtml = {
+export const pinHtml = {
   tee: '<span class="mp mp-tee" aria-label="แท่นที"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11M9 14h6l-1 3h-4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="3.5" r="2.5" fill="currentColor"/></svg></span>',
   green: '<span class="mp mp-green" aria-label="กรีน"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 20V4l9 4-9 4" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><ellipse cx="8" cy="20.5" rx="5" ry="1.5" fill="currentColor"/></svg></span>',
   target: '<span class="mp-target" aria-label="จุดเป้า"></span>',
@@ -128,6 +129,11 @@ export function mapView([courseId, numStr, query], ctx) {
       pins.push({ id: 'me', at: gps, html: pinHtml.me, cls: 'pin-me' });
     }
     if (holeReady(h) && !ed) {
+      teeHistory().pts.forEach((p, i) => pins.push({ id: `hist${i}`, at: p.at, html: `<span class="mp-hist${p.pen ? ' pen' : ''}"></span>`, cls: 'pin-hist' }));
+      for (const x of trail()) {
+        if (x.start && x.end) lines.push({ a: x.start, b: x.end, cls: 'tm-shot' });
+        if (x.end) pins.push({ id: `shot${x.shot.id}`, at: x.end, html: `<span class="mp-shot${x.penalized ? ' pen' : ''}">${x.shot.sequence}</span>`, cls: 'pin-shot' });
+      }
       const s = start();
       const t = target();
       const label = (a, b) => `${fmtDist(distM(a, b), u)}`;
@@ -185,6 +191,53 @@ export function mapView([courseId, numStr, query], ctx) {
     return `📍 ถึงกลางกรีน <b>${fmtDist(d, u)}</b> ${unitTh(u)} <small>${acc}</small>`;
   }
 
+  // ช็อตของรอบนี้ในหลุมนี้ (ไม่รวมพัต) · หมุดประมาณใช้แสดงผลได้
+  // คำนวณครั้งเดียวต่อการเปิดหลุม (overlay วาดใหม่ทุกครั้งที่เลื่อนแผนที่)
+  let trailCache = null;
+  let histCache = null;
+  const trail = () => (trailCache ??= calcTrail());
+  const teeHistory = () => (histCache ??= calcHistory());
+  function calcTrail() {
+    const rh = roundHoles.find((x) => x.number === n);
+    if (!rh) return [];
+    return shotPath(st.shotsOf(rh.id), H().tee, st.penaltiesOf(rh.id)).filter((x) => x.shot.shot_type !== 'putt');
+  }
+
+  // ทีออฟหลุมนี้จากรอบก่อน ๆ ในสนามเดียวกัน: จำนวน ลูกโทษ และจุดที่ลูกไปจบ (ถ้ารู้)
+  function calcHistory() {
+    const out = { n: 0, pen: 0, pts: [] };
+    for (const r of st.rounds()) {
+      if (r.course_id !== courseId || r.id === round?.id || r.shot_logging === false) continue;
+      const rh = st.holesOf(r.id).find((x) => x.number === n);
+      const first = rh ? shotPath(st.shotsOf(rh.id), H().tee, st.penaltiesOf(rh.id))[0] : null;
+      if (!first || first.shot.sequence !== 1) continue;
+      out.n++;
+      if (first.penalized) out.pen++;
+      if (first.end) out.pts.push({ at: first.end, pen: first.penalized });
+    }
+    out.pts = out.pts.slice(-30);
+    return out;
+  }
+
+  // น้ำที่อยู่ในช่วงระยะไดรเวอร์ของผู้เล่น (วัดจากแท่นที ตามหมุดน้ำที่วางไว้)
+  function hazardNote() {
+    const h = H();
+    if (!holeReady(h) || !driver?.p25 || !driver?.p75 || start().me) return '';
+    const u = unit();
+    const risky = (h.hazards || []).filter((z) => z.kind === 'water')
+      .map((z) => ({ d: distM(h.tee, z), line: offLine(h.tee, h.green, z) }))
+      .filter((x) => x.line && x.line.along > 0 && x.d >= driver.p25 - 15 && x.d <= driver.p75 + 15)
+      .sort((a, b) => a.d - b.d);
+    if (!risky.length) return '';
+    return `<p class="map-warn">💧 น้ำที่ ${fmtDist(risky[0].d, u)} ${unitTh(u)} อยู่ในช่วงระยะ ${esc(driver.label)} ของคุณ (${fmtDist(driver.p25, u)}–${fmtDist(driver.p75, u)}) เลือกไม้ให้ไม่ถึงหรือข้ามได้แน่นอน</p>`;
+  }
+
+  function historyNote() {
+    const t = teeHistory();
+    if (!t.n) return '';
+    return `<p class="map-club">ทีออฟหลุมนี้ที่ผ่านมา ${t.n} ครั้ง${t.pen ? ` · ลูกโทษ <b class="pen">${t.pen}</b>` : ''}${t.pts.length ? ' · จุดขาว = ลูกไปจบ (แดง = โดนลูกโทษ)' : ''}</p>`;
+  }
+
   function title() {
     const h = H();
     const u = unit();
@@ -226,6 +279,8 @@ export function mapView([courseId, numStr, query], ctx) {
         </div>
         ${estNote()}
         <div id="map-club">${clubNote()}</div>
+        ${hazardNote()}
+        ${historyNote()}
         <p class="map-hint">${s?.me ? 'วัดจากตำแหน่งของคุณ' : 'วัดจากแท่นที'} · แตะแผนที่หรือลากจุดเหลืองเพื่อดูระยะ</p>
         <div class="map-tools">
           <button type="button" class="map-pill" data-act="recenter">⤢ ทั้งหลุม</button>
