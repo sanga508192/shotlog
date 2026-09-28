@@ -77,25 +77,30 @@ export function launchView(_p, ctx) {
     const counts = new Map();
     for (const r of parsed.rows) {
       const raw = rawClub(r, parsed.cols);
-      if (!counts.has(raw)) counts.set(raw, []);
-      const c = num(r[parsed.cols.carry]);
-      if (c != null) counts.get(raw).push(c);
+      if (!counts.has(raw)) counts.set(raw, { n: 0, carry: [] });
+      const x = counts.get(raw);
+      x.n++;
+      const c = parsed.cols.carry == null ? null : num(r[parsed.cols.carry]);
+      if (c > 0) x.carry.push(c);
     }
     const unitTxt = DIST_UNITS.find((u) => u.v === units.dist)?.th;
     const med = (a) => { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
     const bag = st.bagClubs().filter((c) => c.category !== 'putter');
     const found = METRICS.filter((m) => !m.text && parsed.cols[m.k] != null && parsed.rows.some((r) => num(r[parsed.cols[m.k]]) != null));
-    const kept = [...counts.entries()].filter(([raw]) => clubMap[raw] !== '').reduce((a, [, v]) => a + v.length, 0);
+    const kept = [...counts.entries()].filter(([raw]) => clubMap[raw] !== '').reduce((a, [, v]) => a + v.n, 0);
     return `<div class="card lm-imp">
       <div class="row between"><b>ตรวจข้อมูลก่อนบันทึก</b><span class="small muted">${esc(file)}</span></div>
+      ${parsed.noCarry || parsed.dupes ? `<p class="note">${[parsed.noCarry ? `${parsed.noCarry} ช็อตไม่มีระยะลอย (เครื่องวัดไม่ได้) ใช้วิเคราะห์วงสวิงแต่ไม่นับในระยะ` : '', parsed.dupes ? `ข้าม ${parsed.dupes} ช็อตที่ซ้ำกันในไฟล์` : ''].filter(Boolean).join(' · ')}</p>` : ''}
       ${parsed.byPosition ? '<p class="card warn small">อ่านชื่อคอลัมน์ในไฟล์ไม่ออก (อาจเป็นภาษาที่แอปยังไม่รู้จัก) จึงจับคู่ตามลำดับคอลัมน์มาตรฐานของ Garmin ตรวจระยะลอยด้านล่างว่าสมเหตุสมผลก่อนบันทึก</p>' : ''}
       <label>วันที่ซ้อม<input class="input" type="date" value="${esc(IMP.date)}" data-change="impDate"></label>
+      ${IMP.fileDate && IMP.fileDate !== IMP.date ? `<p class="card warn small">วันที่ในไฟล์ (${esc(fmtDate(parsed.date || ''))}) ไม่ตรงกับวันที่ในชื่อไฟล์ (${esc(fmtDate(IMP.fileDate))}) — ชื่อไฟล์อาจเป็นวันที่ส่งออก ตรวจว่าซ้อมวันไหน
+        <button type="button" class="mini" data-act="impFileDate">ใช้ ${esc(fmtDate(IMP.fileDate))}</button></p>` : ''}
       <div class="lbl">หน่วยในไฟล์ <span class="small muted">(ตามที่ตั้งในแอป Garmin Golf${units.fromFile ? ' · อ่านจากไฟล์' : ' · เดาจากตัวเลข ตรวจอีกครั้ง'})</span></div>
       <div class="chips">${DIST_UNITS.map((u) => `<button type="button" class="chip${units.dist === u.v ? ' on' : ''}" data-act="impDist" data-v="${u.v}">${u.th}</button>`).join('')}
         ${SPEED_UNITS.map((u) => `<button type="button" class="chip${units.speed === u.v ? ' on' : ''}" data-act="impSpeed" data-v="${u.v}">${u.th}</button>`).join('')}</div>
       <div class="lbl">ไม้ในไฟล์ → ไม้ในกระเป๋า</div>
       <table class="lm-map"><thead><tr><th>ในไฟล์</th><th>ลูก</th><th>ระยะลอยกลาง</th><th>ไม้ของฉัน</th></tr></thead><tbody>
-        ${[...counts.entries()].map(([raw, v]) => `<tr><td>${esc(raw)}</td><td>${v.length}</td><td>${med(v) == null ? '–' : `${Math.round(med(v))} ${unitTxt}`}</td>
+        ${[...counts.entries()].map(([raw, v]) => `<tr><td>${esc(raw)}</td><td>${v.n}</td><td>${med(v.carry) == null ? '–' : `${Math.round(med(v.carry))} ${unitTxt}`}</td>
           <td><select class="input" data-change="impClub" data-raw="${esc(raw)}">
             <option value="-"${clubMap[raw] == null ? ' selected' : ''}>ยังไม่ผูก (นำเข้าตามชื่อในไฟล์)</option>
             ${bag.map((c) => `<option value="${c.id}"${clubMap[raw] === c.id ? ' selected' : ''}>${esc(c.label)}</option>`).join('')}
@@ -110,15 +115,16 @@ export function launchView(_p, ctx) {
 
   // ---------- ผลวิเคราะห์ ----------
   function clubRows() {
-    const shown = stats.filter((s) => s.carry != null);
+    const shown = stats;
     if (!shown.length) return '';
-    const top = Math.max(...shown.map((s) => s.p75 ?? s.carry)) * 1.06;
+    const top = Math.max(1, ...shown.filter((s) => s.carry != null).map((s) => s.p75 ?? s.carry)) * 1.06;
     const pct = (m) => `${((m / top) * 100).toFixed(1)}%`;
     return `<div class="card club-dist lm-clubs">
-      ${shown.map((s) => `<div class="cd-row${s.good < 3 ? ' few' : ''}">
+      ${shown.map((s) => `<div class="cd-row${s.nCarry < 3 ? ' few' : ''}">
         <b class="cd-club">${esc(s.label)}${s.clubId ? '' : ' <small class="muted">(ไม่ได้ผูก)</small>'}</b>
-        <div class="cd-bar" aria-hidden="true"><span style="left:${pct(s.p25 ?? s.carry)};width:${pct(Math.max((s.p75 ?? s.carry) - (s.p25 ?? s.carry), top * 0.01))}"></span><i style="left:${pct(s.carry)}"></i></div>
-        <span class="cd-num"><b>${dist(s.carry)}</b> <small>${dist(s.p25)}–${dist(s.p75)} · ${s.good}/${s.n} ลูก</small></span>
+        ${s.carry != null ? `<div class="cd-bar" aria-hidden="true"><span style="left:${pct(s.p25 ?? s.carry)};width:${pct(Math.max((s.p75 ?? s.carry) - (s.p25 ?? s.carry), top * 0.01))}"></span><i style="left:${pct(s.carry)}"></i></div>
+        <span class="cd-num"><b>${dist(s.carry)}</b> <small>${dist(s.p25)}–${dist(s.p75)} · ${s.nCarry}${s.nCarry < s.n ? `/${s.n}` : ''} ลูก</small></span>`
+    : `<div></div><span class="cd-num"><small>ไม่มีระยะลอย · ${s.n} ลูก</small></span>`}
         <div class="lm-sub">${[
     s.total != null ? `รวม ${dist(s.total)}` : '',
     s.side != null ? `เบี่ยง${s.side > 0 ? 'ขวา' : 'ซ้าย'} ${dist(Math.abs(s.side))}` : '',
@@ -128,17 +134,17 @@ export function launchView(_p, ctx) {
     s.mishit >= 0.15 ? `<span class="bad">พลาด ${Math.round(s.mishit * 100)}%</span>` : '',
   ].filter(Boolean).join(' · ')}</div>
       </div>`).join('')}
-      <p class="note">ระยะลอย (${unitTh(du)}) ค่ากลางและช่วงปกติ (25–75%) ไม่นับช็อตพลาด · ความเร็ว ${esc(SPEED_UNITS.find((u) => u.v === su)?.th)} · F2P = หน้าไม้เทียบแนวสวิง (บวก = ลูกโค้งขวา)</p>
+      <p class="note">ระยะลอย (${unitTh(du)}) ค่ากลางและช่วงปกติ (25–75%) ไม่นับช็อตพลาด · “12/20 ลูก” = มีระยะลอย 12 จาก 20 ลูก · ความเร็ว ${esc(SPEED_UNITS.find((u) => u.v === su)?.th)} · F2P = หน้าไม้เทียบแนวสวิง (บวก = ลูกโค้งขวา)</p>
     </div>`;
   }
 
-  const plotClubs = stats.filter((s) => s.good >= 5 && s.carry != null);
+  const plotClubs = stats.filter((s) => s.nCarry >= 5 && s.carry != null);
   const selKey = plotClubs.some((s) => s.key === st.setting('launch_club', null)) ? st.setting('launch_club', null) : plotClubs[0]?.key;
   const sel = plotClubs.find((s) => s.key === selKey);
 
   function scatter() {
     if (!sel) return '';
-    const pts = shots.filter((s) => (s.clubId && clubOf(s.clubId) ? s.clubId : `raw:${s.raw}`) === sel.key && s.cdev != null);
+    const pts = shots.filter((s) => (s.clubId && clubOf(s.clubId) ? s.clubId : `raw:${s.raw}`) === sel.key && s.cdev != null && s.carry != null);
     if (pts.length < 3) return '';
     const W = 320, H = 220, pad = 26;
     const maxSide = Math.max(10, ...pts.map((p) => Math.abs(p.cdev))) * 1.1;
@@ -170,7 +176,7 @@ export function launchView(_p, ctx) {
     <ol><li>เปิดแอป Garmin Golf → เมนู <b>เพิ่มเติม (More)</b> → <b>Golf Sim sessions</b> (เซสชันเครื่องซ้อม)</li>
       <li>เลือกเซสชันที่ต้องการ → แตะไอคอน<b>แชร์/ส่งออก</b>ข้างจำนวนช็อต</li>
       <li>เลือก <b>บันทึกลงไฟล์ (Save to Files)</b> หรือส่งเข้าอีเมล/LINE ของตัวเอง แล้วกลับมากด “นำเข้าไฟล์” ที่นี่</li></ol>
-    <p class="note">รองรับไฟล์ CSV ภาษาอังกฤษ เยอรมัน สเปน ดัตช์ ภาษาอื่นแอปจับคู่ตามลำดับคอลัมน์ของ Garmin ให้ตรวจก่อนบันทึก · ไฟล์อ่านในเครื่องเท่านั้น</p>
+    <p class="note">รองรับไฟล์ CSV ภาษาไทย อังกฤษ เยอรมัน สเปน ดัตช์ ภาษาอื่นแอปจับคู่ตามลำดับคอลัมน์ของ Garmin ให้ตรวจก่อนบันทึก · ไฟล์อ่านในเครื่องเท่านั้น</p>
   </details>`;
 
   return {
@@ -227,10 +233,12 @@ export function launchView(_p, ctx) {
           const raw = rawClub(r, parsed.cols);
           if (!(raw in clubMap)) clubMap[raw] = guessClub(raw, bag);
         }
-        IMP = { file: f.name, parsed, units: { ...parsed.units }, clubMap, date: parsed.date || st.todayLocal() };
+        const fileDate = f.name.match(/(20\d{2})-(\d{2})-(\d{2})/)?.[0] ?? null;
+        IMP = { file: f.name, parsed, units: { ...parsed.units }, clubMap, fileDate, date: parsed.date || fileDate || st.todayLocal() };
         ctx.rerender();
       },
       impDate: (el) => { if (IMP) IMP.date = el.value || st.todayLocal(); },
+      impFileDate: () => { if (IMP?.fileDate) { IMP.date = IMP.fileDate; ctx.rerender(); } },
       impDist: (el) => { if (IMP) { IMP.units.dist = el.dataset.v; ctx.rerender(); } },
       impSpeed: (el) => { if (IMP) { IMP.units.speed = el.dataset.v; ctx.rerender(); } },
       impClub: (el) => { if (IMP) { IMP.clubMap[el.dataset.raw] = el.value === '-' ? null : el.value; ctx.rerender(); } },

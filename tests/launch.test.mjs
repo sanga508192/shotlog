@@ -99,7 +99,8 @@ test('จับคู่ชื่อไม้ในไฟล์กับไม�
 });
 
 test('บันทึก: แบ่งไม่เกิน 400 ช็อตต่อรายการ ขนาดเล็กพอสำหรับคลาวด์ ลายเซ็นคงที่ และไม้ที่เลือกไม่นำเข้าถูกข้าม', () => {
-  const rows = Array.from({ length: 900 }, (_, i) => (i % 10 === 0 ? { ...iron7(i), club: 'Putter' } : iron7(i)));
+  // ช็อตจริงไม่มีค่าซ้ำกันทุกตัว → ให้ความเร็วลูกต่างกันทุกลูก (ไม่งั้นถูกนับเป็นช็อตซ้ำ)
+  const rows = Array.from({ length: 900 }, (_, i) => ({ ...(i % 10 === 0 ? { ...iron7(i), club: 'Putter' } : iron7(i)), bs: 100 + i / 100 }));
   const p = readLaunchFile(csv(EN, rows));
   const map = { '7 Iron': 'i7', Putter: '' };
   const shots = toShots(p, p.units, map);
@@ -168,4 +169,86 @@ test('ระยะลอยจากเครื่องซ้อมสำห�
   const recs = buildRecords({ shots: toShots(p, p.units, map), clubMap: map, date: '2025-11-26', file: 'x', uid: () => 'r', now: 'n' });
   const out = launchCarryRows([...recs, { kind: 'drill' }, { kind: 'launch', launch: {} }], clubOf);
   assert.deepEqual(out.map((r) => [r.clubId, r.src, r.n]), [['i7', 'sim', 6]]);
+});
+
+// ---------- ไฟล์ภาษาไทยรุ่นใหม่ (โครงสร้างจากไฟล์จริงของผู้ใช้ 28 ก.ย. 2569) ----------
+const TH = 'วันที่,ผู้เล่น,ชื่อไม้,แบรนด์/รุ่น,ประเภทไม้,ไม้เร็ว,มุมเข้าลูก,เส้นทางของไม้,หน้าไม้กอล์ฟ,หน้ากับเส้นทาง,ความเร็วลูก,ปัจจัยการชนกระทบ,มุมเปิด,ทิศทางการเปิด,Backspin,Sidespin,อัตราการหมุน,ประเภทอัตราการหมุน,แกนการหมุน,ความสูงของเอเพ็กซ์,ระยะทางในการใช้,การใช้มุมเบี่ยงเบน,การใช้การเบี่ยงเบนระยะทาง,ระยะทางทั้งหมด,มุมเบี่ยงเบนรวม,ระยะทางเบี่ยงเบนทั้งหมด,ระยะรวมเป้าหมาย,ระยะก่อนลูกตกเป้าหมาย,หมายเหตุ,แท็ก,ความหนาแน่นของอากาศ,อุณหภูมิ,ความกดอากาศ,ความชื้นสัมพัทธ์,ความยาวแบ็คสโตรก,เวลาแบ็คสวิงเป้าหมาย,เวลาดาวน์สวิงเป้าหมาย,ความยาวฟอร์เวิร์ดสโตรก,เวลาแบ็คสวิง,เวลาดาวน์สวิง,เทมโปเป้าหมาย,เทมโปการสวิง';
+const TH_UNITS = ',,,,,[mph],[deg],[deg],[deg],[deg],[mph],,[deg],[deg],[rpm],[rpm],[rpm],,[deg],[ม.],[หลา],[deg],[หลา],[หลา],[deg],[หลา],[หลา],[หลา],,,[g/L],[deg C],[kPa],[%],[นิ้ว],[sec],[sec],[นิ้ว],[sec],[sec],,';
+// แถวตามลำดับคอลัมน์รุ่นใหม่ (มี แบรนด์/รุ่น ที่ลำดับ 3) · carry = null → ช่องระยะว่างแบบไฟล์จริง
+function thRow(o) {
+  const c = o.carry == null ? '' : o.carry;
+  return [o.date ?? '28/08/26 17:10:49', 'Sanga', '', o.brand ?? '', o.club, o.cs, o.aa ?? 2, o.path ?? -11, o.face ?? -3, o.f2p ?? 8, o.bs, o.sf, o.la ?? 15, o.ld ?? -4,
+    4000, -300, o.spin ?? 4500, 'วัด', 2, 25, c, o.carry == null ? '' : -3, o.carry == null ? '' : (o.cdev ?? -10), o.carry == null ? '' : c + 12, '', '', '', '', '', '',
+    1.12, 29.44, 98.31, 61, '', '', '', '', 1.1, 0.15, '', 7].join(',');
+}
+
+test('ไฟล์ภาษาไทยรุ่นใหม่: หัวคอลัมน์ไทย คอลัมน์แบรนด์แทรก แถวหน่วยไทย วันที่ วัน/เดือน/ปี', () => {
+  const rows = [
+    thRow({ club: 'ไดรเวอร์', brand: 'titleist', cs: 93, bs: 119.3, sf: 1.28, carry: 177 }),
+    thRow({ club: 'ไม้ 3', cs: 91, bs: 125.4, sf: 1.37, carry: 187.6, date: '05/09/26 17:20:00' }),
+    thRow({ club: 'เหล็ก 5', cs: 85.2, bs: 115.3, sf: 1.35, carry: null }),
+  ];
+  const p = readLaunchFile([TH, TH_UNITS, ...rows].join('\n'));
+  assert.equal(p.byPosition, false, 'จับคู่ด้วยชื่อภาษาไทย');
+  assert.equal(p.cols.club, 4);
+  assert.equal(p.cols.carry, 20);
+  assert.deepEqual([p.units.dist, p.units.speed, p.units.fromFile], ['yd', 'mph', true]);
+  assert.equal(p.rows.length, 3, 'ช็อตที่ไม่มีระยะลอยยังเก็บไว้');
+  assert.equal(p.noCarry, 1);
+  assert.equal(p.date, '2026-08-28', '28/08/26 = 28 ส.ค. และ 05/09/26 = 5 ก.ย. (วัน/เดือน ทั้งไฟล์)');
+  assert.deepEqual([...new Set(p.rows.map((r) => rawClub(r, p.cols)))], ['ไดรเวอร์', 'ไม้ 3', 'เหล็ก 5']);
+  assert.deepEqual(['ไดรเวอร์', 'ไม้ 3', 'เหล็ก 5', 'เหล็ก 3'].map((c) => guessClub(c, BAG)), ['d', 'w3', 'i5', null]);
+  const shots = toShots(p, p.units, { 'ไดรเวอร์': 'd', 'ไม้ 3': 'w3', 'เหล็ก 5': 'i5' });
+  assert.equal(shots.length, 3);
+  assert.equal(shots[2][7], null, 'ไม่มีระยะลอย');
+  assert.ok(shots[2][2] > 0 && shots[2][13] != null, 'แต่มีความเร็วลูกและ Face to Path');
+});
+
+test('วันที่ทั้งไฟล์: ตัดสินลำดับวัน/เดือนจากทุกแถว', async () => {
+  const { dateOrder } = await import('../js/launch.js');
+  assert.equal(dateOrder(['05/09/26', '28/08/26'], true), 'dmy');
+  assert.equal(dateOrder(['09/05/26', '08/28/26'], false), 'mdy');
+  assert.equal(dateOrder(['05/09/26'], true), 'mdy', 'ตัดสินไม่ได้ + ภาษาอังกฤษ = เดือน/วัน');
+  assert.equal(dateOrder(['05/09/26'], false), 'dmy');
+  assert.equal(parseDate('05/09/26', 'dmy'), '2026-09-05');
+  assert.equal(parseDate('05/09/26', 'mdy'), '2026-05-09');
+});
+
+test('ช็อตซ้ำที่สำเนาหนึ่งไม่มีระยะลอย: เก็บสำเนาที่มีระยะไว้สำเนาเดียว', () => {
+  const same = { club: 'เหล็ก 4', cs: 83.14692197566214, bs: 97.19488359641073, sf: 1.1689534776147283, spin: 2555.02 };
+  const p = readLaunchFile([TH, TH_UNITS, thRow({ ...same, carry: 159.38 }), thRow({ ...same, carry: 140 * 0 || null }), thRow({ ...same, cs: 88.1, carry: 168 })].join('\n'));
+  assert.equal(p.dupes, 1);
+  assert.equal(p.rows.length, 2);
+  assert.deepEqual(p.rows.map((r) => num(r[p.cols.carry])), [159.38, 168]);
+  // สำเนาที่ไม่มีระยะมาก่อน → แทนด้วยสำเนาที่มีระยะ
+  const q = readLaunchFile([TH, TH_UNITS, thRow({ ...same, carry: null }), thRow({ ...same, carry: 159.38 })].join('\n'));
+  assert.deepEqual(q.rows.map((r) => num(r[q.cols.carry])), [159.38]);
+});
+
+test('ภาษาที่ไม่รู้จักแบบรุ่นใหม่ (42 คอลัมน์): ลำดับคอลัมน์เลื่อนไป 1 หลังคอลัมน์แบรนด์', () => {
+  const head = TH.split(',').map((_, i) => `col${i}`).join(',');
+  const p = readLaunchFile([head, thRow({ club: 'ไม้ 3', cs: 91, bs: 125, sf: 1.37, carry: 188 })].join('\n'));
+  assert.equal(p.byPosition, true);
+  assert.equal(p.cols.club, 4);
+  assert.equal(num(p.rows[0][p.cols.carry]), 188);
+  assert.equal(num(p.rows[0][p.cols.bs]), 125);
+});
+
+test('สถิติ: ช็อตไม่มีระยะลอยนับในวงสวิง ไม่นับในระยะ · ลูกโค้งบอกแนวสวิงตัดจากนอกเข้าใน', () => {
+  const rows = [
+    ...Array.from({ length: 6 }, (_, i) => thRow({ club: 'ไม้ 3', cs: 91, bs: 125 + i, sf: 1.37, carry: 185 + i })),
+    ...Array.from({ length: 8 }, (_, i) => thRow({ club: 'เหล็ก 5', cs: 95, bs: 130 + i, sf: 1.36, carry: null })),
+  ];
+  const p = readLaunchFile([TH, TH_UNITS, ...rows].join('\n'));
+  const map = { 'ไม้ 3': 'w3', 'เหล็ก 5': 'i5' };
+  const recs = buildRecords({ shots: toShots(p, p.units, map), clubMap: map, date: '2026-08-28', file: 'x', uid: () => 'r', now: 'n' });
+  const stats = clubStats(recs.flatMap(sessionShots), clubOf);
+  const i5 = stats.find((s) => s.clubId === 'i5');
+  assert.deepEqual([i5.n, i5.nCarry, i5.carry], [8, 0, null]);
+  assert.ok(i5.f2p > 7 && i5.sf > 1.3, 'ค่าวงสวิงจากช็อตที่ไม่มีระยะ');
+  assert.equal(stats.at(-1).clubId, 'i5', 'ไม้ที่ไม่มีระยะอยู่ท้ายตาราง');
+  const curve = launchIssues(stats, { hand: 'right' }).find((x) => x.k === 'curve');
+  assert.ok(curve.detail.some((d) => /ตัดจากนอกเข้าใน/.test(d)), curve.detail.join(' | '));
+  assert.ok(launchIssues(stats, { hand: 'left' }).find((x) => x.k === 'curve').detail.some((d) => /ในออกนอก/.test(d)));
+  assert.deepEqual(launchCarryRows(recs, clubOf).map((r) => r.clubId), ['w3'], 'ไม่มีระยะ = ไม่ใช้แนะนำไม้');
 });
