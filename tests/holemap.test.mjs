@@ -121,3 +121,23 @@ test('หมุดเริ่มต้นของคีรีมายา: ค
   assert.equal(isEstimated(courseHoles('kirimaya')[1]), false);
   assert.ok(isEstimated(courseHoles('kirimaya')[2]), 'หลุมอื่นยังเป็นค่าประมาณ');
 });
+
+test('หมุดเริ่มต้นทุกสนาม: ครบ 18 หลุม และระยะสอดคล้องกับสกอร์การ์ด', async () => {
+  const { COURSE_HOLES } = await import('../js/holedata.js');
+  const { SCORECARDS } = await import('../js/scorecards.js');
+  for (const [id, c] of Object.entries(COURSE_HOLES)) {
+    assert.ok(c.source && c.checked_at, `${id} ต้องมีแหล่งที่มา`);
+    assert.equal(Object.keys(c.holes).length, 18, id);
+    const sc = SCORECARDS[id];
+    for (const [n, h] of Object.entries(c.holes)) {
+      assert.ok(['mid', 'low'].includes(h.conf), `${id} ${n}`);
+      const L = distM({ lat: h.tee[0], lon: h.tee[1] }, { lat: h.green[0], lon: h.green[1] }) / YD;
+      const ys = (sc?.tees ?? []).map((t) => t.yards?.[n - 1]).filter(Number.isFinite);
+      if (!ys.length) continue;
+      const longest = Math.max(...ys), shortest = Math.min(...ys);
+      // หมุดแท่นทีอาจเป็นแท่นไหนก็ได้ · เส้นตรงสั้นกว่าระยะในการ์ดได้ถ้าหลุมหักศอก แต่ไม่ควรยาวเกิน
+      if (sc.par[n - 1] === 3) assert.ok(L > shortest * 0.85 && L < longest * 1.15, `${id} หลุม ${n} (พาร์ 3) ${Math.round(L)} หลา เทียบ ${shortest}–${longest}`);
+      else assert.ok(L > longest * 0.5 && L < longest * 1.1, `${id} หลุม ${n} ${Math.round(L)} หลา เทียบ ${longest}`);
+    }
+  }
+});
