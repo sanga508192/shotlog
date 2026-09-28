@@ -15,6 +15,7 @@ import { scanView } from '../js/views/scan.js';
 import { shareView } from '../js/views/share.js';
 import { coachView } from '../js/views/coach.js';
 import { mapView } from '../js/views/map.js';
+import { drillsView } from '../js/views/drills.js';
 
 const ctx = { rerender() {}, go() {} };
 
@@ -90,6 +91,7 @@ async function seedWeird() {
   ops.push({ store: 'settings', put: { key: 'course_holes:dancoon', value: { holes: { 1: { tee: { lat: 16.48, lon: 102.72 }, green: { lat: 16.483, lon: 102.721 } }, 2: { tee: { lat: 'bad' } }, x: 5 } } } });
   ops.push({ store: 'settings', put: { key: 'course_holes:kirimaya', value: 'garbage' } });
   ops.push({ store: 'settings', put: { key: 'coach_goal', value: 'nope' } });
+  ops.push({ store: 'settings', put: { key: 'drill_clips', value: { 'putt-circle': [null, { url: 'javascript:x' }, { url: 'https://youtu.be/dQw4w9WgXcQ', title: '<b>x</b>' }, { url: 'https://tiktok.com/@a/video/1' }], 'short-landing': 7 } } });
   ops.push({ store: 'settings', put: { key: 'priority_topics', value: null } });
   ops.push({ store: 'settings', put: { key: 'friends', value: [{ name: 'Tom' }, null, 'bad'] } });
   await st.commit(ops);
@@ -107,6 +109,7 @@ function routesFor(ids) {
     ['summary all', () => summaryView([], ctx)],
     ['coach', () => coachView([], ctx)],
     ['practice', () => practiceView([], ctx)],
+    ['drills', () => drillsView([], ctx)],
     ['practice new', () => practiceNewView([''], ctx)],
     ['practice new drill', () => practiceNewView(['d=putt-circle'], ctx)],
     ['practice new bad', () => practiceNewView(['t=a|b|c&d=zzz'], ctx)],

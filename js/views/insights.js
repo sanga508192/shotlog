@@ -3,6 +3,7 @@ import { esc, header, fmtDate, toast } from '../ui.js';
 import { DIMENSIONS } from '../constants.js';
 import { summarize, pct, practiceSuggestion } from '../logic.js';
 import { drill } from '../coach.js';
+import { clipsHtml, clipActions } from './drills.js';
 
 const open = new Set();   // หัวข้อที่เปิดดูช็อตต้นทาง
 
@@ -124,6 +125,7 @@ export function practiceView(_p, ctx) {
   return {
     html: `${header('ฝึกซ้อม')}<div class="page">
       <a class="card coach-link" href="#/coach"><b>📋 แผนซ้อมสัปดาห์นี้</b><span>แบบฝึกที่เลือกจากจุดที่เสียสโตรกมากที่สุด ›</span></a>
+      <a class="card coach-link" href="#/drills"><b>🎬 แบบฝึกและคลิปสอน</b><span>แบบฝึกทั้งหมด ค้นคลิปสอนใน YouTube และเก็บคลิปที่ชอบไว้ดูซ้ำ ›</span></a>
       <h2>เรื่องที่เสนอจากการออกรอบ</h2>
       ${sm.topics.length ? `<p class="note">จาก ${sm.shotCount} ช็อต ${sm.roundCount} รอบ — คุณเลือกเองว่าจะฝึกเรื่องใด</p>${sm.topics.slice(0, 5).map((t) => topicCard(t, { withSources: false })).join('')}`
     : '<p class="muted">ยังไม่มีอาการที่จดไว้จากการออกรอบ</p>'}
@@ -164,7 +166,7 @@ export function practiceNewView([query], ctx) {
   return {
     html: `${header('บันทึกการซ้อม', { back })}<div class="page">
       ${topic ? `<div class="card small">มาจากหัวข้อ: <b>${esc(topic.label)}</b><br>พบ ${topic.count} ครั้ง จาก ${topic.denom} ช็อตที่ระบุ · ${topic.round_count} รอบ</div>` : ''}
-      ${dr ? `<div class="card small">แบบฝึก: <b>${esc(dr.name)}</b> (${esc(dr.area)})<ol>${dr.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol></div>` : ''}
+      ${dr ? `<div class="card small">แบบฝึก: <b>${esc(dr.name)}</b> (${esc(dr.area)})<ol>${dr.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>${clipsHtml(dr)}</div>` : ''}
       <form class="card" data-submit="save">
         <label>หัวข้อซ้อม<input class="input" name="topic" required value="${esc(sug?.topic ?? '')}" placeholder="เช่น ชิพ: ความสม่ำเสมอในการสัมผัสลูก"></label>
         <label>ไม้ (ไม่บังคับ)<select class="input" name="club"><option value="">ไม่ระบุ</option>
@@ -181,6 +183,7 @@ export function practiceNewView([query], ctx) {
       </form>
     </div>`,
     actions: {
+      ...clipActions(),
       save: async (form) => {
         const num = (v) => (v === '' ? null : Math.max(0, parseInt(v, 10)));
         const attempts = num(form.attempts.value);

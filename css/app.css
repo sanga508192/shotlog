@@ -691,3 +691,31 @@ a.map-card { display: flex; align-items: center; gap: 12px; text-decoration: non
 .gps-toggle { font-size: .9rem; }
 
 .map-est { margin: 0; max-width: 520px; font-size: .78rem; text-align: center; color: #1a1a1a; background: rgba(255, 225, 77, .92); padding: 5px 10px; border-radius: 10px; }
+
+/* คลิปสอนของแบบฝึก */
+.clips { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 2px; padding-top: 8px; border-top: 1px dashed var(--line, rgba(0,0,0,.12)); }
+.clip-search { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: .86rem; font-weight: 600; }
+.clip-search span { margin-right: auto; }
+.clip { display: flex; align-items: stretch; gap: 6px; }
+.clip-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 6px; border: 0; border-radius: 10px; background: var(--surface-2); color: inherit; text-align: left; font: inherit; cursor: pointer; text-decoration: none; }
+.clip-thumb { position: relative; flex: none; width: 96px; aspect-ratio: 16 / 9; border-radius: 6px; overflow: hidden; background: #222; display: grid; place-items: center; }
+.clip-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.clip-thumb i { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-style: normal; font-size: 1.1rem; text-shadow: 0 1px 4px rgba(0,0,0,.7); }
+.clip-thumb.link { background: var(--surface); font-size: 1.3rem; }
+.clip-name { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.clip-name b { font-size: .86rem; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.clip-name small { font-size: .74rem; color: var(--muted); }
+.clip-del { flex: none; width: 36px; border: 0; border-radius: 10px; background: var(--surface-2); color: var(--muted); cursor: pointer; font-size: .9rem; }
+.clip-add summary { cursor: pointer; font-size: .84rem; color: var(--brand); font-weight: 600; }
+.clip-form { display: flex; gap: 6px; margin-top: 6px; }
+.clip-form .input { flex: 1; min-width: 0; }
+.clip-add .note { margin: 4px 0 0; }
+.clip-modal { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.82); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.clip-panel { width: 100%; max-width: 960px; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.clip-frame { position: relative; width: 100%; aspect-ratio: 16 / 9; max-height: 75vh; background: #000; border-radius: 12px; overflow: hidden; }
+.clip-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.clip-bar { display: flex; align-items: center; gap: 8px; color: #fff; }
+.clip-title { flex: 1; min-width: 0; font-size: .9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.clip-bar .mini { background: rgba(255,255,255,.15); color: #fff; }
+.drill-areas { margin-bottom: 4px; }
+.drill-areas .chip { text-decoration: none; }

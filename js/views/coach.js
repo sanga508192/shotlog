@@ -3,6 +3,7 @@ import * as st from '../state.js';
 import { esc, header, fmtDate } from '../ui.js';
 import { GOALS, analyzeGame, budgetOver, fmtSigned, clubDistances } from '../coach.js';
 import { courseHoles, toUnit, unitTh } from '../holemap.js';
+import { drillCard, clipActions } from './drills.js';
 
 export function coachData(goalV = st.setting('coach_goal', null)) {
   return analyzeGame({
@@ -60,19 +61,6 @@ function statTiles(a) {
     return `<div class="stat-tile ${s.status || 'none'}"><span class="st-name">${esc(s.th)}</span>
       <b>${v}</b><span class="st-goal">เป้า ${t}${s.unit === '/18' ? ' ต่อรอบ' : ''}</span></div>`;
   }).join('');
-}
-
-function drillCard(d) {
-  const hist = d.history.length
-    ? `<div class="drill-hist">${d.history.map((h) => `<span>${esc(fmtDate(h.date))} <b>${h.successes ?? '–'}/${h.attempts}</b></span>`).join('')}</div>` : '';
-  return `<div class="drill">
-    <div class="row between"><span class="tag">${esc(d.area)}</span><span class="small muted">~${d.minutes} นาที · ${d.attempts} ลูก</span></div>
-    <h3>${esc(d.name)}</h3>
-    <p class="small">${esc(d.why)}</p>
-    <details><summary>วิธีซ้อม</summary><ol>${d.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol><p class="small"><b>เกณฑ์:</b> ${esc(d.pass)}</p></details>
-    ${hist}
-    <a class="mini primary" href="#/practice/new?d=${encodeURIComponent(d.id)}">บันทึกผลซ้อม</a>
-  </div>`;
 }
 
 // ระยะไม้จริงจาก GPS: แท่งแสดงช่วงปกติ (25–75%) และขีดคือระยะกลาง
@@ -163,14 +151,15 @@ export function coachView(_p, ctx) {
 
       <h2 id="plan">แผนซ้อมสัปดาห์นี้</h2>
       <p class="note">${a.plan.basis.length ? `เน้น: ${esc(a.plan.basis.join(' และ '))} · ` : 'แผนเริ่มต้นตามเป้า · '}ซ้อม 2–3 ครั้งต่อสัปดาห์ ครั้งละราว ${a.plan.minutes} นาที · บันทึกผลทุกครั้งเพื่อดูพัฒนาการ</p>
-      <div class="drills">${a.plan.items.map(drillCard).join('')}</div>
+      <div class="drills">${a.plan.items.map((d) => drillCard(d, { history: d.history })).join('')}</div>
 
       <div class="card small coach-foot">
         <p>งบสโตรกและเป้าสถิติเป็นค่าประมาณเพื่อวางแผนสำหรับนักกอล์ฟสมัครเล่น ไม่ใช่มาตรฐานตายตัว · ยิ่งจดรายช็อตครบ ผลยิ่งแม่น</p>
-        <div class="row gap"><a class="mini" href="#/summary">สถิติรายช็อตละเอียด ›</a><a class="mini" href="#/practice">ประวัติการซ้อม ›</a></div>
+        <div class="row gap"><a class="mini" href="#/drills">แบบฝึกทั้งหมด + คลิปสอน ›</a><a class="mini" href="#/summary">สถิติรายช็อตละเอียด ›</a><a class="mini" href="#/practice">ประวัติการซ้อม ›</a></div>
       </div>
     </div>`,
     actions: {
+      ...clipActions(),
       goal: async (el) => {
         await st.setSetting('coach_goal', el.dataset.v);
         ctx.rerender();

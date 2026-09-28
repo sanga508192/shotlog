@@ -12,6 +12,7 @@ import { scanView } from './views/scan.js';
 import { shareView } from './views/share.js';
 import { coachView } from './views/coach.js';
 import { mapView } from './views/map.js';
+import { drillsView } from './views/drills.js';
 import { resumeHref } from './views/main.js';
 import * as sync from './sync.js';
 import * as cloud from './cloud.js';
@@ -32,6 +33,7 @@ const routes = [
   [/^#\/coach$/, coachView],
   [/^#\/map\/([^/?]+)\/(\d+)(?:\?(.*))?$/, mapView],
   [/^#\/practice$/, practiceView],
+  [/^#\/drills$/, drillsView],
   [/^#\/practice\/new(?:\?(.*))?$/, practiceNewView],
   [/^#\/settings$/, settingsView],
   [/^#\/scan(?:\/([^/?]+))?$/, scanView],
@@ -148,7 +150,7 @@ root.addEventListener('focusout', () => {
 function updateNav(hash) {
   const tab = hash === '#/' || hash === '' || hash.startsWith('#/history') ? 'home'
     : hash.startsWith('#/summary') || hash.startsWith('#/coach') || /\/summary$/.test(hash) ? 'summary'
-      : hash.startsWith('#/practice') ? 'practice'
+      : hash.startsWith('#/practice') || hash.startsWith('#/drills') ? 'practice'
         : hash.startsWith('#/settings') || hash.startsWith('#/account') ? 'me'
           : 'play';
   document.querySelectorAll('#tabbar a').forEach((a) => a.classList.toggle('on', a.dataset.tab === tab));
