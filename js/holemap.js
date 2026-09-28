@@ -1,6 +1,7 @@
 // แผนที่หลุม: คณิตศาสตร์พิกัด (ระยะ ทิศ เมอร์เคเตอร์) และข้อมูลหมุดแท่นที/กรีนของแต่ละสนาม
 // คำนวณล้วน ๆ ทดสอบด้วย node:test ได้ ข้อมูลหมุดเก็บในค่าตั้ง course_holes:<id> (ซิงก์ไปกับบัญชี)
 import * as st from './state.js';
+import { COURSE_HOLES } from './holedata.js';
 
 const R = 6371008.8;   // รัศมีโลกเฉลี่ย (เมตร)
 const rad = (d) => (d * Math.PI) / 180;
@@ -52,18 +53,34 @@ export const fmtDist = (m, unit) => (m == null ? '–' : String(Math.round(toUni
 export const holesKey = (courseId) => `course_holes:${courseId}`;
 const valid = (p) => p && Number.isFinite(p.lat) && Number.isFinite(p.lon) && Math.abs(p.lat) <= 90 && Math.abs(p.lon) <= 180;
 
-// { [เลขหลุม]: { tee, green } } เฉพาะหมุดที่ถูกต้อง
+// { [เลขหลุม]: { tee, green, est: { tee, green }, conf } } เฉพาะหมุดที่ถูกต้อง
+// หมุดที่ผู้ใช้วางเองมาก่อนเสมอ หมุดไหนยังไม่วางใช้หมุดเริ่มต้นของแอป (est = เป็นค่าประมาณ)
 export function courseHoles(courseId) {
-  const raw = st.setting(holesKey(courseId), null)?.holes;
   const out = {};
+  const base = COURSE_HOLES[courseId]?.holes ?? {};
+  for (const [n, h] of Object.entries(base)) {
+    out[n] = {
+      tee: { lat: h.tee[0], lon: h.tee[1] }, green: { lat: h.green[0], lon: h.green[1] },
+      est: { tee: true, green: true }, conf: h.conf,
+    };
+  }
+  const raw = st.setting(holesKey(courseId), null)?.holes;
   if (!raw || typeof raw !== 'object') return out;
   for (const [n, h] of Object.entries(raw)) {
-    const tee = valid(h?.tee) ? { lat: h.tee.lat, lon: h.tee.lon } : null;
-    const green = valid(h?.green) ? { lat: h.green.lat, lon: h.green.lon } : null;
-    if (tee || green) out[n] = { tee, green };
+    const cur = out[n] ?? { tee: null, green: null, est: { tee: false, green: false }, conf: null };
+    for (const which of ['tee', 'green']) {
+      if (valid(h?.[which])) {
+        cur[which] = { lat: h[which].lat, lon: h[which].lon };
+        cur.est = { ...cur.est, [which]: false };
+      }
+    }
+    if (cur.tee || cur.green) out[n] = cur;
   }
   return out;
 }
+
+export const isEstimated = (h) => !!(h?.est?.tee || h?.est?.green);
+export const holesSource = (courseId) => COURSE_HOLES[courseId]?.source ?? null;
 
 export const holeReady = (h) => !!(h?.tee && h?.green);
 

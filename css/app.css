@@ -689,3 +689,5 @@ a.map-card { display: flex; align-items: center; gap: 12px; text-decoration: non
 .map-card small { display: block; font-size: .8rem; color: var(--muted); }
 .gps-dist { font-size: .8rem; font-weight: 700; color: var(--brand); white-space: nowrap; }
 .gps-toggle { font-size: .9rem; }
+
+.map-est { margin: 0; max-width: 520px; font-size: .78rem; text-align: center; color: #1a1a1a; background: rgba(255, 225, 77, .92); padding: 5px 10px; border-radius: 10px; }

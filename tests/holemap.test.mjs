@@ -36,14 +36,14 @@ test('เมอร์เคเตอร์แปลงไป-กลับได�
 
 test('หมุดสนาม: บันทึก อ่าน กรองค่าเสีย และระยะจากสกอร์การ์ด', async () => {
   await st.load();
-  await setHolePoint('kirimaya', 1, 'tee', { lat: 14.5, lon: 101.4 });
-  assert.equal(holeReady(courseHoles('kirimaya')[1]), false);
-  await setHolePoint('kirimaya', 1, 'green', { lat: 14.503, lon: 101.401 });
-  assert.equal(holeReady(courseHoles('kirimaya')[1]), true);
+  await setHolePoint('dancoon', 1, 'tee', { lat: 14.5, lon: 101.4 });
+  assert.equal(holeReady(courseHoles('dancoon')[1]), false);
+  await setHolePoint('dancoon', 1, 'green', { lat: 14.503, lon: 101.401 });
+  assert.equal(holeReady(courseHoles('dancoon')[1]), true);
   await st.setSetting('course_holes:junk', { holes: { 1: { tee: { lat: 'x' } }, 2: null, 3: { green: { lat: 95, lon: 0 } } } });
   assert.deepEqual(courseHoles('junk'), {}, 'ค่าพิกัดเสียต้องไม่ถูกใช้');
-  await setHolePoint('kirimaya', 1, 'tee', null);
-  assert.equal(courseHoles('kirimaya')[1].tee, null);
+  await setHolePoint('dancoon', 1, 'tee', null);
+  assert.equal(courseHoles('dancoon')[1].tee, null);
   const sc = { unit: 'yd', tees: [{ id: 'blue', name: 'น้ำเงิน', yards: [400] }, { id: 'white', name: 'ขาว', yards: [380] }] };
   assert.deepEqual(scorecardLength(sc, 1, 'blue'), { value: 400, unit: 'yd', tee: 'น้ำเงิน' });
   assert.equal(scorecardLength(sc, 1, null).value, 380, 'ไม่ระบุแท่นใช้ขาว');
@@ -98,4 +98,26 @@ test('ระยะไม้จริง: ใช้เฉพาะช็อตเ
   near(d.p75 / YD, 235, 0.5);
   assert.equal(rows[1].n, 5);
   near(rows[1].median / YD, 150, 0.5);
+});
+
+test('หมุดเริ่มต้นของคีรีมายา: ครบ 18 หลุม เป็นค่าประมาณ และผู้ใช้แก้ทับได้ทีละหมุด', async () => {
+  const { COURSE_HOLES } = await import('../js/holedata.js');
+  const { isEstimated } = await import('../js/holemap.js');
+  const base = COURSE_HOLES.kirimaya.holes;
+  assert.equal(Object.keys(base).length, 18);
+  for (const [n, h] of Object.entries(base)) {
+    const L = distM({ lat: h.tee[0], lon: h.tee[1] }, { lat: h.green[0], lon: h.green[1] }) / YD;
+    assert.ok(L > 100 && L < 600, `หลุม ${n} ยาว ${Math.round(L)} หลา`);
+    assert.ok(['mid', 'low'].includes(h.conf));
+  }
+  await st.setSetting('course_holes:kirimaya', null);
+  const h1 = courseHoles('kirimaya')[1];
+  assert.ok(holeReady(h1) && isEstimated(h1));
+  const g = { lat: 14.5104, lon: 101.4309 };
+  await setHolePoint('kirimaya', 1, 'green', g);
+  const h1b = courseHoles('kirimaya')[1];
+  assert.deepEqual([h1b.green, h1b.est.green, h1b.est.tee], [g, false, true], 'แก้กรีนแล้ว แท่นทียังเป็นค่าประมาณ');
+  await setHolePoint('kirimaya', 1, 'tee', { lat: 14.5117, lon: 101.4332 });
+  assert.equal(isEstimated(courseHoles('kirimaya')[1]), false);
+  assert.ok(isEstimated(courseHoles('kirimaya')[2]), 'หลุมอื่นยังเป็นค่าประมาณ');
 });

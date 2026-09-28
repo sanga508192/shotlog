@@ -4,7 +4,7 @@ import * as st from '../state.js';
 import { esc, toast } from '../ui.js';
 import { TileMap } from '../map.js';
 import {
-  courseHoles, holeReady, setHolePoint, distM, bearing, destination, fmtDist, unitTh, scorecardLength, YD,
+  courseHoles, holeReady, setHolePoint, distM, bearing, destination, fmtDist, unitTh, scorecardLength, YD, isEstimated,
 } from '../holemap.js';
 import { watchPosition, lastPosition, getPosition } from '../geo.js';
 import { clubDistances, GPS_MAX_ACC } from '../coach.js';
@@ -165,6 +165,13 @@ export function mapView([courseId, numStr, query], ctx) {
     return `หลุม ${n}${par ? ` · พาร์ ${par}` : ''}${len ? ` · ${fmtDist(len, u)} ${unitTh(u)}` : ''}`;
   }
 
+  // หมุดเริ่มต้นที่ยังไม่มีใครตรวจ: เตือนทุกครั้ง
+  function estNote() {
+    const h = H();
+    if (!isEstimated(h)) return '';
+    return `<p class="map-est">⚠️ หมุด${h.est.tee && h.est.green ? '' : h.est.tee ? 'แท่นที' : 'กรีน'}ประมาณจากภาพดาวเทียม (ความมั่นใจ${h.conf === 'mid' ? 'ปานกลาง' : 'ต่ำ'}) ยังไม่ได้ตรวจในสนาม — ถ้าไม่ตรงกด ✏️ แก้หมุด</p>`;
+  }
+
   function panel() {
     const h = H();
     const u = unit();
@@ -175,6 +182,7 @@ export function mapView([courseId, numStr, query], ctx) {
           <div class="map-hole"><small>หลุม</small><b>${n}</b></div>
           ${n < count ? `<a class="map-round" href="${hrefHole(n + 1)}" aria-label="หลุมถัดไป">›</a>` : '<span class="map-round off">›</span>'}
         </div>
+        ${estNote()}
         <p class="map-hint">${s?.me ? 'วัดจากตำแหน่งของคุณ' : 'วัดจากแท่นที'} · แตะแผนที่หรือลากจุดเหลืองเพื่อดูระยะ</p>
         <div class="map-tools">
           <button type="button" class="map-pill" data-act="recenter">⤢ ทั้งหลุม</button>
@@ -191,6 +199,7 @@ export function mapView([courseId, numStr, query], ctx) {
         <button type="button" class="map-step${M.placing === 'tee' ? ' on' : ''}${h.tee ? ' done' : ''}" data-act="place" data-v="tee">🏌️ แท่นที${h.tee ? ' ✓' : ''}</button>
         <button type="button" class="map-step${M.placing === 'green' ? ' on' : ''}${h.green ? ' done' : ''}" data-act="place" data-v="green">⛳ กลางกรีน${h.green ? ' ✓' : ''}</button>
       </div>
+      ${estNote()}
       <p class="map-hint">${hint} · ลาก/ถ่างนิ้วเพื่อหาหลุม</p>
       ${len ? `<p class="map-check">วัดจากหมุด <b>${fmtDist(len, u)}</b> ${unitTh(u)}${scInUnit ? ` · สกอร์การ์ด${scl.tee ? ` (${esc(scl.tee)})` : ''} ${scInUnit} ${unitTh(u)}` : ''}</p>` : ''}
       <div class="map-tools">

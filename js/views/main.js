@@ -7,7 +7,7 @@ import { enabled as cloudEnabled, session as cloudSession } from '../cloud.js';
 import { courseCard, rememberCourseCard, rememberFriends, friends, myName, gridOf } from './group.js';
 import { ME, MAX_PLAYERS, playersOf, fmtOver } from '../group.js';
 import { coachData, focusListHtml } from './coach.js';
-import { courseHoles, holeReady } from '../holemap.js';
+import { courseHoles, holeReady, isEstimated } from '../holemap.js';
 
 // ---------- หน้าแรก ----------
 
@@ -108,10 +108,14 @@ function mapSetupLink(courseId, sc) {
   const holes = courseHoles(courseId);
   const total = sc?.par?.length || 18;
   const ready = Object.values(holes).filter(holeReady).length;
+  const est = Object.values(holes).filter((h) => holeReady(h) && isEstimated(h)).length;
   const first = Array.from({ length: total }, (_, i) => i + 1).find((k) => !holeReady(holes[k])) ?? 1;
+  const status = !ready ? 'ยังไม่มี · แตะวางหมุดแท่นทีและกรีน (ทำจากบ้านได้)'
+    : est ? `มีหมุด ${ready}/${total} หลุม · ${est} หลุมเป็นค่าประมาณจากภาพดาวเทียม ตรวจในสนามก่อนเชื่อ`
+      : `วางหมุดแล้ว ${ready}/${total} หลุม${ready < total ? ' · แตะเพื่อวางต่อ' : ' · ดูระยะบนภาพดาวเทียม'}`;
   return `<a class="card map-card" href="#/map/${encodeURIComponent(courseId)}/${first}${ready < total ? '?edit=1' : ''}">
     <span class="map-card-ico" aria-hidden="true">🗺</span>
-    <span><b>แผนที่หลุม</b><small>${ready ? `วางหมุดแล้ว ${ready}/${total} หลุม${ready < total ? ' · แตะเพื่อวางต่อ' : ' · ดูระยะบนภาพดาวเทียม'}` : 'ยังไม่มี · แตะวางหมุดแท่นทีและกรีน (ทำจากบ้านได้)'}</small></span>
+    <span><b>แผนที่หลุม</b><small>${status}</small></span>
   </a>`;
 }
 
