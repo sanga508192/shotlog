@@ -48,6 +48,7 @@ const ASSETS = [
   './js/views/map.js',
   './js/shotgeo.js',
   './js/tiles.js',
+  './js/reports.js',
   './js/views/landpick.js',
   './js/coach.js',
   './js/views/coach.js',

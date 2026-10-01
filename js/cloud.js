@@ -104,6 +104,8 @@ export const unshareAllPins = () => req('/rest/v1/rpc/unshare_all_pins', { metho
 export const communityPins = (course) => req('/rest/v1/rpc/community_pins', { method: 'POST', auth: false, body: { course } });
 export const publishBoard = (board, payload) => req('/rest/v1/rpc/publish_board', { method: 'POST', body: { board, payload } });
 export const unpublishBoard = (board) => req('/rest/v1/rpc/unpublish_board', { method: 'POST', body: { board } });
+// รายงานข้อผิดพลาด/ความเห็น (ขั้นที่ 4) · auth = false ส่งแบบไม่ระบุบัญชี
+export const sendReport = (report, auth = true) => req('/rest/v1/rpc/send_report', { method: 'POST', auth, body: report });
 
 // ---------- สมาชิก ----------
 

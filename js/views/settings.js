@@ -6,6 +6,7 @@ import * as cloud from '../cloud.js';
 import { linkedOwner, restoreBackup } from '../sync.js';
 import { friends } from './group.js';
 import { recentErrors, clearErrors } from '../errors.js';
+import { sendFeedback, reportingOn } from '../reports.js';
 import * as sync from '../sync.js';
 import { stopSharing } from '../community.js';
 
@@ -138,6 +139,17 @@ export function settingsView(_p, ctx) {
         <p class="note">ไม่มีอีเมลหรือข้อมูลการเล่นในนี้ คัดลอกส่งให้ผู้พัฒนาได้</p>
       </details>
 
+      ${cloud.enabled() ? `<h2 id="feedback">ความเห็นและแจ้งปัญหา</h2>
+      <form class="card feedback" data-submit="feedback">
+        <label class="lbl">ใช้แล้วติดตรงไหน หรืออยากได้อะไรเพิ่ม เล่าได้เลย
+          <textarea class="input" name="text" rows="3" maxlength="2000" required placeholder="เช่น ปุ่มจบหลุมด้วยพัตใช้ง่าย แต่อยากให้…"></textarea></label>
+        <label class="lbl">ช่องทางให้ติดต่อกลับ (ไม่บังคับ)<input class="input" name="contact" maxlength="120" placeholder="LINE ID หรืออีเมล"></label>
+        <label class="check"><input type="checkbox" name="errs" checked> แนบข้อผิดพลาดล่าสุดในเครื่องนี้ (ไม่มีข้อมูลรอบหรือสกอร์)</label>
+        <button class="btn primary block">ส่งความเห็นถึงผู้พัฒนา</button>
+      </form>
+      <label class="check"><input type="checkbox" data-change="reportErrors" ${reportingOn() ? 'checked' : ''}> ส่งรายงานข้อผิดพลาดให้ผู้พัฒนาอัตโนมัติ</label>
+      <p class="note">ส่งเฉพาะข้อความผิดพลาด หน้าที่เกิด รุ่นแอป และรุ่นเบราว์เซอร์ ไม่มีข้อมูลรอบ สกอร์ ตำแหน่ง หรืออีเมล · ปิดได้ทุกเมื่อ</p>` : ''}
+
       <p class="note center">ShotLog รุ่น ${APP_VERSION} · ข้อมูลเก็บในเครื่องนี้เท่านั้น</p>
     </div>`,
     mount: () => {
@@ -164,6 +176,26 @@ export function settingsView(_p, ctx) {
         try { await navigator.clipboard.writeText(text); toast('คัดลอกแล้ว'); } catch { toast('คัดลอกไม่ได้ กดค้างที่ข้อความเพื่อเลือกแทน'); }
       },
       clearErr: () => { clearErrors(); ctx.rerender(); toast('ล้างรายการแล้ว'); },
+      reportErrors: async (el) => {
+        await st.setSetting('report_errors', el.checked);
+        toast(el.checked ? 'เปิดส่งรายงานข้อผิดพลาดแล้ว ขอบคุณที่ช่วย' : 'ปิดส่งรายงานข้อผิดพลาดแล้ว');
+      },
+      feedback: async (form) => {
+        const btn = form.querySelector('button');
+        if (btn.disabled) return;
+        const text = form.text.value.trim();
+        if (!text) return;
+        btn.disabled = true;
+        try {
+          await sendFeedback(text, { contact: form.contact.value, withErrors: form.errs.checked });
+          form.reset();
+          toast('ส่งแล้ว ขอบคุณมากครับ');
+        } catch {
+          toast(navigator.onLine ? 'ส่งไม่สำเร็จ ลองอีกครั้ง' : 'ตอนนี้ไม่มีอินเทอร์เน็ต ลองส่งอีกครั้งเมื่อมีสัญญาณ');
+        } finally {
+          btn.disabled = false;
+        }
+      },
       inBag: async (el) => { await saveClub(el.dataset.id, { in_bag: el.checked }); ctx.rerender(); },
       clubLabel: async (el) => {
         const v = el.value.trim();

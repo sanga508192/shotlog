@@ -385,3 +385,60 @@ grant execute on function public.publish_board(text, jsonb) to authenticated;
 grant execute on function public.unpublish_board(text) to authenticated;
 grant execute on function public.community_pins(text) to anon, authenticated;
 grant execute on function public.get_board(text) to anon, authenticated;
+
+-- ============================================================
+-- ขั้นที่ 4: รายงานข้อผิดพลาด (ผู้ใช้เลือกเปิดเอง) และความเห็นจากผู้ทดลองใช้
+-- ส่งได้ทั้งคนที่เข้าสู่ระบบและไม่ได้เข้าสู่ระบบ แต่ไม่มีใครอ่านผ่านแอปได้ (ดูใน Supabase Dashboard เท่านั้น)
+-- ไม่มีข้อมูลรอบ/สกอร์: ข้อความผิดพลาด หน้าที่เกิด รุ่นแอป รุ่นเบราว์เซอร์ และช่องทางติดต่อถ้าผู้ใช้กรอกเอง
+-- ============================================================
+create table if not exists public.app_reports (
+  id          bigint generated always as identity primary key,
+  kind        text not null check (kind in ('error', 'feedback')),
+  owner_id    uuid default auth.uid() references auth.users (id) on delete set null,
+  app_version text check (length(app_version) <= 20),
+  message     text not null check (length(message) between 1 and 2000),
+  detail      text check (length(detail) <= 2000),
+  page        text check (length(page) <= 120),
+  device      text check (length(device) <= 200),
+  contact     text check (length(contact) <= 120),
+  created_at  timestamptz not null default now()
+);
+create index if not exists app_reports_created on public.app_reports (created_at);
+alter table public.app_reports enable row level security;
+revoke all on public.app_reports from anon, authenticated;
+
+-- กันส่งรัว: ทั้งระบบไม่เกิน 300 รายการ/ชั่วโมง ต่อคน (ที่เข้าสู่ระบบ) ไม่เกิน 20 รายการ/ชั่วโมง เกินแล้วเงียบ ๆ ไม่บันทึก
+-- เก็บไว้ 180 วัน
+create or replace function public.send_report(
+  kind text, message text, detail text default null, page text default null,
+  app_version text default null, device text default null, contact text default null)
+returns boolean
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  uid uuid := auth.uid();
+  n   int;
+begin
+  if kind is null or kind not in ('error', 'feedback') then
+    raise exception 'invalid kind' using errcode = '22023';
+  end if;
+  if coalesce(length(btrim(message)), 0) = 0 then
+    raise exception 'empty message' using errcode = '22023';
+  end if;
+  select count(*) into n from app_reports where created_at > now() - interval '1 hour';
+  if n >= 300 then return false; end if;
+  if uid is not null then
+    select count(*) into n from app_reports where owner_id = uid and created_at > now() - interval '1 hour';
+    if n >= 20 then return false; end if;
+  end if;
+  delete from app_reports where created_at < now() - interval '180 days';
+  insert into app_reports (kind, owner_id, app_version, message, detail, page, device, contact)
+    values (kind, uid, left(app_version, 20), left(btrim(message), 2000), left(detail, 2000),
+            left(page, 120), left(device, 200), left(nullif(btrim(contact), ''), 120));
+  return true;
+end;
+$$;
+
+revoke all on function public.send_report(text, text, text, text, text, text, text) from public;
+grant execute on function public.send_report(text, text, text, text, text, text, text) to anon, authenticated;

@@ -2,6 +2,7 @@ import * as st from './state.js';
 import * as db from './db.js';
 import { toast, esc } from './ui.js';
 import { logError } from './errors.js';
+import { initReports } from './reports.js';
 import { homeView, historyView, coursesView, newRoundView } from './views/main.js';
 import { holeView, scorecardView } from './views/round.js';
 import { summaryView, practiceView, practiceNewView } from './views/insights.js';
@@ -227,6 +228,7 @@ async function start() {
   };
   try {
     await st.load();
+    initReports();
   } catch (err) {
     logError('load', err);
     root.innerHTML = `<div class="page"><div class="card warn">เปิดฐานข้อมูลในเครื่องไม่ได้: ${esc(err.message || err)}<br>ลองปิดแท็บอื่นของแอปแล้วเปิดใหม่ หรือปิดโหมดไม่ระบุตัวตน
