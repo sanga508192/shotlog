@@ -1,5 +1,5 @@
 // สร้างรูปสกอร์การ์ด แบบแนวนอน 16:9 หรือแนวตั้ง (ใส่รูปก๊วนได้) แล้วแชร์ผ่านเมนูแชร์ของมือถือ หรือบันทึกเป็นไฟล์
-import { SCORE_KINDS, fmtOver } from './group.js';
+import { SCORE_KINDS, fmtOver, openNote, standings } from './group.js';
 
 export const LAYOUTS = [
   { v: 'landscape', th: 'แนวนอน' },
@@ -186,11 +186,15 @@ function headerBand(p, W, h, { round, grid }, { compact = false } = {}) {
   p.text(sub, tx, ly + (compact ? 14 : 20), { size: compact ? 13 : 17, color: 'rgba(255,255,255,0.85)', align: 'left', maxW });
 }
 
-function footer(p, W, y, pad) {
+function footer(p, W, y, pad, note = '') {
   const stamp = new Date().toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' });
   p.text('ShotLog', pad, y, { size: 15, weight: 700, color: C.brand, align: 'left' });
+  if (note) p.text(note, pad + 90, y, { size: 13, weight: 600, color: C.red, align: 'left', maxW: W - pad * 2 - 90 - 190 });
   p.text(stamp, W - pad, y, { size: 12, color: C.muted, align: 'right' });
 }
+
+// สกอร์รวมที่ยังไม่ครบทุกหลุม ติด * (อธิบายท้ายรูป)
+const totalText = (grid, b, pid, part) => (!b.count ? '–' : part === grid.total && grid.total.byPlayer[pid].count < grid.rows.length ? `${b.strokes}*` : b.strokes);
 
 // ---------- เกม (ชิปผลของแต่ละคน ตัดขึ้นบรรทัดใหม่ตามความกว้าง) ----------
 
@@ -302,20 +306,18 @@ function drawTiles(p, title, tiles, x0, y0, w, h, maxCols = 4) {
 function drawLeader(p, grid, x0, y0, w, h) {
   p.box(x0, y0, w, h, 14, C.bg, C.line);
   panelTitle(p, 'อันดับในก๊วน', x0, y0);
-  const t = grid.total.byPlayer;
-  const list = grid.players.map((pl, i) => ({ pl, i, b: t[pl.id] })).filter((x) => x.b.count)
-    .sort((a, b) => a.b.strokes - b.b.strokes);
+  const list = standings(grid);
   const rowH = Math.max(36, Math.min(64, (h - 62) / Math.max(list.length, 1)));
-  let rank = 0;
   list.forEach((x, k) => {
-    if (k === 0 || x.b.strokes !== list[k - 1].b.strokes) rank = k + 1;
+    const rank = x.rank;
     const my = y0 + 52 + k * rowH + rowH / 2;
     if (k) p.line(x0 + 12, my - rowH / 2, x0 + w - 12, my - rowH / 2);
     p.box(x0 + 18, my - 13, 26, 26, 13, rank === 1 ? C.goldSoft : C.graySoft);
-    p.text(rank, x0 + 31, my + 1, { size: 14, weight: 700, color: rank === 1 ? C.goldInk : C.muted });
+    p.text(rank ?? '–', x0 + 31, my + 1, { size: 14, weight: 700, color: rank === 1 ? C.goldInk : C.muted });
     avatar(p, x.pl.name, x.i, x0 + 70, my, 14);
-    p.text(x.pl.name, x0 + 94, my + 1, { size: 17, weight: 700, align: 'left', maxW: w - 94 - 150 });
-    p.text(x.b.strokes, x0 + w - 96, my + 1, { size: 22, weight: 700 });
+    p.text(x.pl.name, x0 + 94, rank ? my + 1 : my - 8, { size: 17, weight: 700, align: 'left', maxW: w - 94 - 150 });
+    if (!rank) p.text(`จด ${x.b.count} หลุม ไม่จัดอันดับ`, x0 + 94, my + 13, { size: 12, color: C.muted, align: 'left', maxW: w - 94 - 150 });
+    p.text(totalText(grid, x.b, x.pl.id, grid.total), x0 + w - 96, my + 1, { size: 22, weight: 700 });
     if (x.b.over != null) p.text(fmtOver(x.b.over), x0 + w - 40, my + 1, { size: 15, weight: 700, color: x.b.over < 0 ? C.red : x.b.over === 0 ? C.blue : C.muted });
   });
 }
@@ -562,7 +564,7 @@ function drawLandscape({ round, grid, games = [], stats = null }, { photo = null
         scoreCell(p, c.r.cells[pl.id], c.mid, my, big ? 18 : 15, big ? 21 : 17);
       } else if (c.type === 'sum' || c.type === 'tot') {
         const b = c.part.byPlayer[pl.id];
-        p.text(b.count ? b.strokes : '–', c.mid, my + 1, {
+        p.text(totalText(grid, b, pl.id, c.part), c.mid, my + 1, {
           size: c.type === 'tot' ? (big ? 26 : 21) : (big ? 20 : 17), weight: 700, color: c.type === 'tot' ? '#ffffff' : C.ink,
         });
       } else if (c.type === 'diff') {
@@ -600,7 +602,7 @@ function drawLandscape({ round, grid, games = [], stats = null }, { photo = null
     stack(right, PAD + (left.length ? LW + 20 : 0), left.length ? RW : CW);
   }
   g.restore();
-  footer(p, W, H - 22, PAD);
+  footer(p, W, H - 22, PAD, openNote(grid));
   canvas.photoRect = photoRect && { ...photoRect, W, H };
   return canvas;
 }
@@ -685,7 +687,7 @@ function drawPortrait({ round, grid, games = [] }, { photo = null, crop = {} } =
       ps.forEach((pl, k) => {
         const b = l.part.byPlayer[pl.id];
         const x = cx(pStart + k);
-        p.text(b.count ? b.strokes : '–', x - 12, my, { size: dark ? 18 : 16, weight: 700, color: dark ? '#ffffff' : C.ink });
+        p.text(totalText(grid, b, pl.id, l.part), x - 12, my, { size: dark ? 18 : 16, weight: 700, color: dark ? '#ffffff' : C.ink });
         if (b.over != null) p.text(fmtOver(b.over), x + 20, my, { size: 13, weight: 700, color: dark ? '#9fe0b8' : C.brand });
       });
       p.line(PAD, y + rowH, PAD + TW, y + rowH, C.line);
@@ -715,7 +717,7 @@ function drawPortrait({ round, grid, games = [] }, { photo = null, crop = {} } =
   }
   if (gl) drawGames(p, gl, PAD, gamesY, TW);
   if (photo) drawPhoto(p, photo, PAD, photoY, TW, photoH, 14, crop);
-  footer(p, W, footY, PAD);
+  footer(p, W, footY, PAD, openNote(grid));
   canvas.photoRect = photo ? { x: PAD, y: photoY, w: TW, h: photoH, W, H } : null;
   return canvas;
 }

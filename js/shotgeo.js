@@ -12,12 +12,17 @@ export const landOf = (s) => (valid(s?.land) ? { lat: s.land.lat, lon: s.land.lo
 export const cleanLand = (p) => (valid(p) ? { lat: p.lat, lon: p.lon, via: 'map' } : null);
 
 // เส้นทางของทุกช็อตในหลุม (เรียงตามลำดับ เฉพาะช็อตที่นับ) → [{ shot, start, end, penalized, dist }]
+// ตีใหม่จากจุดเดิม (relief 'rehit' หลัง OB/ลูกหาย/ลงน้ำ) → จุดตีเดียวกับช็อตก่อน
 export function shotPath(shots, teePin = null, pens = []) {
   const list = shots.filter((s) => s.counted !== false).sort((a, b) => a.sequence - b.sequence);
   const penalized = new Set(pens.map((p) => p.related_shot_id_optional).filter(Boolean));
+  const rehit = new Set(pens.filter((p) => p.relief === 'rehit').map((p) => p.related_shot_id_optional).filter(Boolean));
   const tee = valid(teePin) ? { lat: teePin.lat, lon: teePin.lon } : null;
-  const start = list.map((s, i) => gpsOf(s)
-    ?? (i === 0 ? tee : !penalized.has(list[i - 1].id) ? landOf(list[i - 1]) : null));
+  const start = [];
+  list.forEach((s, i) => {
+    const prev = list[i - 1];
+    start.push(gpsOf(s) ?? (i === 0 ? tee : rehit.has(prev.id) ? start[i - 1] : !penalized.has(prev.id) ? landOf(prev) : null));
+  });
   return list.map((s, i) => {
     const pen = penalized.has(s.id);
     const end = landOf(s) ?? (i < list.length - 1 && !pen ? start[i + 1] : null);

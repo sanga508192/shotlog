@@ -1,6 +1,6 @@
 // ค่าตัวเลือกทั้งหมดของแอป ค่าที่ไม่ได้เลือกเก็บเป็น null = "ยังไม่ระบุ" เสมอ
 
-export const APP_VERSION = '0.18.0';
+export const APP_VERSION = '0.19.0';
 export const SCHEMA_VERSION = 1;
 export const UNKNOWN_TH = 'ยังไม่ระบุ';
 
@@ -51,9 +51,45 @@ export const LIES = [
   { v: 'fringe', th: 'รอบกรีน' },
   { v: 'green', th: 'บนกรีน' },
   { v: 'holed', th: 'ลงหลุม' },
+  { v: 'trees', th: 'ต้นไม้/ป่า' },
+  { v: 'water', th: 'ลงน้ำ' },
+  { v: 'ob', th: 'OB' },
+  { v: 'lost', th: 'ลูกหาย' },
+  { v: 'unplayable', th: 'เล่นไม่ได้' },
   { v: 'other', th: 'อื่น ๆ' },
 ];
-export const START_LIES = LIES.filter((l) => l.v !== 'holed');
+
+// จุดจบที่ไม่ได้ตีต่อจากตรงนั้น: บันทึกสโตรกปรับให้อัตโนมัติ · reliefs = วิธีตีต่อที่เลือกได้ (ค่าแรกเป็นค่าเริ่มต้น)
+export const PENALTY_ENDS = {
+  water: { reason: 'penalty_area', reliefs: ['drop', 'rehit'] },
+  ob: { reason: 'ob_lost', reliefs: ['rehit', 'local'] },
+  lost: { reason: 'ob_lost', reliefs: ['rehit', 'local'] },
+  unplayable: { reason: 'unplayable', reliefs: ['drop', 'rehit'] },
+};
+// rehit = ตีใหม่จากจุดเดิม (นับสโตรกและระยะ) · local = กติกาท้องถิ่น ดรอปใกล้จุดที่ลูกออก/หาย +2
+export const RELIEFS = [
+  { v: 'drop', th: 'ดรอป', strokes: 1 },
+  { v: 'rehit', th: 'ตีใหม่จากจุดเดิม', strokes: 1 },
+  { v: 'local', th: 'ดรอปข้างหน้า (กติกาท้องถิ่น)', strokes: 2 },
+];
+// ลูกที่ไปจบในที่ที่ต้องเสียสโตรกหรือตีออก (ใช้วิเคราะห์ ไม่นับเป็นระยะไม้ปกติ)
+export const TROUBLE_ENDS = ['trees', 'water', 'ob', 'lost', 'unplayable', 'other'];
+export const START_LIES = LIES.filter((l) => l.v !== 'holed' && !PENALTY_ENDS[l.v]);
+// ปุ่ม "ลูกไปจบที่ไหน" ในหน้าจดช็อต: ภาษาที่พูดกันจริงในสนาม
+export const OUTCOMES = [
+  { v: 'fairway', th: 'แฟร์เวย์' },
+  { v: 'rough', th: 'รัฟ' },
+  { v: 'bunker', th: 'บังเกอร์' },
+  { v: 'trees', th: '🌳 ต้นไม้/ป่า' },
+  { v: 'fringe', th: 'รอบกรีน' },
+  { v: 'green', th: 'บนกรีน' },
+  { v: 'holed', th: '⛳ ลงหลุม' },
+  { v: 'water', th: '💧 ลงน้ำ' },
+  { v: 'ob', th: '🚫 OB' },
+  { v: 'lost', th: '❓ ลูกหาย' },
+  { v: 'unplayable', th: '⛔ เล่นไม่ได้' },
+];
+export const PUTT_OUTCOMES = ['green', 'holed', 'fringe'];
 
 export const TARGETS = [
   { v: 'green', th: 'ขึ้นกรีน' },

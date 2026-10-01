@@ -13,7 +13,9 @@ const TABLE = {
   recovery: [[50, 3.5], [100, 3.6], [150, 3.75], [200, 3.87], [250, 4.0], [300, 4.2], [400, 4.5]],
   green: [[1, 1.0], [2, 1.01], [3, 1.04], [4, 1.13], [5, 1.23], [6, 1.34], [8, 1.5], [10, 1.61], [15, 1.78], [20, 1.87], [30, 1.98], [40, 2.06], [50, 2.14], [60, 2.21], [90, 2.4], [120, 2.55]],
 };
-const LIE_TABLE = { tee: 'tee', fairway: 'fairway', fringe: 'fairway', rough: 'rough', bunker: 'bunker', green: 'green', other: 'recovery' };
+const LIE_TABLE = { tee: 'tee', fairway: 'fairway', fringe: 'fairway', rough: 'rough', bunker: 'bunker', green: 'green', trees: 'recovery', other: 'recovery' };
+// ลูกลงน้ำ/OB/หาย/เล่นไม่ได้: ช็อตถัดไปไม่ได้ตีจากจุดนั้น
+const NOT_PLAYED_FROM = new Set(['holed', 'water', 'ob', 'lost', 'unplayable']);
 
 function interp(pts, x) {
   if (x <= pts[0][0]) return pts[0][1];
@@ -63,11 +65,12 @@ export function holeSG(hole, shots, pens) {
   const unit = (s) => (s.distance_unit === 'yd' ? 'yd' : 'm');
   const before = list.map((s, i) => {
     const prev = list[i - 1];
-    const lie = s.start_lie ?? (i === 0 ? 'tee' : prev?.end_lie && prev.end_lie !== 'holed' ? prev.end_lie : null)
+    const lie = s.start_lie ?? (i === 0 ? 'tee' : prev?.end_lie && !NOT_PLAYED_FROM.has(prev.end_lie) ? prev.end_lie : null)
       ?? (s.shot_type === 'putt' ? 'green' : s.shot_type === 'bunker' ? 'bunker' : null);
     let yd = toYd(s.distance_before, unit(s));
+    // ตีจากแท่นที (รวมทีออฟใหม่หลัง OB) ใช้ระยะหลุมก่อนระยะที่เหลือของช็อตก่อน
+    if (yd == null && lie === 'tee') yd = toYd(hole.distance, hole.distance_unit === 'yd' ? 'yd' : 'm');
     if (yd == null && prev) yd = toYd(prev.distance_after, unit(prev));
-    if (yd == null && i === 0 && lie === 'tee') yd = toYd(hole.distance, hole.distance_unit === 'yd' ? 'yd' : 'm');
     return lie && yd != null ? { lie, yd } : null;
   });
   const penOf = (id) => pens.filter((p) => p.related_shot_id_optional === id).reduce((a, p) => a + (Number(p.strokes) || 0), 0);

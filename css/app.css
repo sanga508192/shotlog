@@ -753,7 +753,7 @@ a.map-card { display: flex; align-items: center; gap: 12px; text-decoration: non
 .land-pick { z-index: 60; }
 .land-pick .map-view { touch-action: none; }
 .lp-read { margin: 0; font-size: 1rem; font-weight: 700; text-align: center; color: #ffe14d; background: rgba(0, 0, 0, .55); padding: 6px 14px; border-radius: 999px; max-width: 100%; }
-.land-btn { text-align: left; }
+.land-btn { text-align: left; flex-direction: column; align-items: flex-start; gap: 2px; }
 .land-btn small { display: block; font-weight: 400; font-size: .76rem; opacity: .75; }
 .land-btn.on { border-color: var(--brand-2); background: var(--brand-soft); }
 .map-steps.more { flex-wrap: wrap; justify-content: center; }
@@ -863,3 +863,16 @@ a.map-card { display: flex; align-items: center; gap: 12px; text-decoration: non
 .tee-cue { background: var(--warn-soft); border-radius: 10px; padding: 8px 10px; font-size: .88rem; display: flex; flex-direction: column; gap: 2px; }
 .tee-cue small { color: var(--muted); font-size: .78rem; }
 .find.muted { color: var(--muted); font-size: .8rem; }
+
+/* หน้าจดช็อต: ลูกไปจบที่ไหน · ลงน้ำ/OB/หาย ตีต่อแบบไหน */
+.outcomes .chip { min-height: 40px; }
+.pen-auto { background: var(--bad-soft); border-radius: 12px; padding: 4px 10px 8px; margin-top: 8px; }
+.pen-auto .note { margin: 6px 0 0; }
+.land-btn.suggest { border-color: var(--bad); background: var(--bad-soft); color: var(--bad); }
+.land-btn.suggest small { color: var(--text); }
+/* หลุมที่จดแล้วแต่ยังไม่จบ */
+.pending-hole, .open-holes { display: flex; flex-direction: column; gap: 8px; }
+.open-holes p { margin: 0; }
+.open-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.open-row b { margin-right: 4px; }
+.card-table sup { font-size: .7em; color: var(--bad); }

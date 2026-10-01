@@ -2,6 +2,7 @@
 // คำนวณล้วน ๆ จากข้อมูลที่จดในเครื่อง (ไม่ใช้ AI ภายนอก) ทดสอบด้วย node:test ได้
 import { ME, playerHoleScore } from './group.js';
 import { shotPath, shotDistances, offLine, sideOf, landOf } from './shotgeo.js';
+import { TROUBLE_ENDS } from './constants.js';
 
 export { GPS_MAX_ACC, shotDistances } from './shotgeo.js';
 
@@ -92,7 +93,7 @@ export function holeFacts(hole, shots, pens) {
     const end = tee.end_lie ?? list[1]?.start_lie ?? null;
     if (pens.some((p) => p.related_shot_id_optional === tee.id)) fir = false;
     else if (end === 'fairway') fir = true;
-    else if (['rough', 'bunker', 'other'].includes(end)) fir = false;
+    else if (end === 'rough' || end === 'bunker' || TROUBLE_ENDS.includes(end)) fir = false;
   }
   const longExtra = L - reg;
   return {
@@ -423,7 +424,7 @@ export function teeAnalysis(facts, { clubOf = () => null, goal = goalOf('90'), d
   const tees = facts.filter((f) => f.par >= 4).map((f) => {
     const s = f.shots[0];
     const pen = f.pens.filter((p) => p.related_shot_id_optional === s.id).reduce((a, p) => a + (Number(p.strokes) || 0), 0);
-    const trouble = pen > 0 || s.end_lie === 'other' || f.shots[1]?.shot_type === 'recovery';
+    const trouble = pen > 0 || TROUBLE_ENDS.includes(s.end_lie) || f.shots[1]?.shot_type === 'recovery';
     const p0 = shotPath(f.shots, f.pins?.tee ?? null, f.pens)[0];
     const line = p0?.start && p0.end && f.pins?.green ? offLine(p0.start, f.pins.green, p0.end) : null;
     const mapSide = line ? sideOf(line.off, true) : null;
@@ -505,7 +506,10 @@ export function teeAnalysis(facts, { clubOf = () => null, goal = goalOf('90'), d
   if (penHoles) find.push(`ทีออฟโดนลูกโทษ (OB/น้ำ) ${penHoles} หลุม = ${perRound(penStrokes).toFixed(1)} สโตรก/รอบ`);
   if (penPlaced.length) find.push(`ทีออฟที่โดนลูกโทษ (จากจุดที่ปักบนแผนที่): ลูกตรงแต่ลงอุปสรรค (ระยะไม่พอข้าม/เลยไป) ${penStraight} · ลูกเลี้ยวออกทิศ ${penCurved}`);
   if (avgOff != null) find.push(`จุดที่ทีออฟไปจบ ${placed.length} หลุม: เบี่ยงจากแนวไปกรีนเฉลี่ย ${fmt(avgOff)}`);
-  if (out) find.push(`ทีออฟลงพื้นที่ยากจนต้องตีออก ${out} หลุม`);
+  const END_TH = { trees: 'ต้นไม้/ป่า', water: 'ลงน้ำ', ob: 'OB', lost: 'ลูกหาย', unplayable: 'เล่นไม่ได้' };
+  const ends = Object.entries(END_TH).map(([k, label]) => [label, tees.filter((t) => t.s.end_lie === k).length]).filter(([, c]) => c);
+  if (ends.length) find.push(`ทีออฟที่พลาดหนัก: ${ends.map(([label, c]) => `${label} ${c}`).join(' · ')}`);
+  else if (out) find.push(`ทีออฟลงพื้นที่ยากจนต้องตีออก ${out} หลุม`);
   if (fl.m.size) find.push(`ทีออฟที่สัมผัสไม่ดี: ${fl.text}`);
   if (missCost != null && missCost > 0) find.push(`หลุมที่ทีออฟพลาดเสียมากกว่าหลุมที่ลงแฟร์เวย์เฉลี่ย ${missCost.toFixed(1)} สโตรก`);
   if (driver) {
@@ -821,7 +825,7 @@ export function clubDistances({ rounds, holesOf, shotsOf, penaltiesOf, clubOf, t
         const s = shots.find((x) => x.id === id);
         const club = clubOf(s.club_id);
         if (!club || club.category === 'putter' || !['tee', 'approach'].includes(s.shot_type)) continue;
-        if (['top', 'fat'].includes(s.contact) || penalized.has(id) || s.end_lie === 'other') continue;
+        if (['top', 'fat'].includes(s.contact) || penalized.has(id) || TROUBLE_ENDS.includes(s.end_lie)) continue;
         if (d < 20 || d > 400) continue;
         if (!by.has(club.id)) by.set(club.id, { club, ds: [] });
         by.get(club.id).ds.push(d);

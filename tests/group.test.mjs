@@ -126,3 +126,29 @@ test('เตือนเมื่อใช้แต้มต่อแต่ย�
   const total = pointsSummary([{ type: 'skin' }, { type: 'match' }, { type: 'stableford' }], grid);
   assert.deepEqual(total, { a: 2, b: -2 });
 });
+
+// ภาพจากผู้ใช้ 30 ก.ย. 2569: หลุม 1 และ 3 ของ "ฉัน" จดรายช็อตแต่ลืมกดจบหลุม อ้วนกรอกแค่ 2 หลุม
+test('สกอร์รวมที่ยังไม่ครบ: บอกหลุมที่ยังไม่จบ/ไม่มีสกอร์ และไม่ให้คนที่กรอก 2 หลุมได้อันดับ 1', async () => {
+  const { openHoles, openNote, standings, fmtRanges } = await import('../js/group.js');
+  const pars = [4, 4, 5, 4, 3, 4, 5, 3, 4, 4, 5, 4, 3, 4, 4, 4, 3, 5];
+  const mine = [5, 5, 5, 5, 3, 4, 6, 4, 5, 5, 6, 4, 2, 4, 5, 5, 3, 6];
+  const holes = pars.map((par, i) => ({
+    id: `u${i + 1}`, number: i + 1, par, status: i === 0 || i === 2 ? 'playing' : 'done',
+    group_scores: i === 0 ? { oun: 5 } : i === 4 ? { oun: 3 } : {},
+  }));
+  const shotsOf = (hid) => Array.from({ length: mine[Number(hid.slice(1)) - 1] }, (_, k) => ({ id: `${hid}s${k}`, sequence: k + 1 }));
+  const g = scoreGrid(roundWith([{ id: ME, name: 'ฉัน' }, { id: 'oun', name: 'อ้วน' }]), holes, shotsOf);
+  assert.equal(g.total.byPlayer[ME].strokes, 72, 'รวมเฉพาะ 16 หลุมที่จบ');
+  assert.equal(g.total.byPlayer[ME].over, 9);
+  assert.deepEqual(openHoles(g, ME).pending, [{ n: 1, strokes: 5 }, { n: 3, strokes: 5 }]);
+  assert.equal(openHoles(g, 'oun').missing.length, 16);
+  assert.equal(fmtRanges([2, 3, 4, 6, 7, 18]), '2–4, 6–7, 18');
+  assert.equal(openNote(g), '* รวมเฉพาะหลุมที่จบแล้ว — ฉัน: หลุม 1, 3 ยังไม่จบ · อ้วน: ไม่มีสกอร์หลุม 2–4, 6–18');
+  const s = standings(g);
+  assert.deepEqual(s.map((x) => [x.pl.name, x.rank]), [['ฉัน', 1], ['อ้วน', null]], 'อ้วนกรอก 2 หลุม ไม่จัดอันดับ');
+  // จบหลุม 1 และ 3 แล้ว รวมเป็น 82 ครบ 18 หลุม
+  const done = holes.map((h) => ({ ...h, status: 'done' }));
+  const g2 = scoreGrid(roundWith([{ id: ME, name: 'ฉัน' }]), done, shotsOf);
+  assert.equal(g2.total.byPlayer[ME].strokes, 82);
+  assert.equal(openNote(g2), '');
+});

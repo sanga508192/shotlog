@@ -102,9 +102,11 @@ export function groupTableHtml(round, grid) {
   const head = `<tr><th>H</th><th>P</th>${hasHc ? '<th>HC</th>' : ''}${ps.map((p) => `<th>${esc(p.name)}</th>`).join('')}</tr>`;
   const cell = (c) => {
     if (!c) return '<td></td>';
-    return `<td class="${c.final ? KIND_CLASS[c.kind] || '' : 'k-pending'}"><span class="sc">${c.strokes}</span></td>`;
+    return c.final ? `<td class="${KIND_CLASS[c.kind] || ''}"><span class="sc">${c.strokes}</span></td>`
+      : `<td class="k-pending" title="ยังไม่จบหลุม ไม่นับในรวม"><span class="sc">${c.strokes}</span></td>`;
   };
-  const sub = (label, part, cls) => `<tr class="${cls}"><td>${label}</td><td>${part.par || ''}</td>${hasHc ? '<td></td>' : ''}${ps.map((p) => `<td>${part.byPlayer[p.id].strokes}</td>`).join('')}</tr>
+  const star = (part, p) => (part === grid.total && part.byPlayer[p.id].count < grid.rows.length ? '<sup>*</sup>' : '');
+  const sub = (label, part, cls) => `<tr class="${cls}"><td>${label}</td><td>${part.par || ''}</td>${hasHc ? '<td></td>' : ''}${ps.map((p) => `<td>${part.byPlayer[p.id].strokes}${star(part, p)}</td>`).join('')}</tr>
     <tr class="${cls} over"><td>เกิน</td><td></td>${hasHc ? '<td></td>' : ''}${ps.map((p) => `<td>${fmtOver(part.byPlayer[p.id].over)}</td>`).join('')}</tr>`;
   const body = [];
   for (const r of grid.rows) {

@@ -105,6 +105,59 @@ export function scoreGrid(round, holes, shotsOf = () => [], penaltiesOf = () => 
   };
 }
 
+// หลุมที่ยังไม่นับในสกอร์รวมของผู้เล่น: pending = จดแล้วแต่ยังไม่จบหลุม (ตัวเลขจาง) · missing = ยังไม่มีสกอร์
+export function openHoles(grid, pid) {
+  const pending = [], missing = [];
+  for (const r of grid.rows) {
+    const c = r.cells[pid];
+    if (!c) missing.push(r.number);
+    else if (!c.final) pending.push({ n: r.number, strokes: c.strokes });
+  }
+  return { pending, missing };
+}
+
+// 2,3,4,6 → "2–4, 6"
+export function fmtRanges(nums) {
+  const out = [];
+  const s = [...nums].sort((a, b) => a - b);
+  for (let i = 0; i < s.length; i++) {
+    let j = i;
+    while (j + 1 < s.length && s[j + 1] === s[j] + 1) j++;
+    out.push(j > i ? `${s[i]}–${s[j]}` : `${s[i]}`);
+    i = j;
+  }
+  return out.join(', ');
+}
+
+// ข้อความบอกว่าสกอร์รวมยังไม่ครบเพราะอะไร (ใช้ในรูปแชร์) · '' = ครบทุกคน
+export function openNote(grid) {
+  const parts = [];
+  for (const pl of grid.players) {
+    const { pending, missing } = openHoles(grid, pl.id);
+    const bits = [];
+    if (pending.length) bits.push(`หลุม ${fmtRanges(pending.map((x) => x.n))} ยังไม่จบ`);
+    if (missing.length) bits.push(missing.length === grid.rows.length ? 'ยังไม่มีสกอร์' : `ไม่มีสกอร์หลุม ${fmtRanges(missing)}`);
+    if (bits.length) parts.push(`${pl.name}: ${bits.join(' · ')}`);
+  }
+  return parts.length ? `* รวมเฉพาะหลุมที่จบแล้ว — ${parts.join(' · ')}` : '';
+}
+
+// อันดับ: เทียบกันเฉพาะคนที่มีสกอร์ครบเท่ากัน (จำนวนหลุมมากสุด) คนที่จดน้อยกว่าไม่ได้อันดับ
+export function standings(grid) {
+  const t = grid.total.byPlayer;
+  const list = grid.players.map((pl, i) => ({ pl, i, b: t[pl.id] })).filter((x) => x.b.count);
+  const full = Math.max(0, ...list.map((x) => x.b.count));
+  const ranked = list.filter((x) => x.b.count === full).sort((a, b) => a.b.strokes - b.b.strokes);
+  let rank = 0;
+  ranked.forEach((x, k) => {
+    if (k === 0 || x.b.strokes !== ranked[k - 1].b.strokes) rank = k + 1;
+    x.rank = rank;
+  });
+  const rest = list.filter((x) => x.b.count < full).sort((a, b) => b.b.count - a.b.count || a.b.strokes - b.b.strokes)
+    .map((x) => ({ ...x, rank: null }));
+  return [...ranked, ...rest];
+}
+
 // ---------- แต้มต่อ ----------
 
 // จำนวนสโตรกที่ได้รับในหลุมที่มีดัชนีความยาก si (1 = ยากสุด) จากแต้มต่อ allowance

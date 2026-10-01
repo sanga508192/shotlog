@@ -55,10 +55,13 @@ export function fmtToPar(n) {
 
 // ---------- ข้อเสนอประเภทช็อต (ผู้ใช้แก้ได้เสมอ) ----------
 
-export function suggestShotType({ seq, prev, clubCategory }) {
+// rehit = ช็อตก่อนออก OB/หาย/ลงน้ำ แล้วตีใหม่จากจุดเดิม → ช็อตแบบเดิม (เช่น ทีออฟใหม่)
+export function suggestShotType({ seq, prev, clubCategory, rehit = false }) {
   if (clubCategory === 'putter') return 'putt';
   if (seq === 1) return 'tee';
   if (!prev) return null;
+  if (rehit && prev.shot_type) return prev.shot_type;
+  if (prev.end_lie === 'trees') return 'recovery';
   if (prev.end_lie === 'green') return 'putt';
   if (prev.end_lie === 'bunker') return 'bunker';
   if (prev.end_lie === 'fringe') return 'chip';
