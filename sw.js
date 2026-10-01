@@ -47,6 +47,7 @@ const ASSETS = [
   './js/map.js',
   './js/views/map.js',
   './js/shotgeo.js',
+  './js/tiles.js',
   './js/views/landpick.js',
   './js/coach.js',
   './js/views/coach.js',
@@ -78,10 +79,10 @@ self.addEventListener('activate', (event) => {
 // ตอนพัฒนาบนเครื่อง ใช้ไฟล์ล่าสุดจากเซิร์ฟเวอร์ก่อน (เว็บจริงยังเปิดจากแคชเพื่อใช้ออฟไลน์)
 const DEV = ['localhost', '127.0.0.1'].includes(location.hostname);
 
-// ภาพดาวเทียมของแผนที่หลุม: ใช้ภาพที่เคยโหลดก่อน (เปิดในสนามที่สัญญาณอ่อนได้) เก็บไม่เกินราว 3,000 ภาพ
+// ภาพดาวเทียมของแผนที่หลุม: ใช้ภาพที่เคยโหลดก่อน (เปิดในสนามที่สัญญาณอ่อนได้) เก็บไม่เกินราว 5,000 ภาพ
 const TILE_CACHE = 'shotlog-tiles';
 const TILE_HOSTS = ['server.arcgisonline.com', 'ibasemaps-api.arcgis.com'];
-const TILE_MAX = 3000;
+const TILE_MAX = 5000;   // เก็บแผนที่สนามล่วงหน้าได้ราว 3 สนาม
 let tilePuts = 0;
 
 async function tileFetch(req) {

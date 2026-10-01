@@ -9,6 +9,7 @@ import { courseCard, rememberCourseCard, rememberFriends, friends, myName, gridO
 import { ME, MAX_PLAYERS, playersOf, fmtOver } from '../group.js';
 import { coachData, focusListHtml } from './coach.js';
 import { courseHoles, holeReady, isEstimated } from '../holemap.js';
+import { offlineButton, saveCourseOffline } from './map.js';
 
 // ---------- หน้าแรก ----------
 
@@ -118,7 +119,8 @@ function mapSetupLink(courseId, sc) {
   return `<a class="card map-card" href="#/map/${encodeURIComponent(courseId)}/${first}${ready < total ? '?edit=1' : ''}">
     <span class="map-card-ico" aria-hidden="true">🗺</span>
     <span><b>แผนที่หลุม</b><small>${status}</small></span>
-  </a>`;
+  </a>
+  ${offlineButton(courseId)}`;
 }
 
 // การ์ดสั้น ๆ พาไปหน้าพัฒนาเกม
@@ -399,6 +401,7 @@ export function newRoundView([courseId], ctx) {
       <button type="button" class="btn primary big block" data-act="start" ${count ? '' : 'disabled'}>เริ่มรอบ ${count ? `(${count} หลุม)` : ''}</button>
     </div>`,
     actions: {
+      offlineMap: (el) => saveCourseOffline(el.dataset.course, el),
       date: (el) => { nr.date = el.value; },
       mateName: (el) => { nr.mateName = el.value; },
       mateAdd: () => {

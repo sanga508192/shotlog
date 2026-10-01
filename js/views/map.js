@@ -14,6 +14,8 @@ import { watchPosition, lastPosition, getPosition } from '../geo.js';
 import { clubDistances, suggestClub, GPS_MAX_ACC } from '../coach.js';
 import { launchCarryRows } from '../launch.js';
 import { shotPath, offLine } from '../shotgeo.js';
+import { courseTiles, downloadTiles, dropMissingZooms } from '../tiles.js';
+import { maxZoomAt } from '../map.js';
 
 // สถานะที่อยู่ข้ามการเปลี่ยนหลุม (ของสนามที่เปิดอยู่)
 // edit = กดแก้หมุดเอง (อยู่จนกดเสร็จ) · editHole = หลุมที่กำลังวางหมุดใหม่ (อยู่โหมดวางจนออกจากหลุมนั้น)
@@ -26,7 +28,7 @@ const FRESH_MS = 20000;
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
 // ระยะไม้จริงของผู้ใช้: จาก GPS ในสนามก่อน ไม้ที่ยังไม่มีข้อมูล GPS ใช้ระยะลอยจากเครื่องซ้อม (src: 'sim')
-function clubRows() {
+export function clubRows() {
   const gps = clubDistances({
     rounds: st.rounds(), holesOf: st.holesOf, shotsOf: st.shotsOf, penaltiesOf: st.penaltiesOf, clubOf: st.club,
     teeOf: (r, h) => confirmedPoint(courseHoles(r.course_id)[h.number], 'tee'),
@@ -43,6 +45,47 @@ export const pinHtml = {
   edge: '<span class="mp-edge" aria-hidden="true"></span>',
   me: '<span class="mp-me" aria-label="ตำแหน่งของคุณ"></span>',
 };
+
+// ---------- เก็บแผนที่สนามไว้ใช้ตอนไม่มีสัญญาณ (สถานะเก็บในเครื่องนี้เท่านั้น) ----------
+const offKey = (id) => `shotlog_offline:${id}`;
+export function offlineInfo(courseId) {
+  try { return JSON.parse(globalThis.localStorage?.getItem(offKey(courseId)) || 'null'); } catch { return null; }
+}
+export function offlineTiles(courseId) {
+  const c = st.course(courseId);
+  return courseTiles(courseHoles(courseId), { center: c?.geo && !c.geo.approx ? c.geo : null, maxZoom: maxZoomAt });
+}
+export function offlineButton(courseId, cls = 'btn block offline-btn') {
+  const n = offlineTiles(courseId).length;
+  if (!n) return '';
+  const info = offlineInfo(courseId);
+  const mb = Math.max(1, Math.round((n * 25) / 1024));
+  return `<button type="button" class="${cls}" data-act="offlineMap" data-course="${esc(courseId)}">⬇️ ${info ? 'เก็บแผนที่ใหม่' : 'เก็บแผนที่สนามไว้ใช้ตอนไม่มีสัญญาณ'} <small>${info ? `เก็บไว้แล้ว ${new Date(info.at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })} · ` : ''}~${mb} MB · ${n} ภาพ</small></button>`;
+}
+export async function saveCourseOffline(courseId, btn) {
+  if (btn.dataset.busy) return;
+  const tiles = offlineTiles(courseId);
+  if (!tiles.length) { toast('ยังไม่มีหมุดหรือตำแหน่งของสนามนี้ วางหมุดแท่นทีและกรีนก่อน'); return; }
+  if (globalThis.navigator?.onLine === false) { toast('ต้องต่ออินเทอร์เน็ตก่อน (แนะนำ Wi-Fi)'); return; }
+  btn.dataset.busy = '1';
+  const label = btn.innerHTML;
+  try {
+    btn.textContent = '⬇️ กำลังตรวจภาพของพื้นที่นี้…';
+    const h = Object.values(courseHoles(courseId)).find((x) => x?.green || x?.tee);
+    const list = await dropMissingZooms(tiles, h?.green ?? h?.tee ?? st.course(courseId)?.geo ?? null);
+    const r = await downloadTiles(list, { onProgress: (d, t) => { btn.textContent = `⬇️ กำลังเก็บแผนที่ ${Math.round((d / t) * 100)}%`; } });
+    const ok = r.total - r.failed - r.missing;
+    try { globalThis.localStorage?.setItem(offKey(courseId), JSON.stringify({ at: new Date().toISOString(), tiles: ok })); } catch { /* ไม่เป็นไร */ }
+    btn.textContent = r.failed ? `เก็บได้ ${ok}/${r.total} ภาพ` : '✓ เก็บแผนที่แล้ว ใช้ได้แม้ไม่มีสัญญาณ';
+    toast(r.failed ? `เก็บได้ ${ok}/${r.total} ภาพ บางภาพโหลดไม่ได้ ลองอีกครั้งตอนเน็ตดี` : `เก็บแผนที่สนามนี้แล้ว ${r.total} ภาพ`);
+  } catch (err) {
+    logError('offline map', err);
+    btn.innerHTML = label;
+    toast('เก็บแผนที่ไม่สำเร็จ ลองใหม่อีกครั้ง');
+  } finally {
+    delete btn.dataset.busy;
+  }
+}
 
 const hzKind = (z) => HAZARD_KINDS.find((k) => k.v === z.kind);
 const hazardHtml = (z, dist) => `<span class="mp-hz" aria-label="${esc(hzKind(z)?.th ?? '')}">${hzKind(z)?.icon ?? '📌'}${dist ? `<b>${dist}</b>` : ''}</span>`;
@@ -285,6 +328,7 @@ export function mapView([courseId, numStr, query], ctx) {
         <div class="map-tools">
           <button type="button" class="map-pill" data-act="recenter">⤢ ทั้งหลุม</button>
           <button type="button" class="map-pill" data-act="edit">✏️ แก้หมุด</button>
+          ${offlineInfo(courseId) ? '' : '<button type="button" class="map-pill" data-act="offlineMap" data-course="' + esc(courseId) + '">⬇️ เก็บแผนที่</button>'}
         </div>`;
     }
     const len = holeReady(h) ? distM(h.tee, h.green) : null;
@@ -414,6 +458,7 @@ export function mapView([courseId, numStr, query], ctx) {
     actions: {
       unit: async () => { await st.setSetting('map_unit', unit() === 'yd' ? 'm' : 'yd'); refresh(); },
       recenter: () => fitHole(),
+      offlineMap: (el) => saveCourseOffline(courseId, el),
       edit: () => { M.edit = true; M.placing = null; refresh(); },
       done: () => { M.edit = false; M.editHole = null; M.placing = null; fitHole(); refresh(); toast('บันทึกหมุดแล้ว'); },
       place: (el) => { M.placing = M.placing === el.dataset.v ? null : el.dataset.v; refresh(); },

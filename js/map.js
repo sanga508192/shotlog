@@ -19,6 +19,9 @@ const areaKey = (p) => `tm_max:${p.lat.toFixed(1)},${p.lon.toFixed(1)}`;
 function rememberedMax(p) {
   try { const v = Number(globalThis.localStorage?.getItem(areaKey(p))); return v >= 10 && v <= MAX_NATIVE ? v : MAX_NATIVE; } catch { return MAX_NATIVE; }
 }
+// ระดับซูมละเอียดสุดที่มีภาพจริงในพื้นที่นี้ (จำจากครั้งก่อนที่เจอภาพเทา)
+export const maxZoomAt = (p) => rememberedMax(p);
+export const setMaxZoomAt = (p, z) => rememberMax(p, z);
 function rememberMax(p, z) {
   try { globalThis.localStorage?.setItem(areaKey(p), String(z)); } catch { /* ไม่เป็นไร */ }
 }

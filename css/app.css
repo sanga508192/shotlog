@@ -876,3 +876,11 @@ a.map-card { display: flex; align-items: center; gap: 12px; text-decoration: non
 .open-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .open-row b { margin-right: 4px; }
 .card-table sup { font-size: .7em; color: var(--bad); }
+/* จบหลุมด้วยพัต */
+.putt-quick { display: flex; flex-direction: column; gap: 8px; }
+.putt-btns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.putt-btns .btn { padding: 10px 4px; }
+.putt-dist { display: flex; align-items: center; gap: 8px; }
+.putt-dist .input { max-width: 110px; }
+.offline-btn { flex-direction: column; gap: 2px; margin-top: -4px; }
+.offline-btn small { font-weight: 400; font-size: .76rem; opacity: .75; }

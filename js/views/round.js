@@ -14,8 +14,9 @@ import { playersOf, openHoles, fmtRanges, ME } from '../group.js';
 import { deleteRound } from './main.js';
 import { liveCardHtml, liveActions } from './live.js';
 import { watchPosition, lastPosition } from '../geo.js';
-import { courseHoles, distM, toUnit, unitTh, confirmedPoint, holeReady } from '../holemap.js';
-import { GPS_MAX_ACC } from '../coach.js';
+import { courseHoles, distM, toUnit, unitTh, confirmedPoint, holeReady, setHolePoint } from '../holemap.js';
+import { GPS_MAX_ACC, suggestClub } from '../coach.js';
+import { clubRows } from './map.js';
 import { shotPath, landOf } from '../shotgeo.js';
 import { openLandPicker, landInfo, landText, sideTh } from './landpick.js';
 
@@ -28,6 +29,26 @@ let details = false;
 let saving = false;
 let pen = null;      // ร่างสโตรกปรับ
 let relief = null;   // ช็อตที่ลูกลงน้ำ/OB/หาย/เล่นไม่ได้: ตีต่อแบบไหน (RELIEFS)
+let hint = '';           // เหตุผลของไม้ที่แนะนำ (แสดงอย่างเดียว ไม่บันทึก)
+let suggestedFor = null; // ร่างที่แนะนำไม้ไปแล้ว
+let suggestedAt = null;  // ตำแหน่งตอนแนะนำ (เดินไปที่ลูกแล้ว → แนะนำใหม่ ถ้าผู้ใช้ยังไม่ได้เลือกเอง)
+let clubTouched = false; // ผู้ใช้เลือกไม้เอง → ไม่แนะนำทับ
+let draftType = null;    // ประเภทช็อตที่ระบบเสนอตอนสร้างร่าง (ใช้คืนค่าเมื่อไม่มีไม้แนะนำ)
+let puttDist = null;     // ระยะพัตแรกของปุ่มจบหลุมด้วยพัต
+
+// ไม้ที่ใช้บ่อยที่สุดในช็อตแบบนี้ (รอบที่จดรายช็อต 15 รอบล่าสุด) เฉพาะไม้ที่ยังอยู่ในกระเป๋า
+function usualClub(pick) {
+  const inBag = new Set(st.bagClubs().map((c) => c.id));
+  const count = new Map();
+  for (const r of st.rounds().filter((x) => x.shot_logging !== false).slice(0, 15)) {
+    for (const h of st.holesOf(r.id)) {
+      for (const s of st.shotsOf(h.id)) {
+        if (s.club_id && inBag.has(s.club_id) && pick(s, h)) count.set(s.club_id, (count.get(s.club_id) || 0) + 1);
+      }
+    }
+  }
+  return [...count].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+}
 
 // วิธีตีต่อที่เก็บไว้กับสโตรกปรับอัตโนมัติของช็อตนั้น
 const reliefOf = (holeId, shotId) => st.penaltiesOf(holeId).find((p) => p.related_shot_id_optional === shotId && p.auto)?.relief ?? null;
@@ -63,6 +84,12 @@ function resetDraft(round, hole, at = null) {
   typeTouched = false;
   details = false;
   relief = null;
+  hint = '';
+  suggestedFor = null;
+  suggestedAt = null;
+  clubTouched = false;
+  draftType = F.shot_type;
+  puttDist = null;
 }
 
 function shotSummary(s) {
@@ -146,7 +173,7 @@ function shotForm(bag, phrases, gpsOn = false, land = null) {
     <div class="row between"><h3>${title}</h3>${mode !== 'new' ? '<button type="button" class="mini" data-act="cancel">ยกเลิก</button>' : ''}</div>
     ${mode !== 'edit' ? `<label class="check gps-toggle"><input type="checkbox" data-change="gpsShots" ${gpsOn ? 'checked' : ''}> 📍 จับตำแหน่ง GPS ตอนบันทึก <span class="small muted" id="gps-state"></span></label>
     ${gpsOn ? '<p class="note">บันทึกช็อตขณะยืนอยู่ที่จุดตี (ก่อนหรือหลังตีก็ได้ ก่อนเดินไปลูกถัดไป) แอปจะคำนวณระยะแต่ละช็อตให้</p>' : ''}` : ''}
-    <div class="lbl">ไม้</div>${chips('set', 'club_id', clubOpts, F.club_id, { cls: 'clubs' })}
+    <div class="lbl">ไม้${hint && F.club_id ? ` <span class="muted small">(แนะนำ: ${esc(hint)} · แตะเพื่อเปลี่ยน)</span>` : ''}</div>${chips('set', 'club_id', clubOpts, F.club_id, { cls: 'clubs' })}
     <div class="lbl">ประเภท ${typeTouched ? '' : '<span class="muted small">(ระบบเสนอ แตะเพื่อแก้)</span>'}</div>${chips('set', 'shot_type', SHOT_TYPES, F.shot_type)}
     ${outcomeHtml()}
     ${landButton(land)}
@@ -273,6 +300,46 @@ export function holeView([roundId, numStr], ctx) {
     return { ops, added: rec };
   }
 
+  // ไม้แนะนำของช็อตใหม่: ทีออฟพาร์ 4–5 = ไม้ทีออฟที่ใช้บ่อย · ช็อตอื่นใช้ระยะถึงกลางกรีน (GPS หรือแท่นที→กรีน)
+  // ใกล้กรีนมาก → พัตเตอร์ · ใกล้กรีน → ชิพ · ไกลกว่านั้น → ไม้ที่ระยะจริงใกล้ที่สุด (ระยะ GPS ก่อน แล้วค่อยระยะเครื่องซ้อม)
+  function clubSuggestion(pos) {
+    const fmtD = (m) => `${Math.round(toUnit(m, unit))} ${unitTh(unit)}`;
+    if (F.sequence === 1 && (hole.par ?? 4) >= 4) {
+      const id = usualClub((s, h) => s.sequence === 1 && (h.par ?? 0) >= 4);
+      return id ? { club: id, type: 'tee', why: 'ไม้ทีออฟที่คุณใช้บ่อย' } : null;
+    }
+    const green = pins?.green ?? null;
+    let d = null;
+    if (pos && green) d = distM(pos, green);
+    else if (F.sequence === 1 && pins?.tee && green) d = distM(pins.tee, green);
+    else if (F.sequence === 1 && Number(hole.distance) > 0) d = Number(hole.distance) * (hole.distance_unit === 'yd' ? 0.9144 : 1);
+    if (d == null) return null;
+    if (d <= 15) {
+      const putter = bag.find((c) => c.category === 'putter');
+      return { club: putter?.id ?? null, type: 'putt', why: `ห่างกลางกรีน ${fmtD(d)}` };
+    }
+    if (d <= 40) return { club: usualClub((s) => s.shot_type === 'chip' || s.shot_type === 'pitch'), type: 'chip', why: `ห่างกลางกรีน ${fmtD(d)}` };
+    const c = suggestClub(d, clubRows());
+    const id = c?.club_id ?? c?.clubId ?? null;
+    return id && bag.some((x) => x.id === id) ? { club: id, type: F.sequence === 1 ? 'tee' : 'approach', why: `ระยะถึงกรีน ${fmtD(d)}` } : null;
+  }
+  const pristine = () => !clubTouched && !typeTouched && F.end_lie == null && F.assessment == null && !F.note;
+  const freshPos = () => { const p = lastPosition(20000); return p && p.accuracy <= GPS_MAX_ACC ? p : null; };
+  // แนะนำใหม่เมื่อยังไม่เคยแนะนำร่างนี้ หรือเดินไปแล้วเกิน 15 ม. (บันทึกช็อตที่แท่นทีแล้วเดินไปที่ลูก)
+  const moved = (pos) => !!pos && (!suggestedAt || distM(pos, suggestedAt) > 15);
+  if (logShots && mode === 'new' && pristine()) {
+    const pos = gpsOn ? freshPos() : null;
+    const needsPos = F.sequence !== 1;
+    if ((suggestedFor !== F.id && (!needsPos || pos)) || (suggestedFor === F.id && needsPos && moved(pos))) {
+      const s = clubSuggestion(pos);
+      F.club_id = s?.club ?? null;
+      F.shot_type = s?.type ?? draftType;
+      hint = s?.club ? s.why : '';
+      suggestedFor = F.id;
+      suggestedAt = pos ? { lat: pos.lat, lon: pos.lon } : null;
+    }
+  }
+
   function pickLand({ seq, start, value, exceptId, onSave }) {
     openLandPicker({ pins, n: num, seq, start, value, others: othersFor(exceptId), unit, teeShot: teeShotOf(seq), onSave });
   }
@@ -310,6 +377,13 @@ export function holeView([roundId, numStr], ctx) {
     ${logShots ? `<div class="shots">${shots.length ? shots.map((s) => shotCard(s, mode === 'edit' ? F.id : null, gpsDist.get(s.id) ?? null, unit)).join('') : '<p class="muted center">ยังไม่มีช็อต</p>'}</div>
     ${penaltySection(hole, shots, canLand)}
 
+    ${hole.status === 'playing' && shots.length && mode === 'new' && !shots.some((s) => s.holed) ? `<section class="card putt-quick">
+      <div class="row between"><b>⛳ จบหลุมด้วยพัต</b><span class="small muted">เพิ่มพัตและจบหลุมในแตะเดียว</span></div>
+      <div class="putt-btns">${[1, 2, 3, 4].map((n) => `<button type="button" class="btn${n === 2 ? ' primary' : ''}" data-act="puttFinish" data-n="${n}">${n} พัต</button>`).join('')}</div>
+      <label class="small muted putt-dist">ระยะพัตแรก (ไม่บังคับ)
+        <input class="input" type="number" inputmode="decimal" step="any" min="0" placeholder="${unit === 'yd' ? 'หลา' : 'เมตร'}" value="${puttDist ?? ''}" data-input="puttDist"></label>
+    </section>` : ''}
+
     ${shotForm(bag, phrases, gpsOn, landBtn)}
 
     <section class="card">
@@ -344,6 +418,7 @@ export function holeView([roundId, numStr], ctx) {
       const state = el.querySelector('#gps-state');
       stopGps = watchPosition((pos) => {
         if (state) state.textContent = pos.accuracy <= GPS_MAX_ACC ? `(±${Math.round(pos.accuracy)} ม.)` : `(ยังไม่แม่น ±${Math.round(pos.accuracy)} ม.)`;
+        if (logShots && mode === 'new' && pristine() && pos.accuracy <= GPS_MAX_ACC && (suggestedFor !== F.id || (F.sequence !== 1 && moved(pos)))) refresh();
       }, (err) => { if (state) state.textContent = `(${err.message})`; });
     },
     unmount() { stopGps?.(); },
@@ -355,6 +430,7 @@ export function holeView([roundId, numStr], ctx) {
       set: (el) => {
         const { field, v } = el.dataset;
         F[field] = field === 'distance_unit' ? v : (F[field] === v ? null : v);
+        if (field === 'club_id') { hint = ''; clubTouched = true; }
         if (field === 'club_id' && !typeTouched) {
           const prev = shots.filter((s) => s.sequence < F.sequence && s.id !== F.id).at(-1) ?? null;
           F.shot_type = suggestShotType({ seq: F.sequence, prev, clubCategory: st.club(F.club_id)?.category, rehit: rehitAfter(hole.id, prev) });
@@ -377,6 +453,50 @@ export function holeView([roundId, numStr], ctx) {
       },
       details: () => { details = !details; refresh(); },
       relief: (el) => { relief = el.dataset.v; refresh(); },
+      puttDist: (el) => { const n = Number(el.value); puttDist = el.value.trim() !== '' && Number.isFinite(n) && n >= 0 ? n : null; },
+      // จบหลุมด้วยพัต N ครั้ง: ช็อตก่อนหน้าที่ยังไม่ระบุจุดจบ = บนกรีน · พัตแรกเก็บ GPS (บอกว่าช็อตก่อนหยุดตรงไหน)
+      puttFinish: async (el) => {
+        if (saving) return;
+        saving = true;
+        try {
+          const n = Number(el.dataset.n);
+          const cur = st.shotsOf(hole.id);
+          const holeBefore = { ...st.S.holes.get(hole.id) };
+          const last = cur.at(-1);
+          const putter = st.bagClubs().find((c) => c.category === 'putter') ?? null;
+          const pos = gpsOn ? freshPos() : null;
+          const now = st.nowIso();
+          const ops = [];
+          const lastBefore = last ? { ...last } : null;
+          if (last && last.end_lie == null && last.shot_type !== 'putt') ops.push(st.patchOp('shots', last.id, { end_lie: 'green' }));
+          const added = [];
+          for (let k = 0; k < n; k++) {
+            const fin = k === n - 1;
+            const s = {
+              ...blankShot(round, hole, cur.length + k + 1, null), club_id: putter?.id ?? null, shot_type: 'putt',
+              start_lie: 'green', end_lie: fin ? 'holed' : 'green', holed: fin, created_at: now,
+              ...(k === 0 && puttDist != null ? { distance_before: puttDist, measurement_method: 'estimated' } : {}),
+              ...(k === 0 && pos ? { gps: { lat: pos.lat, lon: pos.lon, acc: Math.round(pos.accuracy), at: now } } : {}),
+            };
+            added.push(s);
+            ops.push({ store: 'shots', put: s });
+          }
+          ops.push(st.patchOp('holes', hole.id, { status: 'done', finish: 'holed' }));
+          ops.push(st.patchOp('rounds', roundId, { current_hole: num }));
+          await st.commit(ops);
+          const total = holeScore(st.S.holes.get(hole.id), st.shotsOf(hole.id), st.penaltiesOf(hole.id)).total;
+          resetDraft(round, st.S.holes.get(hole.id));
+          const undo = async () => {
+            await st.commit([...added.map((s) => ({ store: 'shots', del: s.id })), { store: 'holes', put: holeBefore }, ...(lastBefore ? [{ store: 'shots', put: lastBefore }] : [])]);
+            ctx.go(`#/round/${roundId}/hole/${num}`);
+          };
+          toast(`หลุม ${num} จบ · ${n} พัต · สกอร์ ${total}`, { label: 'เลิกทำ', run: undo });
+          if (nextN) ctx.go(`#/round/${roundId}/hole/${nextN}`);
+          else ctx.go(`#/round/${roundId}/card`);
+        } finally {
+          saving = false;
+        }
+      },
       // ปักจุดที่ลูกไปจบ: เติมทิศให้ถ้ายังไม่ได้เลือก (ต้องรู้จุดตีจริงและกรีนที่ยืนยันแล้ว)
       land: () => {
         const start = draftStart();
@@ -504,6 +624,14 @@ export function holeView([roundId, numStr], ctx) {
           ops.push(st.patchOp('rounds', roundId, { current_hole: num }));
           await st.commit(ops);
           const wasEdit = mode === 'edit';
+          if (!wasEdit && shot.sequence === 1 && shot.gps && shot.gps.acc <= 12 && round.course_id) {
+            const p = courseHoles(round.course_id)[num];
+            const near = !p?.tee || distM(p.tee, shot.gps) <= 80;
+            if (p?.src?.tee !== 'mine' && near) {
+              await setHolePoint(round.course_id, num, 'tee', { lat: shot.gps.lat, lon: shot.gps.lon, via: 'gps' });
+              gpsNote += ' · ปักหมุดแท่นทีจาก GPS แล้ว';
+            }
+          }
           resetDraft(round, st.S.holes.get(hole.id));
           refresh();
           if (holedMsg && nextN) toast('ลงหลุม — บันทึกในเครื่องแล้ว', { label: `ไปหลุม ${nextN}`, run: () => ctx.go(`#/round/${roundId}/hole/${nextN}`) });
