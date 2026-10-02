@@ -83,3 +83,21 @@ test('analyzeSG: ค่าต่อ 18 หลุมจากหลุมที�
   near(Object.values(SG_SHARE).reduce((a, b) => a + b, 0), 1, 1e-9);
   assert.equal(r.worst.length, 5);
 });
+
+test('พัต: รู้แค่ระยะพัตแรก (จากปุ่มจบหลุมด้วยพัต) ก็คิดได้ และได้ผลรวมเท่ากับรู้ระยะทุกพัต', async () => {
+  const { holeSG } = await import('../js/sg.js');
+  const h = { id: 'h', par: 4, status: 'done', finish: 'holed', distance: 380, distance_unit: 'yd' };
+  const s = (seq, o) => ({ id: `p${seq}`, sequence: seq, counted: true, distance_unit: 'm', ...o });
+  const base = [s(1, { shot_type: 'tee', start_lie: 'tee', end_lie: 'fairway' }), s(2, { shot_type: 'approach', start_lie: 'fairway', distance_before: 140, end_lie: 'green' })];
+  const putt = (seq, o) => s(seq, { shot_type: 'putt', start_lie: 'green', ...o });
+  const quick = holeSG(h, [...base, putt(3, { distance_before: 6, end_lie: 'green' }), putt(4, { end_lie: 'green' }), putt(5, { end_lie: 'holed', holed: true })], []);
+  const exact = holeSG(h, [...base, putt(3, { distance_before: 6, end_lie: 'green' }), putt(4, { distance_before: 1.5, end_lie: 'green' }), putt(5, { distance_before: 0.4, end_lie: 'holed', holed: true })], []);
+  assert.equal(quick.complete, true, 'ไม่ต้องรู้ระยะพัตที่ 2–3');
+  const putting = (r) => r.shots.filter((x) => x.cat === 'putt').reduce((a, x) => a + x.sg, 0);
+  assert.ok(Math.abs(putting(quick) - putting(exact)) < 0.02, `${putting(quick)} vs ${putting(exact)}`);
+  assert.deepEqual(quick.shots.slice(3).map((x) => x.sg), [0, 0], 'ยกยอดไว้ที่พัตแรก');
+  // ไม่รู้ระยะพัตแรก → ยังไม่ครบ · ยกลูก (กิมมี่) นับเป็นอีก 1 สโตรก
+  assert.equal(holeSG(h, [...base, putt(3, { end_lie: 'green' }), putt(4, { end_lie: 'holed', holed: true })], []).complete, false);
+  const gimme = holeSG({ ...h, finish: 'picked_up' }, [...base, putt(3, { distance_before: 6, end_lie: 'green' }), putt(4, { end_lie: 'green' })], []);
+  assert.equal(gimme.complete, true);
+});

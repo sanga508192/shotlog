@@ -86,6 +86,19 @@ export function holeSG(hole, shots, pens) {
     const eb = b ? expectedStrokes(b.lie, b.yd) : null;
     out.push({ shot: s, cat: b ? category(b, par) : null, sg: eb != null && after != null ? eb - after - 1 - penOf(s.id) : null });
   });
+  // พัตชุดสุดท้ายของหลุม: รู้ระยะพัตแรกก็พอ เพราะ SG รวมของทั้งชุด = ค่าคาดหมายจากระยะพัตแรก − จำนวนพัต − ที่เหลือหลังพัตสุดท้าย
+  // (ผลรวมเท่ากับคิดทีละพัตพอดี) ยกยอดไว้ที่พัตแรก พัตถัดไปเป็น 0 · ใช้เมื่อพัตถัดไปไม่มีระยะ
+  const isPutt = (i) => before[i]?.lie === 'green' || list[i].shot_type === 'putt' || list[i].start_lie === 'green';
+  let first = list.length;
+  while (first > 0 && isPutt(first - 1)) first--;
+  const endAfter = out.at(-1).shot.holed || out.at(-1).shot.end_lie === 'holed' ? 0 : hole.finish === 'picked_up' ? 1 : null;
+  const fb = before[first];
+  if (first < list.length && fb?.lie === 'green' && endAfter != null && out.slice(first + 1).some((x) => x.sg == null)) {
+    const n = list.length - first;
+    const pen = list.slice(first).reduce((a, s) => a + penOf(s.id), 0);
+    out[first] = { ...out[first], cat: 'putt', sg: expectedStrokes('green', fb.yd) - endAfter - n - pen };
+    for (let i = first + 1; i < list.length; i++) out[i] = { ...out[i], cat: 'putt', sg: 0 };
+  }
   return { hole, shots: out, loosePen: loose, complete: loose === 0 && out.every((x) => x.sg != null) };
 }
 

@@ -210,9 +210,9 @@ label.check input { width: 22px; height: 22px; accent-color: var(--brand); flex:
 .chip.team-A { border-color: var(--brand); color: var(--brand); font-weight: 700; }
 .chip.team-B { border-color: var(--gold); color: var(--gold-ink); font-weight: 700; }
 
-.assess { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.assess { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .big-choice {
-  min-height: 58px; border-radius: 14px; border: 2px solid var(--line); background: var(--surface);
+  min-height: 46px; border-radius: 14px; border: 2px solid var(--line); background: var(--surface);
   color: var(--text); font-weight: 700; cursor: pointer;
 }
 .big-choice.good.on { background: var(--good-soft); border-color: var(--good); color: var(--good); }
@@ -880,7 +880,9 @@ a.map-card { display: flex; align-items: center; gap: 12px; text-decoration: non
 .putt-quick { display: flex; flex-direction: column; gap: 8px; }
 .putt-btns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .putt-btns .btn { padding: 10px 4px; }
-.putt-dist { display: flex; align-items: center; gap: 8px; }
-.putt-dist .input { max-width: 110px; }
+/* ปุ่มบันทึกช็อตลอยอยู่เหนือแถบเปลี่ยนหลุมตลอดเวลาที่ฟอร์มอยู่บนจอ */
+.save-bar { position: sticky; bottom: calc(80px + env(safe-area-inset-bottom)); z-index: 6; padding-top: 6px; margin-top: 4px;
+  background: linear-gradient(color-mix(in srgb, var(--surface) 0%, transparent), var(--surface) 30%); }
+.save-bar .btn { box-shadow: var(--shadow-lg); }
 .offline-btn { flex-direction: column; gap: 2px; margin-top: -4px; }
 .offline-btn small { font-weight: 400; font-size: .76rem; opacity: .75; }
