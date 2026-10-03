@@ -10,6 +10,7 @@ import { GPS_MAX_ACC, suggestClub } from '../coach.js';
 import { clubRows } from './map.js';
 import { shotPath, landOf } from '../shotgeo.js';
 import { openLandPicker, landInfo, landText, sideTh } from './landpick.js';
+import { teePlanFor, teePlanHtml, planClubId } from './holeplan.js';
 import { d, blankShot, resetDraft, reliefOf, rehitAfter, usualClub } from './shotdraft.js';
 import { shotCard, shotForm, penaltySection, puttCard, LAND_REASONS } from './shotform.js';
 
@@ -37,6 +38,8 @@ export function holeView([roundId, numStr], ctx) {
   const gpsOn = logShots && st.setting('gps_shots', false);
   const pins = round.course_id ? courseHoles(round.course_id)[num] : null;
   const unit = round.distance_unit === 'yd' ? 'yd' : 'm';
+  // แผนทีออฟ: แสดงตอนเริ่มหลุม (ยังไม่มีช็อต)
+  const tp = shots.length === 0 && hole.status === 'playing' ? teePlanFor(round, hole, unit) : null;
   // ระยะช็อตที่บันทึกถาวรใช้หมุดแท่นทีที่ยืนยันแล้วเท่านั้น (หมุดประมาณอาจผิดตำแหน่ง)
   const path = logShots ? shotPath(shots, confirmedPoint(pins, 'tee'), penalties) : [];
   const gpsDist = new Map(path.filter((x) => x.dist != null).map((x) => [x.shot.id, x.dist]));
@@ -86,6 +89,8 @@ export function holeView([roundId, numStr], ctx) {
   // ใกล้กรีนมาก → พัตเตอร์ · ใกล้กรีน → ชิพ · ไกลกว่านั้น → ไม้ที่ระยะจริงใกล้ที่สุด (ระยะ GPS ก่อน แล้วค่อยระยะเครื่องซ้อม)
   function clubSuggestion(pos) {
     const fmtD = (m) => `${Math.round(toUnit(m, unit))} ${unitTh(unit)}`;
+    const planned = planClubId(tp);
+    if (d.F.sequence === 1 && planned && bag.some((c) => c.id === planned)) return { club: planned, type: 'tee', why: 'ตามแผนทีออฟหลุมนี้' };
     if (d.F.sequence === 1 && (hole.par ?? 4) >= 4) {
       const id = usualClub((s, h) => s.sequence === 1 && (h.par ?? 0) >= 4);
       return id ? { club: id, type: 'tee', why: 'ไม้ทีออฟที่คุณใช้บ่อย' } : null;
@@ -153,6 +158,8 @@ export function holeView([roundId, numStr], ctx) {
         <button type="button" class="btn" data-act="finish" data-v="picked_up" data-sure="1" data-back="1">ยกลูก / กิมมี่</button>
       </div>
     </div>` : ''}
+
+    ${teePlanHtml(tp, unit)}
 
     ${group ? groupEntryHtml(round, hole) : ''}
 

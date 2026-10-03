@@ -16,6 +16,7 @@ import { launchCarryRows } from '../launch.js';
 import { shotPath, offLine } from '../shotgeo.js';
 import { courseTiles, downloadTiles, dropMissingZooms } from '../tiles.js';
 import { maxZoomAt } from '../map.js';
+import { teePlanFor } from './holeplan.js';
 
 // สถานะที่อยู่ข้ามการเปลี่ยนหลุม (ของสนามที่เปิดอยู่)
 // edit = กดแก้หมุดเอง (อยู่จนกดเสร็จ) · editHole = หลุมที่กำลังวางหมุดใหม่ (อยู่โหมดวางจนออกจากหลุมนั้น)
@@ -275,6 +276,13 @@ export function mapView([courseId, numStr, query], ctx) {
     return `<p class="map-warn">💧 น้ำที่ ${fmtDist(risky[0].d, u)} ${unitTh(u)} อยู่ในช่วงระยะ ${esc(driver.label)} ของคุณ (${fmtDist(driver.p25, u)}–${fmtDist(driver.p75, u)}) เลือกไม้ให้ไม่ถึงหรือข้ามได้แน่นอน</p>`;
   }
 
+  // แผนทีออฟของหลุมนี้แบบบรรทัดเดียว (เต็ม ๆ อยู่ในหน้าจดช็อต)
+  function planLine() {
+    if (start().me) return '';
+    const tp = teePlanFor(round ?? { id: null, course_id: courseId }, { number: n, par, distance: null }, unit());
+    return tp ? `<p class="map-club">🧭 <b>${esc(tp.club.label)}</b> · ${esc(tp.aim)}</p>` : '';
+  }
+
   function historyNote() {
     const t = teeHistory();
     if (!t.n) return '';
@@ -321,6 +329,7 @@ export function mapView([courseId, numStr, query], ctx) {
           ${n < count ? `<a class="map-round" href="${hrefHole(n + 1)}" aria-label="หลุมถัดไป">›</a>` : '<span class="map-round off">›</span>'}
         </div>
         ${estNote()}
+        ${planLine()}
         <div id="map-club">${clubNote()}</div>
         ${hazardNote()}
         ${historyNote()}

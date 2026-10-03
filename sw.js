@@ -41,6 +41,8 @@ const ASSETS = [
   './js/views/live.js',
   './js/launch.js',
   './js/launchreport.js',
+  './js/strategy.js',
+  './js/views/holeplan.js',
   './js/views/launch.js',
   './js/live-view.js',
   './js/live-render.js',

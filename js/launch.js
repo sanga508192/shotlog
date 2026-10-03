@@ -540,8 +540,14 @@ export function launchIssues(stats, { hand = 'right', fmt = (m) => `${Math.round
 }
 
 // ระยะลอยจากเครื่องซ้อมต่อไม้ (ไม้ที่ผูกกับไม้ในกระเป๋า มีช็อตดีอย่างน้อย 5 ลูก) ใช้แนะนำไม้เมื่อยังไม่มีข้อมูล GPS
+// ระยะไม้จากเครื่องซ้อม: ใช้การซ้อมช่วง 120 วันก่อนครั้งล่าสุด (วงสวิงเปลี่ยนได้ ระยะเก่ามากไม่ตรงกับตอนนี้)
+// และไม่นับช็อตที่น่าจะจดผิดไม้
 export function launchCarryRows(practice, clubOf) {
-  const shots = practice.filter(isLaunch).flatMap(sessionShots).filter((s) => s.clubId);
+  const sessions = launchSessions(practice);
+  if (!sessions.length) return [];
+  const from = new Date(Date.parse(`${sessions.at(-1).date || '2000-01-01'}T00:00:00Z`) - 120 * 86400000).toISOString().slice(0, 10);
+  const recent = sessions.filter((x) => !x.date || x.date >= from).flatMap((x) => x.shots);
+  const shots = splitSuspect(recent, clubOf).keep.filter((s) => s.clubId);
   return clubStats(shots, clubOf).filter((s) => s.clubId && s.nCarry >= 5)
     .map((s) => ({ clubId: s.clubId, label: s.label, category: s.category, median: s.carry, total: s.total, p25: s.p25, p75: s.p75, n: s.nCarry, src: 'sim' }));
 }
