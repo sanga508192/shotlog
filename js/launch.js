@@ -327,6 +327,45 @@ const sd = (arr) => {
   return Math.sqrt(arr.reduce((a, b) => a + (b - m) ** 2, 0) / (arr.length - 1));
 };
 
+const medOf = (a) => (a.length ? med(a) : null);
+const keyOfShot = (s, clubOf) => (s.clubId && clubOf(s.clubId) ? s.clubId : `raw:${s.raw}`);
+const catOf = (s, clubOf) => (s.clubId && clubOf(s.clubId)?.category) || clubKind(s.raw)?.cat || null;
+
+// ---------- ช็อตที่น่าจะจดผิดไม้ ----------
+// ลืมเปลี่ยนไม้ในแอป Garmin: ความเร็วหัวไม้ของเหล็ก/เวดจ์/ไฮบริดเท่าไดรเวอร์ → ไม่นำมาคิดกับไม้นั้น (แจ้งผู้ใช้)
+// เทียบกับความเร็วหัวไม้กลางของไดรเวอร์ในชุดเดียวกัน (ต้องมีไดรเวอร์อย่างน้อย 5 ลูก)
+const MAX_RATIO = { wood: 0.985, hybrid: 0.95, iron: 0.95, wedge: 0.9 };
+// เทียบภายในการซ้อมครั้งเดียวกัน (sid) เพราะความเร็ววงสวิงเปลี่ยนได้ระหว่างครั้ง
+// suspects = ไม้ที่มีช็อตแบบนี้อย่างน้อย 3 ลูก (แจ้งผู้ใช้) · odd = ช็อตเดี่ยว ๆ ที่ผิดปกติ (ตัดออกเงียบ ๆ นับรวมไว้)
+export function splitSuspect(shots, clubOf = () => null) {
+  const bySid = new Map();
+  for (const s of shots) {
+    const k = s.sid ?? '';
+    if (!bySid.has(k)) bySid.set(k, []);
+    bySid.get(k).push(s);
+  }
+  const keep = [];
+  const bad = new Map();
+  for (const list of bySid.values()) {
+    const drvCs = list.filter((s) => catOf(s, clubOf) === 'driver' && s.cs != null).map((s) => s.cs);
+    const drv = drvCs.length >= 5 ? medOf(drvCs) : null;
+    for (const s of list) {
+      const r = MAX_RATIO[catOf(s, clubOf)];
+      if (drv != null && r && s.cs != null && s.cs >= r * drv && !(s.sf != null && s.sf < 1.0)) {
+        const k = keyOfShot(s, clubOf);
+        if (!bad.has(k)) bad.set(k, { key: k, label: (s.clubId && clubOf(s.clubId)?.label) || s.raw, n: 0, cs: [], drv: [] });
+        const b = bad.get(k);
+        b.n++;
+        b.cs.push(s.cs);
+        b.drv.push(drv);
+      } else keep.push(s);
+    }
+  }
+  const total = (k) => shots.filter((s) => keyOfShot(s, clubOf) === k).length;
+  const all = [...bad.values()].map((b) => ({ key: b.key, label: b.label, n: b.n, of: total(b.key), cs: medOf(b.cs), driverCs: medOf(b.drv) }));
+  return { keep, suspects: all.filter((b) => b.n >= 3), odd: all.filter((b) => b.n < 3).reduce((a, b) => a + b.n, 0) };
+}
+
 // Smash Factor ที่ถือว่าตีโดนดีของแต่ละประเภทไม้ (ค่าประมาณสำหรับนักกอล์ฟสมัครเล่น)
 export const SMASH_OK = { driver: 1.42, wood: 1.38, hybrid: 1.35, iron: 1.28, wedge: 1.18 };
 
@@ -438,7 +477,11 @@ export function launchIssues(stats, { hand = 'right', fmt = (m) => `${Math.round
   const nl = ld.reduce((a, s) => a + s.good, 0);
   if (nl >= 8) {
     const m = ld.reduce((a, s) => a + s.ld * s.good, 0) / nl;
-    if (Math.abs(m) >= 2.5) {
+    const curve = issues.find((i) => i.k === 'curve');
+    if (Math.abs(m) >= 2.5 && curve && (m > 0) !== (curve.dir === 'right')) {
+      // ออกซ้ายแล้วโค้งขวา (หรือกลับกัน) มาจากแนวสวิงเดียวกัน ไม่ใช่การเล็ง → รวมในข้อลูกโค้ง
+      curve.detail.splice(1, 0, `ลูกออกตัว${m > 0 ? 'ขวา' : 'ซ้าย'} (${fmtDeg(m)}) แล้วโค้ง${curve.dir === 'right' ? 'ขวา' : 'ซ้าย'} = อาการเดียวกัน แก้แนวสวิงแล้วทิศออกตัวจะตรงขึ้นเอง`);
+    } else if (Math.abs(m) >= 2.5) {
       add({ k: 'start', sev: Math.abs(m) * 0.8, th: `ลูกออกตัว${m > 0 ? 'ขวา' : 'ซ้าย'}ของเป้าเป็นประจำ`, detail: [`ทิศออกตัวเฉลี่ย ${fmtDeg(m)} (หน้าไม้ตอนปะทะ${m > 0 ? 'เปิด' : 'ปิด'})`], drills: ['sim-start-line', 'tee-gate'] });
     }
   }
@@ -583,13 +626,13 @@ export function simSummary(practice, clubOf, { hand = 'right', fmt, inBetween, t
   const lastDate = sessions.at(-1).date;
   const recent = today ? sessions.filter((s) => s.date && s.date >= daysBefore(today, days)) : sessions;
   if (!recent.length) return { stale: true, lastDate, issues: [], top: null, history: [], sessions: 0, shots: 0, driver: null, driverTrend: [] };
-  const shots = recent.flatMap((s) => s.shots);
+  const shots = splitSuspect(recent.flatMap((s) => s.shots), clubOf).keep;
   const issues = launchIssues(clubStats(shots, clubOf), { hand, fmt, inBetween });
   const top = issues.find((i) => ISSUE_METRIC[i.k]) ?? null;
   const history = top
-    ? recent.map((s) => ({ date: s.date, value: launchMetrics(clubStats(s.shots, clubOf))[ISSUE_METRIC[top.k].k] })).filter((x) => x.value != null).slice(-5)
+    ? recent.map((s) => ({ date: s.date, value: launchMetrics(clubStats(splitSuspect(s.shots, clubOf).keep, clubOf))[ISSUE_METRIC[top.k].k] })).filter((x) => x.value != null).slice(-5)
     : [];
-  const driverTrend = recent.map((s) => ({ date: s.date, d: driverProfile(s.shots, clubOf, { hand }) }))
+  const driverTrend = recent.map((s) => ({ date: s.date, d: driverProfile(splitSuspect(s.shots, clubOf).keep, clubOf, { hand }) }))
     .filter((x) => x.d?.fw != null).map((x) => ({ date: x.date, fw: x.d.fw, carry: x.d.carry, f2p: x.d.f2p })).slice(-5);
   return { stale: false, lastDate, issues, top, history, sessions: recent.length, shots: shots.length, driver: driverProfile(shots, clubOf, { hand }), driverTrend };
 }

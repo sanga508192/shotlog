@@ -3,10 +3,11 @@
 import * as st from '../state.js';
 import { esc, header, toast, fmtDate } from '../ui.js';
 import {
-  readLaunchFile, rawClub, guessClub, toShots, buildRecords, isLaunch, sessionShots, clubStats, launchIssues, clubTrend, sessionKey, sessionDate,
+  readLaunchFile, rawClub, guessClub, toShots, buildRecords, isLaunch, sessionShots, launchIssues, clubTrend, sessionKey, sessionDate,
   DIST_UNITS, SPEED_UNITS, METRICS, num, inBetweenFor,
 } from '../launch.js';
 import { drill, drillHistory } from '../coach.js';
+import { launchReport, splitSuspect, shapeTh, shapeTerm } from '../launchreport.js';
 import { drillCard, clipActions } from './drills.js';
 import { toUnit, unitTh } from '../holemap.js';
 
@@ -49,7 +50,8 @@ export function launchView(_p, ctx) {
   const du = st.setting('map_unit', 'yd');
   const su = SPEED_UNITS.some((u) => u.v === st.setting('speed_unit', 'mph')) ? st.setting('speed_unit', 'mph') : 'mph';
   const hand = st.setting('hand', 'right') === 'left' ? 'left' : 'right';
-  const period = PERIODS.some((x) => x.v === st.setting('launch_period', 'all')) ? st.setting('launch_period', 'all') : 'all';
+  // ค่าเริ่มต้น = ครั้งล่าสุด (วงสวิงเปลี่ยนได้ระหว่างการซ้อมแต่ละครั้ง การรวมทุกครั้งทำให้ตัวเลขเฉลี่ยปนกัน)
+  const period = PERIODS.some((x) => x.v === st.setting('launch_period', 'last')) ? st.setting('launch_period', 'last') : 'last';
   const dist = (m) => (m == null ? '–' : String(Math.round(toUnit(m, du))));
   const fmt = (m) => `${dist(m)} ${unitTh(du)}`;
   const sFactor = SPEED_UNITS.find((u) => u.v === su)?.f ?? 1;
@@ -59,8 +61,11 @@ export function launchView(_p, ctx) {
   const all = sessions();
   const groups = groupSessions(all);
   const chosen = periodFilter(all, period);
-  const shots = chosen.flatMap(sessionShots);
-  const stats = clubStats(shots, clubOf);
+  // ช็อตที่น่าจะจดผิดไม้ (เช่น ลืมเปลี่ยนไม้ในแอป Garmin) ไม่นำมาคิดทุกส่วนของหน้านี้
+  const rawShots = chosen.flatMap(sessionShots);
+  const report = launchReport(rawShots, clubOf, { hand, practice: all, fmt });
+  const shots = splitSuspect(rawShots, clubOf).keep;
+  const stats = report.stats;
   const issues = launchIssues(stats, { hand, fmt, inBetween: inBetweenFor(st.bagClubs()) });
   const practice = [...st.S.practice.values()];
 
@@ -162,6 +167,57 @@ export function launchView(_p, ctx) {
     </tbody></table>`;
   }
 
+  // ---------- สรุป · รายไม้เทียบเป้า · เทียบครั้งก่อน ----------
+  function summaryHtml() {
+    if (!report.headline.length && !report.suspects.length && !report.odd) return '';
+    return `<h2>สรุปจากเครื่องซ้อม</h2>
+    <div class="card lm-sum">
+      ${report.headline.map((h) => `<p class="lm-h ${h.tone}">${esc(h.text)}</p>`).join('')}
+      ${report.suspects.map((x) => `<p class="lm-h warn">⚠️ ${esc(x.label)}: ${x.n} จาก ${x.of} ลูก ความเร็วหัวไม้ราว ${spd(x.cs)} ${esc(SPEED_UNITS.find((u) => u.v === su)?.th)} เท่าไดรเวอร์ (${spd(x.driverCs)}) น่าจะลืมเปลี่ยนไม้ในแอป Garmin จึงไม่นำมาคิด</p>`).join('')}
+      ${report.odd ? `<p class="small muted">ไม่นับอีก ${report.odd} ลูกที่ความเร็วหัวไม้ผิดปกติสำหรับไม้นั้น</p>` : ''}
+    </div>`;
+  }
+
+  function clubCards() {
+    if (!report.clubs.length) return '';
+    return `<h2>ตัวเลขรายไม้เทียบเป้า</h2>
+    ${report.clubs.map((c, i) => {
+    const far = c.metrics.filter((m) => m.status === 'far').length;
+    const sh = c.shape;
+    const pct = (x) => Math.round(x * 100);
+    return `<details class="card lm-club"${i === 0 ? ' open' : ''}>
+      <summary><b>${esc(c.stat.label)}</b> <span class="small muted">${c.stat.n} ลูก${c.stat.carry ? ` · ลอย ${dist(c.stat.carry)} ${unitTh(du)}` : ''}</span>
+        ${far ? `<span class="badge bad">ควรแก้ ${far} ข้อ</span>` : '<span class="badge ok">ดี</span>'}</summary>
+      ${sh ? `<p class="small">ลูกที่เจอบ่อย: <b>${esc(shapeTh(sh.top))}</b> (${esc(shapeTerm(sh.top, hand))}) ${pct(sh.topPct)}% · ออกตรงและโค้งไม่มาก ${pct(sh.goodPct)}%</p>
+      <div class="tee-spread" role="img" aria-label="โค้งซ้าย ${pct(sh.leftPct)}% ไม่โค้ง ${100 - pct(sh.leftPct) - pct(sh.rightPct)}% โค้งขวา ${pct(sh.rightPct)}%">
+        <span class="l" style="width:${pct(sh.leftPct)}%">${sh.leftPct >= 0.12 ? `โค้งซ้าย ${pct(sh.leftPct)}%` : ''}</span><span class="f" style="width:${100 - pct(sh.leftPct) - pct(sh.rightPct)}%">${1 - sh.leftPct - sh.rightPct >= 0.12 ? `ตรง ${100 - pct(sh.leftPct) - pct(sh.rightPct)}%` : ''}</span><span class="r" style="width:${pct(sh.rightPct)}%">${sh.rightPct >= 0.12 ? `โค้งขวา ${pct(sh.rightPct)}%` : ''}</span>
+      </div>` : ''}
+      <div class="tee-chips">${c.metrics.map((m) => `<span class="tee-chip ${m.status}"><small>${esc(m.th)}</small><b>${esc(m.value)}</b><small>เป้า ${esc(m.goal)}</small></span>`).join('')}</div>
+    </details>`;
+  }).join('')}
+    <p class="note">เป้าหมายเป็นช่วงโดยประมาณตามประเภทไม้สำหรับนักกอล์ฟสมัครเล่น · ค่าสปินจากเครื่องแบบเรดาร์อาจคลาดเคลื่อน ใช้ดูแนวโน้ม · มุมเข้าหาลูกของเหล็กควรติดลบ (ตีกดลง) ไดรเวอร์ควรเป็นบวก</p>`;
+  }
+
+  function compareHtml() {
+    const c = report.compare;
+    if (!c || !c.rows.length) return '';
+    const cell = (v, show, better) => (v == null ? '<td>–</td>' : `<td class="${better == null ? '' : better ? 'good' : 'bad'}">${show}</td>`);
+    const sign = (x, f) => `${x > 0 ? '+' : x < 0 ? '−' : ''}${f(Math.abs(x))}`;
+    const closer = (from, to) => (from == null || to == null || Math.abs(Math.abs(to) - Math.abs(from)) < 0.5 ? null : Math.abs(to) < Math.abs(from));
+    return `<h2>เทียบกับครั้งก่อน</h2>
+    <div class="card dist-cmp lm-cmp"><b>${esc(fmtDate(c.from))} → ${esc(fmtDate(c.to))}</b>
+      <table><thead><tr><th>ไม้</th><th>ระยะลอย</th><th>Smash</th><th>F2P</th><th>แนวสวิง</th><th>เบี่ยง</th></tr></thead><tbody>
+      ${c.rows.map((r) => `<tr><td>${esc(r.label)}</td>
+        ${cell(r.carry, r.carry == null ? '' : sign(r.carry, dist), r.carry == null || Math.abs(r.carry) < 3 ? null : r.carry > 0)}
+        ${cell(r.sf, r.sf == null ? '' : sign(r.sf, (x) => x.toFixed(2)), r.sf == null || Math.abs(r.sf) < 0.02 ? null : r.sf > 0)}
+        ${cell(r.f2p, r.f2pTo == null ? '' : deg(r.f2pTo), closer(r.f2pFrom, r.f2pTo))}
+        ${cell(r.path, r.pathTo == null ? '' : deg(r.pathTo), closer(r.pathFrom, r.pathTo))}
+        ${cell(r.sideAbs, r.sideAbs == null ? '' : sign(r.sideAbs, dist), r.sideAbs == null || Math.abs(r.sideAbs) < 1.5 ? null : r.sideAbs < 0)}</tr>`).join('')}
+      </tbody></table>
+      <p class="note">ระยะลอย Smash และเบี่ยง = เปลี่ยนจากครั้งก่อน · F2P และแนวสวิง = ค่าครั้งล่าสุด (เขียว = เข้าใกล้ 0 กว่าเดิม) · เบี่ยง = ระยะเบี่ยงจากแนวเป้าเฉลี่ย (${unitTh(du)})</p>
+    </div>`;
+  }
+
   const recDrills = [...new Set(issues.slice(0, 3).flatMap((i) => i.drills))].map(drill).filter(Boolean).slice(0, 3);
   const misAll = shots.length ? stats.reduce((a, s) => a + (s.n - s.good), 0) / Math.max(1, stats.reduce((a, s) => a + s.n, 0)) : 0;
 
@@ -189,6 +245,8 @@ export function launchView(_p, ctx) {
       </div>
       <p class="note">${chosen.length ? `${groupSessions(chosen).length} ครั้ง · ${shots.length} ช็อต · ช็อตพลาด ${Math.round(misAll * 100)}%` : 'ไม่มีการซ้อมในช่วงนี้'}</p>
 
+      ${summaryHtml()}
+
       <h2>ควรแก้อะไรก่อน</h2>
       ${issues.length ? issues.slice(0, 4).map((i, n) => `<div class="card focus${n === 0 ? ' first' : ''}">
         <div><span class="rank">${n + 1}</span> <b>${esc(i.th)}</b></div>
@@ -197,6 +255,9 @@ export function launchView(_p, ctx) {
 
       ${recDrills.length ? `<h2>แบบฝึกที่แนะนำ</h2>
       <div class="drills">${recDrills.map((d) => drillCard(d, { history: drillHistory(practice, d.id) })).join('')}</div>` : ''}
+
+      ${clubCards()}
+      ${compareHtml()}
 
       <h2>ระยะไม้และความสม่ำเสมอ</h2>
       ${clubRows()}

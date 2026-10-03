@@ -863,6 +863,21 @@ a.map-card { display: flex; align-items: center; gap: 12px; text-decoration: non
 .tee-cue { background: var(--warn-soft); border-radius: 10px; padding: 8px 10px; font-size: .88rem; display: flex; flex-direction: column; gap: 2px; }
 .tee-cue small { color: var(--muted); font-size: .78rem; }
 .find.muted { color: var(--muted); font-size: .8rem; }
+.tee-chip.near { border-left-color: var(--gold); }
+
+/* หน้าเครื่องซ้อม: สรุป รายไม้ เทียบครั้งก่อน */
+.lm-sum { display: flex; flex-direction: column; gap: 8px; }
+.lm-h { margin: 0; padding: 6px 10px; border-radius: 10px; border-left: 4px solid var(--line); background: var(--surface-2); font-size: .88rem; }
+.lm-h.far { border-left-color: var(--bad); }
+.lm-h.near { border-left-color: var(--gold); }
+.lm-h.ok { border-left-color: var(--good); }
+.lm-h.warn { background: var(--warn-soft); border-left-color: var(--gold); }
+.lm-club { display: flex; flex-direction: column; gap: 8px; }
+.lm-club summary { cursor: pointer; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.lm-club summary .badge { margin-left: auto; }
+.lm-club[open] summary { margin-bottom: 8px; }
+.lm-club .tee-spread { margin-bottom: 8px; }
+.lm-cmp table { font-size: .82rem; }
 
 /* หน้าจดช็อต: ลูกไปจบที่ไหน · ลงน้ำ/OB/หาย ตีต่อแบบไหน */
 .outcomes .chip { min-height: 40px; }
