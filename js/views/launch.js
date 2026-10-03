@@ -7,7 +7,7 @@ import {
   DIST_UNITS, SPEED_UNITS, METRICS, num, inBetweenFor,
 } from '../launch.js';
 import { drill, drillHistory } from '../coach.js';
-import { launchReport, splitSuspect, shapeTh, shapeTerm } from '../launchreport.js';
+import { launchReport, splitSuspect, shapeTh, shapeTerm, fixPlan, planText } from '../launchreport.js';
 import { drillCard, clipActions } from './drills.js';
 import { toUnit, unitTh } from '../holemap.js';
 
@@ -193,9 +193,26 @@ export function launchView(_p, ctx) {
         <span class="l" style="width:${pct(sh.leftPct)}%">${sh.leftPct >= 0.12 ? `โค้งซ้าย ${pct(sh.leftPct)}%` : ''}</span><span class="f" style="width:${100 - pct(sh.leftPct) - pct(sh.rightPct)}%">${1 - sh.leftPct - sh.rightPct >= 0.12 ? `ตรง ${100 - pct(sh.leftPct) - pct(sh.rightPct)}%` : ''}</span><span class="r" style="width:${pct(sh.rightPct)}%">${sh.rightPct >= 0.12 ? `โค้งขวา ${pct(sh.rightPct)}%` : ''}</span>
       </div>` : ''}
       <div class="tee-chips">${c.metrics.map((m) => `<span class="tee-chip ${m.status}"><small>${esc(m.th)}</small><b>${esc(m.value)}</b><small>เป้า ${esc(m.goal)}</small></span>`).join('')}</div>
+      ${c.bestWorst ? bestWorstHtml(c.bestWorst) : ''}
     </details>`;
   }).join('')}
     <p class="note">เป้าหมายเป็นช่วงโดยประมาณตามประเภทไม้สำหรับนักกอล์ฟสมัครเล่น · ค่าสปินจากเครื่องแบบเรดาร์อาจคลาดเคลื่อน ใช้ดูแนวโน้ม · มุมเข้าหาลูกของเหล็กควรติดลบ (ตีกดลง) ไดรเวอร์ควรเป็นบวก</p>`;
+  }
+
+  // ลูกที่ดีที่สุดกับลูกที่เสียระยะมากที่สุด (ไม่นับลูกวัดผิด) ต่างกันตรงไหน
+  function bestWorstHtml({ best, worst }) {
+    const rows = [
+      ['ระยะลอย', (s) => `${dist(s.carry)} ${unitTh(du)}`],
+      ['Smash', (s) => (s.sf == null ? '–' : s.sf.toFixed(2))],
+      ['สปิน', (s) => (s.spin == null ? '–' : Math.round(s.spin).toLocaleString('en-US'))],
+      ['มุมยิง', (s) => (s.la == null ? '–' : `${s.la.toFixed(1)}°`)],
+      ['หน้าไม้เทียบแนวสวิง', (s) => deg(s.f2p)],
+      ['แนวสวิง', (s) => deg(s.path)],
+    ];
+    return `<div class="dist-cmp lm-bw"><b>ลูกดีที่สุด vs ลูกที่เสียระยะมากที่สุด</b>
+      <table><thead><tr><th></th><th>ดีที่สุด</th><th>เสียมากที่สุด</th></tr></thead><tbody>
+      ${rows.map(([th, f]) => `<tr><td>${th}</td><td class="good">${esc(f(best))}</td><td class="bad">${esc(f(worst))}</td></tr>`).join('')}
+      </tbody></table></div>`;
   }
 
   function compareHtml() {
@@ -215,6 +232,65 @@ export function launchView(_p, ctx) {
         ${cell(r.sideAbs, r.sideAbs == null ? '' : sign(r.sideAbs, dist), r.sideAbs == null || Math.abs(r.sideAbs) < 1.5 ? null : r.sideAbs < 0)}</tr>`).join('')}
       </tbody></table>
       <p class="note">ระยะลอย Smash และเบี่ยง = เปลี่ยนจากครั้งก่อน · F2P และแนวสวิง = ค่าครั้งล่าสุด (เขียว = เข้าใกล้ 0 กว่าเดิม) · เบี่ยง = ระยะเบี่ยงจากแนวเป้าเฉลี่ย (${unitTh(du)})</p>
+    </div>`;
+  }
+
+  // ---------- แผนแก้ไขทีละขั้น ----------
+  const plan = fixPlan(report, { hand, practice: all, clubOf });
+
+  // ภาพมุมบนของไดรเวอร์ (หรือไม้ยาวที่ตีมากสุด): เส้นเป้า แนวสวิง หน้าไม้ และทางลูก · ขยายมุม 2 เท่าให้เห็นชัด
+  function pathDiagram() {
+    const c = report.clubs.filter((x) => ['driver', 'wood', 'hybrid', 'longIron'].includes(x.group) && x.stat.path != null && x.stat.face != null)
+      .sort((a, b) => (a.group === 'driver' ? -1 : 0) - (b.group === 'driver' ? -1 : 0) || b.stat.n - a.stat.n)[0];
+    if (!c) return '';
+    const s = c.stat;
+    // มุมขยาย 3 เท่า · ทางลูก: ออกตามทิศออกตัว แล้วโค้งตามหน้าไม้เทียบแนวสวิง (ภาพอธิบายกลไก ไม่ใช่ระยะจริง)
+    const W = 300, H = 200, bx = 150, by = 172, k = 3 * Math.PI / 180;
+    const dir = (a, len) => [bx + Math.sin(a * k) * len, by - Math.cos(a * k) * len];
+    const [px1, py1] = dir(s.path, 75), [px0, py0] = dir(s.path, -40);
+    const [fx, fy] = dir(s.face ?? 0, 60);
+    const ld = s.ld ?? 0, f2p = s.f2p ?? 0;
+    const [cx, cy] = dir(ld, 100);
+    const ex = Math.max(20, Math.min(W - 20, bx + Math.sin(ld * k) * 150 + Math.sign(f2p) * Math.min(55, Math.abs(f2p) * 4))), ey = 30;
+    return `<svg class="lm-path" viewBox="0 0 ${W} ${H}" role="img" aria-label="มุมบนของ${esc(s.label)}: แนวสวิง ${deg(s.path)} หน้าไม้ ${deg(s.face)} ลูกออก ${deg(ld)}">
+      <line x1="${bx}" y1="${by}" x2="${bx}" y2="10" class="lm-tgt"/><text x="${bx + 5}" y="12" class="lm-t">เป้า</text>
+      <path d="M${bx},${by} Q${cx.toFixed(1)},${cy.toFixed(1)} ${ex.toFixed(1)},${ey}" class="lm-ball"/>
+      <line x1="${px0.toFixed(1)}" y1="${py0.toFixed(1)}" x2="${px1.toFixed(1)}" y2="${py1.toFixed(1)}" class="lm-cpath"/>
+      <line x1="${bx}" y1="${by}" x2="${fx.toFixed(1)}" y2="${fy.toFixed(1)}" class="lm-face"/>
+      <circle cx="${bx}" cy="${by}" r="5" class="lm-dot"/>
+      <text x="8" y="${H - 8}" class="lm-t cpath">แนวสวิง ${deg(s.path)}</text>
+      <text x="${W - 8}" y="${H - 8}" text-anchor="end" class="lm-t face">หน้าไม้ ${deg(s.face)}</text>
+      <text x="${(ex + (ex >= bx ? 8 : -8)).toFixed(1)}" y="${ey + 14}" text-anchor="${ex >= bx ? 'start' : 'end'}" class="lm-t">ทางลูก</text>
+    </svg>
+    <p class="note">มองจากด้านบน ${esc(s.label)} (ขยายมุม 3 เท่าให้เห็นชัด): เส้นส้ม = ทางหัวไม้ · เส้นฟ้า = หน้าไม้ · เส้นประ = ทางลูก · หน้าไม้ชี้ขวากว่าทางหัวไม้ = ลูกโค้งขวา</p>`;
+  }
+
+  function metricRow(m) {
+    if (!m || m.now == null) return '';
+    const hist = m.history.length >= 2 ? `<div class="sim-steps">${m.history.map((h) => `<span><small>${esc(fmtDate(h.date))}</small><b>${esc(m.fmt(h.value))}</b></span>`).join('<i>→</i>')}</div>` : '';
+    const verdict = m.passed == null ? '' : m.passed ? `<span class="badge ok">ผ่านเป้าครั้งก่อน (${esc(m.fmt(m.lastTarget))})</span>` : `<span class="badge bad">ยังไม่ถึงเป้าครั้งก่อน (${esc(m.fmt(m.lastTarget))})</span>`;
+    return `<div class="sim-trend"><span><b>${esc(m.th)}</b> ${verdict}</span>${hist}
+      <small>ตอนนี้ <b>${esc(m.fmt(m.now))}</b> → เป้าครั้งหน้า <b>${esc(m.fmt(m.next))}</b> · เป้าสุดท้าย ${esc(m.goal)}</small></div>`;
+  }
+
+  function planHtml() {
+    if (!plan.steps.length) return '';
+    return `<h2>แผนแก้ไขของคุณ <span class="badge ok">ทีละขั้น</span></h2>
+    <p class="note">เรียงจากต้นเหตุ ทำพร้อมกันได้ 2–3 ขั้น · เป้าเลื่อนทีละนิดจากค่าครั้งก่อน · นำเข้าไฟล์หลังซ้อมทุกครั้ง แอปจะเช็กว่าผ่านเป้าหรือยัง</p>
+    ${plan.steps.map((s, i) => `<div class="card focus lm-step${i === 0 ? ' first' : ''}">
+      <div><span class="rank">${i + 1}</span> <b>${esc(s.title)}</b></div>
+      <p class="small">${esc(s.why)}</p>
+      ${s.k === 'path' ? pathDiagram() : ''}
+      <div class="lbl">ความรู้สึกที่ต้องมีตอนสวิง</div>
+      <ul class="find">${s.cues.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>
+      ${metricRow(s.metric)}${metricRow(s.metric2)}
+      ${drill(s.drill) ? drillCard(drill(s.drill), { history: drillHistory(practice, s.drill), badge: `${s.balls} ลูก · ${s.club}` }) : ''}
+    </div>`).join('')}
+    ${plan.later.length ? `<p class="note">ทำหลังผ่านขั้นข้างบน: ${esc(plan.later.map((s) => s.title).join(' · '))}</p>` : ''}
+    <div class="card lm-session">
+      <b>⏱ ซ้อมครั้งหน้ากับเครื่อง (ราว ${plan.session.reduce((a, x) => a + x.balls, 0)} ลูก)</b>
+      <ol class="find">${plan.session.map((x) => `<li><b>${esc(x.th)}</b> — ${x.balls} ลูก · ${esc(x.text)}</li>`).join('')}</ol>
+      <button type="button" class="btn block" data-act="copyPlan">📋 คัดลอกสรุปและแผนไว้ดูตอนซ้อม</button>
     </div>`;
   }
 
@@ -247,14 +323,15 @@ export function launchView(_p, ctx) {
 
       ${summaryHtml()}
 
-      <h2>ควรแก้อะไรก่อน</h2>
+      ${planHtml()}
+      ${plan.steps.length ? '' : `<h2>ควรแก้อะไรก่อน</h2>
       ${issues.length ? issues.slice(0, 4).map((i, n) => `<div class="card focus${n === 0 ? ' first' : ''}">
         <div><span class="rank">${n + 1}</span> <b>${esc(i.th)}</b></div>
         <ul class="find">${i.detail.map((d) => `<li>${esc(d)}</li>`).join('')}</ul>
       </div>`).join('') : `<div class="card ok small">${shots.length < 10 ? 'ต้องมีอย่างน้อย 10 ช็อตในช่วงที่เลือก' : 'ไม่พบจุดที่ต้องแก้เด่นชัด ลองตั้งเป้าที่ยากขึ้นด้วยแบบฝึกคุมระยะ'}</div>`}
 
       ${recDrills.length ? `<h2>แบบฝึกที่แนะนำ</h2>
-      <div class="drills">${recDrills.map((d) => drillCard(d, { history: drillHistory(practice, d.id) })).join('')}</div>` : ''}
+      <div class="drills">${recDrills.map((d) => drillCard(d, { history: drillHistory(practice, d.id) })).join('')}</div>` : ''}`}
 
       ${clubCards()}
       ${compareHtml()}
@@ -307,6 +384,10 @@ export function launchView(_p, ctx) {
         IMP = null;
         toast(`บันทึก ${shotsIn.length} ช็อตแล้ว`);
         ctx.rerender();
+      },
+      copyPlan: async () => {
+        const text = planText(report, plan, { fmt, drillName: (id) => drill(id)?.name ?? id, date: chosen.length ? fmtDate(sessionDate(chosen[0])) : '' });
+        try { await navigator.clipboard.writeText(text); toast('คัดลอกแล้ว วางในโน้ตหรือ LINE ไว้ดูตอนซ้อมได้เลย'); } catch { toast('คัดลอกไม่ได้ในเบราว์เซอร์นี้'); }
       },
       period: async (el) => { await st.setSetting('launch_period', el.dataset.v); ctx.rerender(); },
       hand: async (el) => { await st.setSetting('hand', el.dataset.v); ctx.rerender(); },

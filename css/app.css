@@ -878,6 +878,21 @@ a.map-card { display: flex; align-items: center; gap: 12px; text-decoration: non
 .lm-club[open] summary { margin-bottom: 8px; }
 .lm-club .tee-spread { margin-bottom: 8px; }
 .lm-cmp table { font-size: .82rem; }
+.lm-step { display: flex; flex-direction: column; gap: 8px; }
+.lm-step p { margin: 0; }
+.lm-step .drill { box-shadow: none; border: 1px solid var(--line); }
+.lm-session { display: flex; flex-direction: column; gap: 8px; }
+.lm-session ol { margin: 0; }
+.lm-bw table td:first-child { color: var(--muted); }
+.lm-path { width: 100%; max-width: 360px; align-self: center; background: var(--surface-2); border-radius: 12px; }
+.lm-path .lm-tgt { stroke: var(--muted); stroke-dasharray: 4 4; stroke-width: 1.5; }
+.lm-path .lm-cpath { stroke: #e8833a; stroke-width: 4; stroke-linecap: round; }
+.lm-path .lm-face { stroke: #3d8bfd; stroke-width: 4; stroke-linecap: round; }
+.lm-path .lm-ball { fill: none; stroke: var(--text); stroke-width: 2; stroke-dasharray: 5 4; }
+.lm-path .lm-dot { fill: var(--text); }
+.lm-path .lm-t { font-size: 11px; fill: var(--muted); }
+.lm-path .lm-t.cpath { fill: #e8833a; font-weight: 700; }
+.lm-path .lm-t.face { fill: #3d8bfd; font-weight: 700; }
 
 /* หน้าจดช็อต: ลูกไปจบที่ไหน · ลงน้ำ/OB/หาย ตีต่อแบบไหน */
 .outcomes .chip { min-height: 40px; }

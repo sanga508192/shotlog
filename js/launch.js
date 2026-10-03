@@ -467,7 +467,8 @@ export function launchIssues(stats, { hand = 'right', fmt = (m) => `${Math.round
         k: 'curve', dir: right ? 'right' : 'left', sev: Math.abs(m), th: `ลูกโค้ง${right ? 'ขวา' : 'ซ้าย'} (${name})`,
         detail: [`Face to Path เฉลี่ย ${fmtDeg(m)} · ${Math.round((right ? pos : 1 - pos) * 100)}% ของช็อตโค้ง${right ? 'ขวา' : 'ซ้าย'}`,
           outIn ? `แนวสวิง (Club Path) เฉลี่ย ${fmtDeg(path)} — ${outIn} เป็นสาเหตุหลัก` : '', 'เป้าหมาย: −2° ถึง +2°'].filter(Boolean),
-        drills: ['sim-face-path'],
+        // แนวสวิงเป็นต้นเหตุ → แบบฝึกแนวสวิงก่อน · แนวสวิงตรงแต่หน้าไม้เปิด/ปิด → แบบฝึกหน้าไม้
+        drills: outIn === 'ตัดจากนอกเข้าใน' ? ['sim-path-in', 'sim-face-path'] : ['sim-face-path'],
       });
     }
   }
@@ -486,15 +487,23 @@ export function launchIssues(stats, { hand = 'right', fmt = (m) => `${Math.round
     }
   }
 
-  // ไดรเวอร์ตีกดลง สปินสูง
+  // ไดรเวอร์: ตีกดลง (มุมเข้าหาลูกติดลบ) → ฝึกตีขึ้น · ตีขึ้นอยู่แล้วแต่สปินสูง/ลูกโด่ง → ไม่ใช่เรื่องตีขึ้น
+  // สปินสูงทั้งที่ตีขึ้น มาจากการตัดลูก (แนวสวิงนอกเข้าใน หน้าไม้เปิดเทียบแนวสวิง) และโดนต่ำหรือไม่กลางหน้าไม้
   const d = stats.find((s) => s.category === 'driver' && s.good >= 3);
   if (d && ((d.aa != null && d.aa < -1.5) || (d.spin != null && d.spin > 3300))) {
     const down = d.aa != null && d.aa < -1.5;
+    const cut = d.path != null && (hand === 'right' ? d.path <= -3 : d.path >= 3);
+    const offCenter = d.sf != null && d.sf < SMASH_OK.driver - 0.04;
     add({
-      k: 'driver', sev: Math.max(0, -(d.aa ?? 0)) + Math.max(0, ((d.spin ?? 0) - 3000) / 400), th: down ? 'ไดรเวอร์ตีกดลง เสียระยะ' : 'ไดรเวอร์สปินสูง เสียระยะ',
-      detail: [d.aa != null ? `Attack Angle ${fmtDeg(d.aa)} (เป้าหมาย ≥ 0°)` : '', d.spin != null ? `สปิน ${Math.round(d.spin)} รอบ/นาที (เป้าหมาย 2,000–3,000)` : '',
-        !down && d.f2p != null && Math.abs(d.f2p) >= 3 ? 'สปินสูงแม้ตีขึ้น มักมาจากหน้าไม้ไม่ตรงแนวสวิง (ดูข้อลูกโค้ง) หรือโดนต่ำบนหน้าไม้' : ''].filter(Boolean),
-      drills: down ? ['sim-driver-launch'] : ['sim-driver-launch', 'sim-face-path'],
+      k: 'driver', sev: Math.max(0, -(d.aa ?? 0)) + Math.max(0, ((d.spin ?? 0) - 3000) / 400),
+      th: down ? 'ไดรเวอร์ตีกดลง เสียระยะ' : 'ไดรเวอร์สปินสูง ลูกโด่ง เสียระยะ',
+      detail: down
+        ? [`Attack Angle ${fmtDeg(d.aa)} (เป้าหมาย 0° ขึ้นไป)`, d.spin != null ? `สปิน ${Math.round(d.spin)} รอบ/นาที (เป้าหมาย 2,000–3,000)` : ''].filter(Boolean)
+        : [d.aa != null ? `ตีขึ้นอยู่แล้ว (Attack Angle ${fmtDeg(d.aa)}) ดีแล้ว ไม่ต้องตีเสยเพิ่ม — ลูกโด่งเพราะสปินสูง ไม่ใช่เพราะตีกด` : '',
+          `สปิน ${Math.round(d.spin)} รอบ/นาที (เป้าหมาย 2,000–3,000)${d.la != null ? ` · มุมยิง ${d.la.toFixed(1)}°` : ''}`,
+          cut ? `สาเหตุหลัก: แนวสวิงตัดลูก (${fmtDeg(d.path)}) ทำให้หน้าไม้เปิดเทียบแนวสวิง ลูกจึงหมุนมาก` : '',
+          offCenter ? `โดนไม่กลางหน้าไม้ (Smash ${d.sf.toFixed(2)}) โดยเฉพาะโดนต่ำบนหน้าไม้ทำให้สปินเพิ่ม` : ''].filter(Boolean),
+      drills: down ? ['sim-driver-launch'] : [...(cut ? ['sim-path-in'] : []), 'sim-driver-spin', 'driver-strike'],
     });
   }
 

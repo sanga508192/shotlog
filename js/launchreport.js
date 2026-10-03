@@ -134,7 +134,7 @@ export function launchReport(shots, clubOf = () => null, { hand = 'right', pract
   const stats = clubStats(keep, clubOf);
   const clubs = stats.filter((s) => s.n >= 5).map((s) => {
     const mine = keep.filter((x) => keyOf(x, clubOf) === s.key && !(x.sf != null && x.sf < 1.0));
-    return { stat: s, group: groupOf(s), shape: shapeSummary(mine), metrics: clubMetrics(s) };
+    return { stat: s, group: groupOf(s), shape: shapeSummary(mine), metrics: clubMetrics(s), bestWorst: bestWorst(mine) };
   });
   const headline = [];
 
@@ -197,4 +197,210 @@ export function launchReport(shots, clubOf = () => null, { hand = 'right', pract
   }
 
   return { suspects, odd, stats, clubs, headline, compare: cmp, potential: pot };
+}
+
+// ---------- ช็อตดีที่สุดเทียบช็อตที่เสียระยะมากที่สุด ----------
+// ให้เห็นด้วยตัวเลขจริงว่าลูกที่ดีกับลูกที่พลาดต่างกันตรงไหน · ไม่นับลูกพลาดหนักหรือวัดผิด
+// (Smash < 1.0 หรือระยะลอยต่ำกว่า 60% ของค่ากลาง แบบเดียวกับที่ใช้คิดสถิติ) จะได้ลูกพลาดแบบที่เกิดจริงบ่อย ๆ
+export function bestWorst(shots) {
+  const withCarry = shots.filter((s) => s.carry != null);
+  const sortedC = withCarry.map((s) => s.carry).sort((a, b) => a - b);
+  const m = sortedC.length ? (sortedC[Math.floor((sortedC.length - 1) / 2)] + sortedC[Math.ceil((sortedC.length - 1) / 2)]) / 2 : null;
+  const xs = withCarry.filter((s) => !(s.sf != null && s.sf < 1.0) && s.carry >= 0.6 * m);
+  if (xs.length < 5) return null;
+  const sorted = [...xs].sort((a, b) => b.carry - a.carry);
+  const best = sorted[0];
+  const worst = sorted.at(-1);
+  if (best.carry - worst.carry < 10 * YD) return null;
+  return { best, worst };
+}
+
+// ---------- แผนแก้วงสวิงทีละขั้น ----------
+// เรียงจากต้นเหตุ: แนวสวิง → หน้าไม้ → ไดรเวอร์โดนกลางหน้าไม้/สปิน → เหล็กตีกดลง → ระยะสม่ำเสมอ (ทำพร้อมกันไม่เกิน 3 ขั้น)
+// เป้าแต่ละขั้นเลื่อนทีละนิดจากค่าครั้งก่อน (แก้แนวสวิงทีละ 3–4° ทำได้จริงกว่ากระโดดไป 0° ทันที)
+// ไม่ต้องเก็บสถานะ: เป้าของครั้งล่าสุดคิดจากค่าครั้งก่อน → บอกได้ว่าผ่านหรือยัง · เป้าครั้งหน้าคิดจากค่าล่าสุด
+const IRONS = new Set(['longIron', 'midIron', 'shortIron']);
+const wavg = (list, k, w = 'good') => {
+  const xs = list.filter((s) => s[k] != null && s[w] > 0);
+  const n = xs.reduce((a, s) => a + s[w], 0);
+  return n >= 5 ? xs.reduce((a, s) => a + s[k] * s[w], 0) / n : null;
+};
+const driverOf = (stats) => stats.find((s) => groupOf(s) === 'driver' && s.good >= 5) ?? null;
+const METRIC_OF = {
+  path: (stats) => wavg(stats.filter((s) => LONG.has(groupOf(s))), 'path'),
+  f2p: (stats) => wavg(stats.filter((s) => s.f2pN >= 3 && groupOf(s) !== 'wedge'), 'f2p', 'f2pN'),
+  sf: (stats) => driverOf(stats)?.sf ?? null,
+  spin: (stats) => driverOf(stats)?.spin ?? null,
+  aaIron: (stats) => wavg(stats.filter((s) => IRONS.has(groupOf(s))), 'aa'),
+};
+const STEP = {
+  path: { next: (v) => Math.sign(v) * Math.max(3, Math.round(Math.abs(v)) - 4), meets: (v, t) => Math.abs(v) <= Math.abs(t) + 0.05, fmt: fmtDeg, goal: '−3° ถึง +3°' },
+  f2p: { next: (v) => Math.sign(v) * Math.max(2, Math.round(Math.abs(v)) - 2), meets: (v, t) => Math.abs(v) <= Math.abs(t) + 0.05, fmt: fmtDeg, goal: '−2° ถึง +2°' },
+  sf: { next: (v) => Math.min(1.44, Math.round((v + 0.04) * 100) / 100), meets: (v, t) => v >= t - 0.005, fmt: (v) => v.toFixed(2), goal: '1.44 ขึ้นไป' },
+  spin: { next: (v) => Math.max(3000, Math.round((v - 600) / 100) * 100), meets: (v, t) => v <= t + 50, fmt: (v) => Math.round(v).toLocaleString('en-US'), goal: '2,000–3,000' },
+  aaIron: { next: (v) => (v > 1 ? -1 : -2), meets: (v, t) => v <= t + 0.05, fmt: fmtDeg, goal: '−2° ถึง −5°' },
+};
+
+// คำแนะนำเขียนสำหรับคนถนัดขวา · ถนัดซ้ายสลับซ้าย/ขวา
+const swapLR = (t) => t.replace(/ซ้าย/g, '\u0000').replace(/ขวา/g, 'ซ้าย').replace(/\u0000/g, 'ขวา').replace('1 นาฬิกา', '11 นาฬิกา');
+
+export function fixPlan(report, { hand = 'right', practice = [], clubOf = () => null } = {}) {
+  const stats = report.stats;
+  const sessions = launchSessions(practice).map((s) => ({ date: s.date, stats: clubStats(splitSuspect(s.shots, clubOf).keep, clubOf) }));
+  const track = (k, th) => {
+    const hist = sessions.map((s) => ({ date: s.date, value: METRIC_OF[k](s.stats) })).filter((x) => x.value != null).slice(-4);
+    const now = METRIC_OF[k](stats);
+    const prev = hist.length >= 2 ? hist.at(-2) : null;
+    const last = hist.at(-1);
+    const target = prev ? STEP[k].next(prev.value) : null;
+    return {
+      k, th, now, history: hist, fmt: STEP[k].fmt, goal: STEP[k].goal,
+      next: now == null ? null : STEP[k].next(now),
+      passed: prev && last ? STEP[k].meets(last.value, target) : null, lastTarget: target,
+    };
+  };
+  const cue = (list) => (hand === 'left' ? list.map(swapLR) : list);
+  const steps = [];
+
+  // 1) แนวสวิงของไม้ยาว (ต้นเหตุ) · หน้าไม้ปิดกับเป้าอยู่แล้ว → ห้ามแก้ด้วยกริป strong (ลูกจะออกซ้ายมากขึ้น)
+  const path = METRIC_OF.path(stats);
+  const longStats = stats.filter((s) => LONG.has(groupOf(s)));
+  const face = wavg(longStats, 'face');
+  const ldLong = wavg(longStats, 'ld');
+  if (path != null && Math.abs(path) >= 4) {
+    const cut = (path < 0) === (hand === 'right');
+    const long = report.clubs.filter((c) => LONG.has(c.group) && c.shape);
+    const nShape = long.reduce((a, c) => a + c.shape.n, 0);
+    const bend = nShape ? Math.round((long.reduce((a, c) => a + (cut ? c.shape.rightPct : c.shape.leftPct) * c.shape.n, 0) / nShape) * 100) : null;
+    const curveTh = (hand === 'right') === cut ? 'ขวา' : 'ซ้าย';
+    // หน้าไม้ปิดกับเป้าจนลูกออกซ้ายจริง (ไม่ใช่แค่นิดหน่อย)
+    const closedToTarget = cut && face != null && ldLong != null && (hand === 'right' ? face <= -1.5 && ldLong <= -2 : face >= 1.5 && ldLong >= 2);
+    steps.push({
+      k: 'path', title: cut ? 'แก้แนวสวิงที่ตัดลูก (ต้นเหตุของลูกโค้งและสปินสูง)' : 'แก้แนวสวิงที่ตีออกด้านนอกมากเกิน (ต้นเหตุของลูกฮุก)',
+      why: [
+        `แนวสวิงไม้ยาวเฉลี่ย ${fmtDeg(path)}${bend != null ? ` ลูกจึงโค้ง${curveTh} ${bend}%` : ''} พอแนวสวิงดีขึ้น หน้าไม้เทียบแนวสวิงและสปินไดรเวอร์จะลดตามเอง แก้ข้อนี้ก่อนข้ออื่น`,
+        closedToTarget ? `หน้าไม้ปิดกับเป้าอยู่แล้ว (${fmtDeg(face)} ลูกจึงออกซ้าย) ตอนนี้ยังไม่ควรปรับกริปให้ strong ขึ้น เพราะลูกจะออกซ้ายมากขึ้นอีก` : '',
+      ].filter(Boolean).join(' · '),
+      cues: cue(cut ? [
+        'ตั้งท่า: ไหล่และเท้าขนานแนวเป้า (คนที่ตัดลูกมักเปิดไหล่ไปทางซ้ายโดยไม่รู้ตัว)',
+        'ลงสวิง: เริ่มที่สะโพกซ้ายก่อน ให้แขนตกลงมาด้านใน ข้อศอกขวาชิดลำตัว ไม่ใช้ไหล่ขวาเหวี่ยงออก',
+        'ความรู้สึก: ส่งหัวไม้ออกไปทางขวาของเป้า (ทิศ 1 นาฬิกา) แล้วปล่อยให้แขนหมุนข้ามหลังโดนลูก',
+      ] : [
+        'ตั้งท่า: ไม่ยืนปิดเกินไป (เท้าขวาไม่ถอยหลังมาก) ไหล่ขนานแนวเป้า',
+        'ลงสวิง: หมุนลำตัวต่อเนื่องจนจบ ไม่ค้างสะโพกให้แขนวิ่งออกไปทางขวาอย่างเดียว',
+        'ความรู้สึก: ส่งหัวไม้ไปทางซ้ายของเป้ามากขึ้น (ทิศ 11 นาฬิกา)',
+      ]),
+      club: 'เริ่มด้วยเหล็ก 7 สวิง 70% ผ่านแล้วไล่ไปเหล็ก 5 ไม้ 3 และไดรเวอร์',
+      drill: cut ? 'sim-path-in' : 'sim-face-path', balls: 20, metric: track('path', 'แนวสวิง (Club Path) ไม้ยาว'),
+    });
+  }
+
+  // 1b) แนวสวิงดีแล้วแต่หน้าไม้เปิด/ปิดเทียบแนวสวิง → คุมหน้าไม้ด้วยกริปและข้อมือ
+  const f2p = METRIC_OF.f2p(stats);
+  if (!steps.length && f2p != null && Math.abs(f2p) >= 4) {
+    const open = (f2p > 0) === (hand === 'right');
+    steps.push({
+      k: 'face', title: open ? 'คุมหน้าไม้ไม่ให้เปิด (ลูกโค้งออก)' : 'คุมหน้าไม้ไม่ให้ปิดเร็ว (ลูกโค้งเข้า)',
+      why: `แนวสวิงตรงดี (${fmtDeg(path ?? 0)}) แต่หน้าไม้${open ? 'เปิด' : 'ปิด'}เทียบแนวสวิง ${fmtDeg(f2p)} ต้นเหตุอยู่ที่กริปและการหมุนหน้าไม้`,
+      cues: cue(open ? [
+        'กริปมือซ้ายให้เห็นข้อนิ้ว 2–3 ข้อ (strong ขึ้นเล็กน้อย)',
+        'จับไม้เบาลง (ราว 5 จาก 10) ให้ข้อมือหมุนหน้าไม้กลับมาได้ทัน',
+        'บนสุดของแบ็คสวิง หลังมือซ้ายแบนราบ ไม่พับหงาย',
+      ] : [
+        'กริปมือซ้ายให้เห็นข้อนิ้ว 1–2 ข้อ (ไม่ strong เกิน)',
+        'หมุนลำตัวต่อเนื่องผ่านลูก ไม่หยุดลำตัวแล้วสะบัดมือ',
+        'บนสุดของแบ็คสวิง หลังมือซ้ายแบนราบ ไม่งอเข้า',
+      ]),
+      club: 'เหล็ก 7 แล้วค่อยไม้ยาว', drill: 'sim-face-path', balls: 20, metric: track('f2p', 'หน้าไม้เทียบแนวสวิง'),
+    });
+  }
+
+  // 2) ไดรเวอร์: โดนกลางหน้าไม้ และสปิน (ตีขึ้นอยู่แล้วไม่ต้องตีเสยเพิ่ม)
+  const drv = driverOf(stats);
+  if (drv) {
+    const lowSf = drv.sf != null && drv.sf < TARGETS.driver.sf[1];
+    const down = drv.aa != null && drv.aa < -1.5;
+    const highSpin = drv.spin != null && drv.spin > 3300 && !down;
+    if (lowSf || highSpin) {
+      const gain = report.potential?.strikeGain;
+      steps.push({
+        k: 'strike', title: highSpin ? 'ไดรเวอร์โดนกลางหน้าไม้ ลดสปิน ลูกไม่โด่ง' : 'ไดรเวอร์โดนกลางหน้าไม้',
+        why: [
+          drv.aa != null && drv.aa >= 0 ? `ไดรเวอร์ตีขึ้นอยู่แล้ว (มุมเข้าหาลูก ${fmtDeg(drv.aa)}) ดีแล้ว ไม่ต้องตีเสยเพิ่ม` : '',
+          highSpin ? `ลูกโด่งเพราะสปิน ${Math.round(drv.spin).toLocaleString('en-US')} รอบ/นาที (เป้า 2,000–3,000) จากการโดนต่ำบนหน้าไม้และการตัดลูก` : '',
+          lowSf ? `Smash ${drv.sf.toFixed(2)} (เป้า 1.44)${gain ? ` ตีกลางหน้าไม้ได้ระยะเพิ่มราว ${Math.round(gain / YD)} หลา` : ''}` : '',
+        ].filter(Boolean).join(' · '),
+        cues: [
+          'ตั้งทีให้ครึ่งลูกอยู่เหนือหัวไม้ วางลูกตรงส้นเท้าหน้า ให้โดนกลาง–ค่อนบนของหน้าไม้ (โดนต่ำ = สปินเพิ่ม)',
+          'สวิง 80% และจังหวะเท่าเดิมทุกลูก ความเร็วลดนิดเดียวแต่โดนกลางบ่อยขึ้น ได้ระยะมากกว่า',
+          'ดูรอยบนหน้าไม้ทุกลูก: โดนปลาย → ยืนใกล้ขึ้น · โดนโคน → ยืนห่างขึ้น · โดนต่ำ → ตั้งทีสูงขึ้น',
+        ],
+        club: 'ไดรเวอร์', drill: highSpin ? 'sim-driver-spin' : 'driver-strike', balls: 15,
+        metric: lowSf ? track('sf', 'Smash Factor ไดรเวอร์') : track('spin', 'สปินไดรเวอร์ (รอบ/นาที)'),
+        metric2: lowSf && highSpin ? track('spin', 'สปินไดรเวอร์ (รอบ/นาที)') : null,
+      });
+    } else if (down) {
+      steps.push({
+        k: 'launch', title: 'ไดรเวอร์ตีขึ้น', why: `มุมเข้าหาลูก ${fmtDeg(drv.aa)} (ตีกดลง) ไดรเวอร์ควรตีขึ้น 0° ขึ้นไป`,
+        cues: ['ตั้งทีสูงขึ้น วางลูกตรงส้นเท้าหน้า', 'เอียงไหล่ข้างหลังต่ำลงเล็กน้อยตอนตั้งท่า', 'ปล่อยให้หัวไม้ผ่านจุดต่ำสุดก่อนโดนลูก'],
+        club: 'ไดรเวอร์', drill: 'sim-driver-launch', balls: 15, metric: null,
+      });
+    }
+  }
+
+  // 3) เหล็กตีกดลง (ตรงข้ามกับไดรเวอร์)
+  const aaIron = METRIC_OF.aaIron(stats);
+  if (aaIron != null && aaIron > -1) {
+    steps.push({
+      k: 'iron', title: 'เหล็กตีกดลง (ไม่ช้อนลูก)',
+      why: `เหล็กของคุณมุมเข้าหาลูกเฉลี่ย ${fmtDeg(aaIron)} (ตีขึ้น) เหล็กควรตีกดลง −2° ถึง −5° ลูกจะโดนก่อนดิน ระยะสม่ำเสมอ — ตรงข้ามกับไดรเวอร์ที่ควรตีขึ้น`,
+      cues: ['ลูกอยู่กลางเท้า น้ำหนักเท้าหน้าราว 60% ตั้งแต่ตั้งท่า', 'มือนำหน้าหัวไม้ตอนปะทะ ไม่สะบัดข้อมือช้อนลูกให้ลอย (ลอฟต์ของไม้ทำให้ลูกลอยเอง)', 'จบสวิงด้วยน้ำหนักบนเท้าหน้า'],
+      club: 'เหล็ก 7 แล้วไล่ไปเหล็กยาว', drill: 'sim-iron-down', balls: 15, metric: track('aaIron', 'มุมเข้าหาลูกของเหล็ก'),
+    });
+  }
+
+  // 4) ระยะเหล็กไม่สม่ำเสมอ (ถ้ายังมีที่ว่าง)
+  const loose = report.clubs.filter((c) => IRONS.has(c.group) && c.metrics.some((m) => m.k === 'window' && m.status === 'far'));
+  if (steps.length < 3 && loose.length) {
+    steps.push({
+      k: 'window', title: 'คุมระยะเหล็กให้สม่ำเสมอ', why: `${loose.map((c) => c.stat.label).join(', ')} ระยะลอยกระจายกว้าง ช็อตเข้ากรีนจึงสั้น/ยาวบ่อย`,
+      cues: ['สวิงความเร็วเดิมทุกลูก (80–90%) ไม่ฝืนตีให้ไกล', 'ทำรูทีนเดิมก่อนตีทุกลูก'],
+      club: loose[0].stat.label, drill: 'sim-carry-window', balls: 10, metric: null,
+    });
+  }
+
+  const shown = steps.slice(0, 3);
+  const session = shown.length ? [
+    { th: 'วอร์มอัพ', balls: 10, text: 'เวดจ์/เหล็กสั้น ครึ่งวงสวิง จับจังหวะ' },
+    ...shown.map((s, i) => ({ th: `ขั้นที่ ${i + 1}: ${s.title}`, balls: s.balls, text: s.club })),
+    { th: 'ปิดท้าย', balls: 5, text: 'ไดรเวอร์ทีละลูก รูทีนเต็มเหมือนออกรอบ ดูว่าตัวเลขยังอยู่ไหม' },
+  ] : [];
+  return { steps: shown, later: steps.slice(3), session };
+}
+
+// ---------- สรุปเป็นข้อความ (คัดลอกไปดูตอนซ้อม) ----------
+export function planText(report, plan, { fmt = (m) => `${Math.round(m / YD)} หลา`, drillName = (id) => id, date = '' } = {}) {
+  const L = [];
+  L.push(`ShotLog · สรุปจากเครื่องซ้อม${date ? ` ${date}` : ''}`);
+  if (report.headline.length) {
+    L.push('', '📊 สรุป');
+    for (const h of report.headline) L.push(`• ${h.text}`);
+  }
+  const bw = report.clubs.find((c) => c.group === 'driver' && c.bestWorst)?.bestWorst;
+  if (bw) {
+    const row = (s) => `${fmt(s.carry)} · Smash ${s.sf?.toFixed(2) ?? '–'} · สปิน ${s.spin == null ? '–' : Math.round(s.spin).toLocaleString('en-US')} · F2P ${s.f2p == null ? '–' : fmtDeg(s.f2p)}`;
+    L.push('', '📈 ไดรเวอร์: ลูกดีที่สุด vs ลูกที่เสียระยะมากที่สุด', `• ดีที่สุด: ${row(bw.best)}`, `• เสียมากที่สุด: ${row(bw.worst)}`);
+  }
+  if (plan.steps.length) {
+    L.push('', '🏌️ แผนแก้ไข (ทำตามลำดับ)');
+    plan.steps.forEach((s, i) => {
+      L.push(`${i + 1}. ${s.title}`, `   ทำไม: ${s.why}`);
+      for (const c of s.cues) L.push(`   – ${c}`);
+      L.push(`   แบบฝึก: ${drillName(s.drill)} · ${s.balls} ลูก · ${s.club}`);
+      if (s.metric?.next != null) L.push(`   เป้าครั้งหน้า: ${s.metric.th} ${s.metric.fmt(s.metric.next)} (ตอนนี้ ${s.metric.fmt(s.metric.now)} · เป้าสุดท้าย ${s.metric.goal})`);
+    });
+    L.push('', '⏱ ซ้อมครั้งหน้า');
+    for (const x of plan.session) L.push(`• ${x.th} — ${x.balls} ลูก · ${x.text}`);
+  }
+  return L.join('\n');
 }

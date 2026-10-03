@@ -92,3 +92,51 @@ test('ข้อควรแก้: ออกซ้ายแล้วโค้ง
   const push = launchIssues(clubStats(iron7(12, { ld: 4, f2p: 0.5, path: 3 })));
   assert.ok(push.some((i) => i.k === 'start'));
 });
+
+test('ไดรเวอร์ตีขึ้นอยู่แล้วแต่ลูกโด่ง: ไม่แนะนำให้ตีเสยเพิ่ม · บอกว่าโด่งเพราะสปิน', () => {
+  const issues = launchIssues(clubStats(driver(12)));   // มุมเข้าหาลูก +4° สปิน 4,500 แนวสวิง −11°
+  const d = issues.find((i) => i.k === 'driver');
+  assert.equal(d.th, 'ไดรเวอร์สปินสูง ลูกโด่ง เสียระยะ');
+  assert.ok(!d.drills.includes('sim-driver-launch'), d.drills.join(','));
+  assert.deepEqual(d.drills, ['sim-path-in', 'sim-driver-spin', 'driver-strike']);
+  assert.ok(d.detail[0].includes('ตีขึ้นอยู่แล้ว'));
+  // ตีกดลงจริง → ยังแนะนำให้ตีขึ้น
+  const down = launchIssues(clubStats(driver(12, { aa: -3, path: 0, f2p: 0.5 }))).find((i) => i.k === 'driver');
+  assert.deepEqual(down.drills, ['sim-driver-launch']);
+});
+
+test('แผนแก้ไข: เรียงจากต้นเหตุ เป้าเลื่อนทีละขั้น และบอกว่าผ่านเป้าครั้งก่อนไหม', async () => {
+  const { fixPlan, planText, bestWorst } = await import('../js/launchreport.js');
+  const rec = (sig, date, shots) => ({ id: sig, kind: 'launch', date, launch: { v: 1, sig, cols: ['club', 'cs', 'bs', 'sf', 'la', 'ld', 'spin', 'carry', 'cdev', 'total', 'aa', 'path', 'face', 'f2p'],
+    shots: shots.map((s) => [s.raw, s.cs, s.bs, s.sf, s.la, s.ld, s.spin, s.carry, s.cdev, s.total, s.aa, s.path, s.face, s.f2p]) } });
+  const irons = iron7(8, { aa: 2.5 });   // เหล็กตีขึ้น
+  const before = rec('a', '2026-08-01', [...driver(10, { path: -12 }), ...irons]);
+  const after = rec('b', '2026-08-28', [...driver(10, { path: -7.5 }), ...irons]);
+  const shots = [...driver(10, { path: -7.5 }), ...irons];
+  const rep = launchReport(shots, () => null, { practice: [before, after] });
+  const plan = fixPlan(rep, { practice: [before, after] });
+  assert.deepEqual(plan.steps.map((s) => s.k), ['path', 'strike', 'iron']);
+  const p = plan.steps[0].metric;
+  assert.equal(p.lastTarget, -8, 'เป้าครั้งนี้คิดจากครั้งก่อน (−12 → −8)');
+  assert.equal(p.passed, true, 'แนวสวิงลดเหลือ −7.5 ผ่านเป้า −8');
+  assert.equal(p.next, -4, 'เป้าครั้งหน้าเลื่อนอีก 4°');
+  assert.ok(plan.steps[0].why.includes('ปิดกับเป้า'), 'หน้าไม้ปิดและลูกออกซ้ายจริง → เตือนไม่ให้แก้ด้วยกริป strong');
+  assert.ok(plan.steps[1].why.includes('ตีขึ้นอยู่แล้ว'));
+  assert.equal(plan.steps[1].drill, 'sim-driver-spin');
+  assert.ok(plan.steps[2].why.includes('ตรงข้ามกับไดรเวอร์'));
+  assert.equal(plan.session.reduce((a, x) => a + x.balls, 0), 10 + 20 + 15 + 15 + 5);
+  // ถนัดซ้าย: สลับซ้าย/ขวาในคำแนะนำ
+  const lefty = fixPlan(launchReport(driver(10, { path: 9, face: 3, ld: 4, f2p: -7 }), () => null, { hand: 'left' }), { hand: 'left' });
+  assert.ok(lefty.steps[0].cues.some((c) => c.includes('ทิศ 11 นาฬิกา')));
+  // ข้อความสำหรับคัดลอก
+  const text = planText(rep, plan, { drillName: (id) => id });
+  assert.match(text, /📊 สรุป/);
+  assert.match(text, /🏌️ แผนแก้ไข/);
+  assert.match(text, /เป้าครั้งหน้า: แนวสวิง/);
+  // ลูกดีสุด/เสียมากสุด ไม่เลือกลูกที่วัดผิด (ระยะต่ำกว่า 60% ของค่ากลาง)
+  const spread = Array.from({ length: 8 }, (_, i) => shot('ไดรเวอร์', i, { carry: (170 + i * 8) * YD }));
+  const bw = bestWorst([...spread, shot('ไดรเวอร์', 0, { carry: 80 * YD, sf: 1.37 })]);
+  assert.equal(Math.round(bw.best.carry / YD), 226);
+  assert.equal(Math.round(bw.worst.carry / YD), 170, 'ไม่ใช่ลูก 80 หลาที่น่าจะวัดผิด');
+  assert.equal(bestWorst(driver(8)), null, 'ระยะต่างกันไม่ถึง 10 หลา ไม่ต้องเทียบ');
+});
