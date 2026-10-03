@@ -1,7 +1,7 @@
 // ทดสอบการวิเคราะห์ละเอียดจากเครื่องซ้อม (ข้อมูลสังเคราะห์ที่จำลองลักษณะวงสวิงแบบ pull-slice ไม่ใช่ไฟล์จริงของผู้ใช้)
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { splitSuspect, shapeOf, shapeTerm, shapeTh, clubMetrics, driverPotential, compareLast, launchReport, groupOf } from '../js/launchreport.js';
+import { splitSuspect, shapeOf, shapeTerm, shapeTh, clubMetrics, driverPotential, compareLast, launchReport, groupOf, carryBreakdown } from '../js/launchreport.js';
 import { launchIssues, clubStats } from '../js/launch.js';
 
 const MPH = 0.44704, YD = 0.9144;
@@ -81,7 +81,17 @@ test('เทียบครั้งก่อน และสรุป: pull-sli
   assert.match(texts, /เหล็กสั้นตรงกว่าไม้ยาวมาก/);
   assert.match(texts, /ไดรเวอร์ได้ระยะลอยเพิ่มได้ราว/);
   assert.match(texts, /ไดรเวอร์ ไกลน้อยลง \d+ หลา จากครั้งก่อน/);
-  assert.match(texts, /ความเร็วหัวไม้ไดรเวอร์แทบเท่าเดิม \(98 → 98 mph\) แต่ระยะหายไป/);
+  assert.match(texts, /ระยะไดรเวอร์ที่หายไป \d+ หลา มาจาก: .*การกระทบลูก \(Smash 1\.42 → 1\.34\) −1\d หลา/);
+  assert.ok(!/ความเร็วหัวไม้ \(/.test(texts), 'ความเร็วหัวไม้เท่าเดิม ไม่นับเป็นสาเหตุ');
+});
+
+test('แยกระยะที่หายเป็น ความเร็ว · การกระทบ · มุมออก/สปิน (ตัวเลขไดรเวอร์แบบผู้ใช้ 2025 → 2026)', () => {
+  const r = { carryFrom: 232.8 * YD, carryTo: 191.8 * YD, csFrom: 101.1 * MPH, csTo: 98.2 * MPH, bsFrom: 141.7 * MPH, bsTo: 130.4 * MPH, sfFrom: 1.415 };
+  const bd = carryBreakdown(r);
+  const yd = (x) => Math.round(x / YD);
+  assert.deepEqual([yd(bd.speed), yd(bd.strike), yd(bd.flight)], [-7, -12, -22]);
+  assert.ok(Math.abs(bd.speed + bd.strike + bd.flight - (r.carryTo - r.carryFrom)) < 1e-9, 'รวมกันเท่าระยะที่เปลี่ยนพอดี');
+  assert.equal(carryBreakdown({ ...r, bsFrom: null }), null);
 });
 
 test('ข้อควรแก้: ออกซ้ายแล้วโค้งขวาเป็นข้อเดียว ไม่แยกเป็น "ลูกออกซ้าย" อีกข้อ', () => {

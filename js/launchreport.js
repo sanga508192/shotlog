@@ -122,9 +122,23 @@ export function compareLast(practice, clubOf = () => null) {
       carry: p.nCarry >= 3 && b.nCarry >= 3 ? d('carry') : null, carryFrom: p.carry, carryTo: b.carry,
       sf: d('sf'), sfFrom: p.sf, sfTo: b.sf, f2p: d('f2p'), f2pFrom: p.f2p, f2pTo: b.f2p, path: d('path'), pathFrom: p.path, pathTo: b.path,
       spin: d('spin'), spinFrom: p.spin, spinTo: b.spin, sideAbs: d('sideAbs'), sideFrom: p.sideAbs, sideTo: b.sideAbs, csFrom: p.cs, csTo: b.cs,
+      bsFrom: p.bs, bsTo: b.bs,
     });
   }
   return { from: prev.date, to: last.date, rows };
+}
+
+// แยกระยะลอยที่เปลี่ยนจากครั้งก่อนเป็น 3 ส่วน (เมตร) รวมกันได้เท่าระยะที่เปลี่ยนพอดี:
+// speed = ความเร็วหัวไม้ · strike = การกระทบ (ความเร็วลูกที่ได้ต่อความเร็วหัวไม้) · flight = มุมออกและสปิน (ระยะลอยต่อความเร็วลูก)
+export function carryBreakdown(r) {
+  if (![r?.carryFrom, r?.carryTo, r?.bsFrom, r?.bsTo, r?.csFrom, r?.csTo, r?.sfFrom].every((x) => x > 0)) return null;
+  const effFrom = r.carryFrom / r.bsFrom, effTo = r.carryTo / r.bsTo;
+  const bsBySpeed = (r.csTo - r.csFrom) * r.sfFrom;
+  return {
+    speed: bsBySpeed * effFrom,
+    strike: (r.bsTo - r.bsFrom - bsBySpeed) * effFrom,
+    flight: r.bsTo * (effTo - effFrom),
+  };
 }
 
 // ---------- สรุปทั้งหมด ----------
@@ -186,10 +200,30 @@ export function launchReport(shots, clubOf = () => null, { hand = 'right', pract
     if (big) {
       const why = [big.sf != null && Math.abs(big.sf) >= 0.03 ? `Smash ${big.sfFrom.toFixed(2)} → ${big.sfTo.toFixed(2)}` : '',
         big.path != null && Math.abs(big.path) >= 2 ? `แนวสวิง ${fmtDeg(big.pathFrom)} → ${fmtDeg(big.pathTo)}` : ''].filter(Boolean);
-      headline.push({ k: 'change', tone: big.carry < 0 ? 'far' : 'ok', text: `${big.label} ${big.carry < 0 ? 'ไกลน้อยลง' : 'ไกลขึ้น'} ${fmt(Math.abs(big.carry))} จากครั้งก่อน (${fmt(big.carryFrom)} → ${fmt(big.carryTo)})${why.length ? ` · ${why.join(' · ')}` : ''}` });
-      // ระยะหายมากแต่ความเร็วหัวไม้แทบเท่าเดิม → ไม่ใช่เรื่องแรง: การปะทะลูก หรืออุปกรณ์ที่เปลี่ยนไป
-      if (big.carry < -15 * YD && big.csFrom && big.csTo && Math.abs(big.csTo - big.csFrom) / big.csFrom < 0.04) {
-        headline.push({ k: 'equipment', tone: 'near', text: `ความเร็วหัวไม้${big.label}แทบเท่าเดิม (${Math.round(big.csFrom / MPH)} → ${Math.round(big.csTo / MPH)} mph) แต่ระยะหายไป แปลว่าแรงยังอยู่ ระยะหายจากการปะทะลูก · ถ้าช่วงนี้เปลี่ยนไม้ ก้าน หรือปรับองศา ให้เช็กอุปกรณ์ด้วย` });
+      // ระยะหายมาก → แยกว่าหายจากความเร็ว การกระทบ หรือมุมออก/สปิน แล้วบอกต้นเหตุที่น่าจะเป็น (แทนรายการค่าที่เปลี่ยน)
+      const bd = big.carry < -15 * YD ? carryBreakdown(big) : null;
+      headline.push({ k: 'change', tone: big.carry < 0 ? 'far' : 'ok', text: `${big.label} ${big.carry < 0 ? 'ไกลน้อยลง' : 'ไกลขึ้น'} ${fmt(Math.abs(big.carry))} จากครั้งก่อน (${fmt(big.carryFrom)} → ${fmt(big.carryTo)})${why.length && !bd ? ` · ${why.join(' · ')}` : ''}` });
+      if (bd) {
+        const mph = (x) => Math.round(x / MPH);
+        const parts = [
+          ['มุมออกและสปิน', bd.flight, big.spinFrom && big.spinTo ? `สปิน ${Math.round(big.spinFrom).toLocaleString('en-US')} → ${Math.round(big.spinTo).toLocaleString('en-US')}` : ''],
+          ['การกระทบลูก', bd.strike, `Smash ${big.sfFrom.toFixed(2)} → ${big.sfTo.toFixed(2)}`],
+          ['ความเร็วหัวไม้', bd.speed, `${mph(big.csFrom)} → ${mph(big.csTo)} mph`],
+        ].filter(([, v]) => v <= -3 * YD).sort((a, b) => a[1] - b[1]);
+        if (parts.length) headline.push({ k: 'loss', tone: 'far', text: `ระยะ${big.label}ที่หายไป ${fmt(-big.carry)} มาจาก: ${parts.map(([th, v, x]) => `${th}${x ? ` (${x})` : ''} −${fmt(-v)}`).join(' · ')}` });
+        const spinUp = big.spin != null && big.spin >= 500;
+        const pathTxt = big.path != null && big.path <= -2 ? ` และหน้าไม้เฉียดลูกมากขึ้น (แนวสวิง ${fmtDeg(big.pathFrom)} → ${fmtDeg(big.pathTo)})` : '';
+        let cause = null;
+        if (bd.strike <= -5 * YD && bd.flight <= -5 * YD && spinUp) {
+          cause = `สปินเพิ่มพร้อม Smash ลด มักเป็นเพราะโดนต่ำบนหน้าไม้${pathTxt} · เช็กรอยบนหน้าไม้ด้วยสเปรย์แป้งหรือปากกา และตั้งทีให้ลูกอยู่เหนือหัวไม้ครึ่งลูก`;
+        } else if (bd.flight <= -8 * YD && bd.strike > -3 * YD && bd.speed > -3 * YD) {
+          cause = 'ความเร็วและการกระทบเท่าเดิม แต่ลูกบินไม่ไป · ถ้าซ้อมคนละที่หรือคนละลูก ระยะต่างกันได้ · ถ้าเปลี่ยนไม้ ก้าน หรือองศา ให้เช็กอุปกรณ์';
+        } else if (bd.strike <= bd.flight && bd.strike <= bd.speed) {
+          cause = `หายจากการกระทบเป็นหลัก${pathTxt} · ตีให้โดนกลางหน้าไม้ก่อนค่อยเพิ่มแรง`;
+        } else if (bd.speed <= bd.flight) {
+          cause = 'ความเร็วหัวไม้ลดลงเป็นหลัก (เหนื่อย ยังไม่วอร์ม หรือคุมวงสวิงมากขึ้น) · วอร์มอัพให้พร้อมก่อนวัดผล';
+        }
+        if (cause) headline.push({ k: 'loss-cause', tone: 'near', text: cause });
       }
     }
   }
