@@ -7,6 +7,16 @@ const DANGER = new Set(['water', 'other']);   // น้ำ และจุดอ
 const opposite = (side) => (side === 'right' ? 'left' : 'right');
 const TH = { left: 'ซ้าย', right: 'ขวา' };
 
+// ไม้สำหรับระยะนี้: ไม้ที่มีข้อมูลระยะใกล้ที่สุด (ต่างไม่เกิน 12% หรือ 12 ม.) ไม่มี → "ไม้ที่ได้ระยะนี้" ตามประเภทที่น่าจะใช้
+// (ไม่เดาว่าเป็นไม้ไหนในกระเป๋า เพราะยังไม่มีระยะจริงของไม้นั้น)
+export function clubFor(meters, rows, fmt = (m) => `${Math.round(m / YD)} หลา`) {
+  const near = rows.filter((r) => Math.abs(r.median - meters) <= Math.max(12, meters * 0.12))
+    .sort((a, b) => Math.abs(a.median - meters) - Math.abs(b.median - meters))[0];
+  if (near) return near;
+  const category = meters >= 190 * YD ? 'wood' : meters >= 165 * YD ? 'hybrid' : meters >= 110 * YD ? 'iron' : 'wedge';
+  return { label: `ไม้ที่ได้ระยะ ${fmt(meters)}`, category, median: meters, n: 0, generic: true };
+}
+
 // อันตรายเทียบไม้: ลูกตกในช่วงระยะปกติของไม้นี้ และอยู่ฝั่งที่พลาดบ่อยหรือขวางแนว
 export function hazardRisk(h, club, missSide) {
   if (!club || h.along == null) return null;
@@ -29,10 +39,10 @@ export function teePlan({ par, lengthM = null, hazards = [], history = null, clu
 
   if (par === 3) {
     if (!lengthM) return null;
-    const c = rows.reduce((best, r) => (Math.abs(r.median - lengthM) < Math.abs(best.median - lengthM) ? r : best), rows[0]);
+    const c = clubFor(lengthM, rows, fmt);
     const aim = missSide ? `กลางกรีน เยื้อง${TH[opposite(missSide)]}เล็กน้อย (ลูกคุณมักไป${TH[missSide]})` : 'กลางกรีน ไม่เล็งธง';
     for (const h of hazards) if (DANGER.has(h.kind) && Math.abs(h.along - lengthM) < 30) notes.push(`${h.kind === 'water' ? 'น้ำ' : 'จุดอันตราย'}ฝั่ง${TH[h.off > 0 ? 'right' : 'left']}ของกรีน — พลาดไปอีกฝั่งดีกว่า`);
-    return { club: c, aim, notes, remain: null, why: `ระยะ ${fmt(lengthM)} · ${c.label} ปกติ ${fmt(c.median)}` };
+    return { club: c, aim, notes, remain: null, why: c.generic ? `ระยะ ${fmt(lengthM)} · ยังไม่มีระยะจริงของไม้ที่ใกล้เคียง` : `ระยะ ${fmt(lengthM)} · ${c.label} ปกติ ${fmt(c.median)}` };
   }
 
   const drv = rows.find((r) => r.category === 'driver') ?? null;
@@ -76,7 +86,7 @@ export function teePlan({ par, lengthM = null, hazards = [], history = null, clu
     const otherDanger = danger.some((h) => (h.off > 0 ? 'right' : 'left') === other && Math.abs(h.off) >= 15 && hazardRisk({ ...h, off: 0 }, pick, null));
     aim = otherDanger
       ? `กลางแฟร์เวย์ (ฝั่ง${TH[other]}มีอันตราย อย่าเล็งเผื่อมากเกิน)`
-      : `ตั้งทีฝั่ง${TH[missSide]}ของแท่น เล็งขอบ${TH[other]}ของแฟร์เวย์ ให้ลูกที่โค้ง${TH[missSide]}กลับเข้ากลาง`;
+      : `ตั้งทีฝั่ง${TH[missSide]}ของแท่น เล็งขอบ${TH[other]}ของแฟร์เวย์ เผื่อลูกที่มักไปจบทาง${TH[missSide]}`;
   }
   if (history?.n >= 2 && history.pen) notes.push(`ทีออฟหลุมนี้ที่ผ่านมา ${history.n} ครั้ง โดนลูกโทษ ${history.pen} ครั้ง`);
   const remain = lengthM ? Math.max(0, lengthM - (pick.total ?? pick.median)) : null;

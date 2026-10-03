@@ -54,3 +54,16 @@ test('อันตรายของหลุมเทียบแนวแท�
   assert.ok(Math.abs(h.along / YD - 220) < 2 && Math.abs(h.off / YD - 25) < 1);
   assert.deepEqual(hazardsAlong({ tee, green: null, hazards: [z] }), []);
 });
+
+test('ฝั่งที่พลาด = ฝั่งที่ลูกไปจบ: ออกซ้ายแล้วโค้งขวาแต่ยังจบซ้าย → เล็งเผื่อขวา (ไม่อ้างว่าลูกโค้งซ้าย)', async () => {
+  const { simCue } = await import('../js/coach.js');
+  const curve = { k: 'curve', dir: 'right', detail: ['Face to Path +7.9°'] };
+  const pullSlice = { side: 'left', missL: 0.28, missR: 0.03, curve: 'right' };
+  const c = simCue([curve], pullSlice);
+  assert.match(c.text, /ตั้งทีฝั่งซ้าย.*เล็งไปขอบขวา.*เผื่อลูกที่มักไปจบทางซ้าย/);
+  assert.match(c.why, /หลุดแฟร์เวย์ทางซ้าย 28%/);
+  assert.match(simCue([curve]).text, /ตั้งทีฝั่งขวา/, 'ไม่มีข้อมูลจุดตก ใช้ทิศที่โค้ง');
+  const tp = teePlan({ par: 4, lengthM: 400 * YD, clubs: BAG, missSide: 'left' });
+  assert.match(tp.aim, /เผื่อลูกที่มักไปจบทางซ้าย/);
+  assert.ok(!/โค้ง/.test(tp.aim));
+});

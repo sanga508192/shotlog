@@ -103,7 +103,7 @@ test('มีแต่เครื่องซ้อม: ไดรเวอร์
   assert.equal(t.problem, true);
   assert.equal(t.missSide, 'right');
   assert.equal(t.cue.src, 'sim');
-  assert.match(t.cue.why, /สไลซ์/);
+  assert.match(t.cue.why, /เครื่องซ้อม: ไดรเวอร์หลุดแฟร์เวย์ทางขวา 40%/, 'อ้างฝั่งที่ลูกไปจบ ไม่ใช่ทิศที่โค้ง');
   assert.deepEqual(t.drills, ['driver-curve', 'sim-driver-window', 'driver-strike', 'tee-gate'], 'Smash 1.34 ต่ำกว่าเกณฑ์ไดรเวอร์');
   const good = driverProfile(r10(10, () => 3).map((s) => ({ ...s, f2p: 0.5, path: 1, sf: 1.46 })), clubOf);
   assert.equal(teeAnalysis([], { clubOf, driver: good }).problem, false);

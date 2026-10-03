@@ -1,7 +1,8 @@
 // หน้าโค้ชพัฒนาเกม: เป้าหมาย → สโตรกหายไปไหน → จุดที่ควรแก้ → โฟกัสรอบหน้า → แผนซ้อม
 import * as st from '../state.js';
 import { esc, header, fmtDate, toast } from '../ui.js';
-import { GOALS, analyzeGame, budgetOver, fmtSigned, clubDistances, drill, drillHistory, TEE_MIN } from '../coach.js';
+import { GOALS, analyzeGame, budgetOver, fmtSigned, clubDistances, drill, drillHistory, TEE_MIN, practiceSplit, weekSessions, PRACTICE_PRINCIPLES, WEEK_MINUTES } from '../coach.js';
+import { testResults } from '../launchreport.js';
 import { courseHoles, toUnit, unitTh, confirmedPoint } from '../holemap.js';
 import { drillCard, clipActions } from './drills.js';
 import { analyzeSG } from '../sg.js';
@@ -299,6 +300,15 @@ export function focusListHtml(cues) {
 export function coachView(_p, ctx) {
   const chosen = st.setting('coach_goal', null);
   const a = coachData(chosen);
+  // แบ่งเวลาซ้อมตามสโตรกที่เสีย (Strokes Gained ถ้ามีข้อมูลครบพอ)
+  const sgAll = analyzeSG({ rounds: st.rounds(), holesOf: st.holesOf, shotsOf: st.shotsOf, penaltiesOf: st.penaltiesOf }, a.goal.score);
+  const simLong = !!a.sim && !a.sim.stale && a.sim.issues.some((i) => ['curve', 'driver', 'contact', 'start', 'dispersion'].includes(i.k));
+  const split = practiceSplit({ leaks: a.leaks, tee: a.tee, sg: sgAll, simLong });
+  const sessions = weekSessions(split, { hasSim: !!a.sim && !a.sim.stale });
+  const tests = a.sim ? testResults([...st.S.practice.values()], st.club, st.todayLocal()) : null;
+  const testDue = !a.sim ? ''
+    : !tests ? '<div class="card small">📏 ยังไม่เคยทดสอบมาตรฐานกับเครื่องซ้อม ทดสอบเดือนละครั้งเพื่อวัดพัฒนาการแบบเทียบกันได้ <a href="#/launch">วิธีทดสอบ ›</a></div>'
+      : tests.overdue ? `<div class="card warn small">📏 ถึงกำหนดทดสอบมาตรฐานประจำเดือนแล้ว (ครั้งล่าสุด ${esc(fmtDate(tests.last.date))}) <a href="#/launch">วิธีทดสอบ ›</a></div>` : '';
   const g = a.goal;
   const hasScores = a.scoreRounds.length > 0;
   const shotOk = a.shot.holes >= 9;
@@ -349,6 +359,7 @@ export function coachView(_p, ctx) {
       ${teeHtml(a.tee, g, a.sim)}
 
       ${simHtml(a.sim)}
+      ${testDue}
 
       ${a.cues.length ? `<h2>โฟกัสรอบหน้า</h2>
       <div class="card">${focusListHtml(a.cues)}<p class="note">แสดงในหน้าเริ่มรอบใหม่ด้วย</p></div>` : ''}
@@ -366,7 +377,16 @@ export function coachView(_p, ctx) {
       ${clubDistanceHtml()}
 
       <h2 id="plan">แผนซ้อมสัปดาห์นี้</h2>
-      <p class="note">${a.plan.basis.length ? `เน้น: ${esc(a.plan.basis.join(' และ '))} · ` : 'แผนเริ่มต้นตามเป้า · '}ซ้อม 2–3 ครั้งต่อสัปดาห์ ครั้งละราว ${a.plan.minutes} นาที · บันทึกผลทุกครั้งเพื่อดูพัฒนาการ</p>
+      <div class="card week-split">
+        <b>แบ่งเวลาซ้อม ~${WEEK_MINUTES} นาทีต่อสัปดาห์</b>
+        ${split.rows.map((r) => `<div class="ws-row"><span>${r.icon} ${esc(r.th)}</span><div class="ws-bar" aria-hidden="true"><i style="width:${r.pct}%"></i></div><b>${r.pct}%</b><small>${r.minutes} นาที</small></div>`).join('')}
+        <p class="note">${split.basis === 'sg' ? 'แบ่งตาม Strokes Gained ที่เสียเกินระดับเป้า' : split.basis === 'leaks' ? 'แบ่งตามที่มาของสโตรกที่เสียเกินงบของเป้า' : split.basis === 'sim' ? 'แบ่งตามผลจากเครื่องซ้อม (ยังไม่มีข้อมูลออกรอบพอ)' : 'แผนเริ่มต้น (ยังไม่มีข้อมูลพอ)'} · ทุกหมวดอย่างน้อย 15% เพื่อรักษาฝีมือ</p>
+      </div>
+      <div class="card week-sessions"><b>ซ้อม 3 ครั้งในสัปดาห์</b>
+        <ol class="find">${sessions.map((x) => `<li><b>${esc(x.th)}</b> <small class="muted">${esc(x.where)}</small><br>${x.link ? `<a href="${x.link}">${esc(x.text)} ›</a>` : esc(x.text)} <small class="muted">· ${esc(x.how)}</small></li>`).join('')}</ol>
+      </div>
+      <details class="card small"><summary><b>หลักการซ้อมให้ได้ผล</b></summary><ul class="find">${PRACTICE_PRINCIPLES.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></details>
+      <p class="note">${a.plan.basis.length ? `แบบฝึกสัปดาห์นี้เน้น: ${esc(a.plan.basis.join(' และ '))} · ` : 'แบบฝึกเริ่มต้นตามเป้า · '}บันทึกผลทุกครั้งเพื่อดูพัฒนาการ</p>
       <div class="drills">${a.plan.items.map((d) => drillCard(d, { history: d.history, badge: d.fromSim ? 'จากเครื่องซ้อม' : '' })).join('')}</div>
 
       <div class="card small coach-foot">

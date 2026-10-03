@@ -16,6 +16,7 @@ import { mapView } from './views/map.js';
 import { watchLive } from './views/live.js';
 import { drillsView } from './views/drills.js';
 import { launchView } from './views/launch.js';
+import { simGameView } from './views/simgame.js';
 import { resumeHref } from './views/main.js';
 import * as sync from './sync.js';
 import * as cloud from './cloud.js';
@@ -38,6 +39,7 @@ const routes = [
   [/^#\/practice$/, practiceView],
   [/^#\/drills$/, drillsView],
   [/^#\/launch$/, launchView],
+  [/^#\/sim-game$/, simGameView],
   [/^#\/practice\/new(?:\?(.*))?$/, practiceNewView],
   [/^#\/settings$/, settingsView],
   [/^#\/scan(?:\/([^/?]+))?$/, scanView],

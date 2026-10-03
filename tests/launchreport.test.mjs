@@ -81,6 +81,7 @@ test('เทียบครั้งก่อน และสรุป: pull-sli
   assert.match(texts, /เหล็กสั้นตรงกว่าไม้ยาวมาก/);
   assert.match(texts, /ไดรเวอร์ได้ระยะลอยเพิ่มได้ราว/);
   assert.match(texts, /ไดรเวอร์ ไกลน้อยลง \d+ หลา จากครั้งก่อน/);
+  assert.match(texts, /ความเร็วหัวไม้ไดรเวอร์แทบเท่าเดิม \(98 → 98 mph\) แต่ระยะหายไป/);
 });
 
 test('ข้อควรแก้: ออกซ้ายแล้วโค้งขวาเป็นข้อเดียว ไม่แยกเป็น "ลูกออกซ้าย" อีกข้อ', () => {
@@ -139,4 +140,28 @@ test('แผนแก้ไข: เรียงจากต้นเหตุ �
   assert.equal(Math.round(bw.best.carry / YD), 226);
   assert.equal(Math.round(bw.worst.carry / YD), 170, 'ไม่ใช่ลูก 80 หลาที่น่าจะวัดผิด');
   assert.equal(bestWorst(driver(8)), null, 'ระยะต่างกันไม่ถึง 10 หลา ไม่ต้องเทียบ');
+});
+
+test('ทดสอบมาตรฐาน: เฉพาะเซสชันที่ตั้งเป็นทดสอบ · คะแนนลูกดี · เทียบครั้งก่อน · ครบกำหนดทุก 28 วัน', async () => {
+  const { testResults, testScore } = await import('../js/launchreport.js');
+  const cols = ['club', 'cs', 'bs', 'sf', 'la', 'ld', 'spin', 'carry', 'cdev', 'total', 'aa', 'path', 'face', 'f2p'];
+  const rec = (sig, date, shots, test) => ({ id: sig, kind: 'launch', date, launch: { v: 1, sig, cols, ...(test ? { test: true } : {}),
+    shots: shots.map((s) => [s.raw, s.cs, s.bs, s.sf, s.la, s.ld, s.spin, s.carry, s.cdev, s.total, s.aa, s.path, s.face, s.f2p]) } });
+  const pw = (n, o = {}) => Array.from({ length: n }, (_, i) => shot('พิชชิงเวดจ์', i, { cs: 70 * MPH, bs: 85 * MPH, sf: 1.2, carry: (110 + (i % 3)) * YD, cdev: 3 * YD, aa: -4, path: 0, face: 0, f2p: 0, ...o }));
+  const wide = driver(10).map((s, i) => ({ ...s, cdev: (i % 2 ? 30 : 5) * YD }));   // ไดรเวอร์ครึ่งหนึ่งเบี่ยง 30 หลา
+  const t1 = rec('t1', '2026-08-01', [...wide, ...iron7(10), ...pw(10)], true);
+  const practiceOnly = rec('p', '2026-08-15', driver(10), false);
+  const t2 = rec('t2', '2026-08-29', [...driver(10, { cdev: 5 * YD }), ...iron7(10), ...pw(10)], true);
+  const r = testResults([t1, practiceOnly, t2], () => null, '2026-09-30');
+  assert.equal(r.count, 2, 'ไม่นับการซ้อมปกติ');
+  assert.equal(r.last.date, '2026-08-29');
+  assert.equal(r.prev.date, '2026-08-01');
+  assert.equal(r.due, '2026-09-26');
+  assert.equal(r.overdue, true);
+  const d1 = r.prev.clubs.find((c) => c.group === 'driver'), d2 = r.last.clubs.find((c) => c.group === 'driver');
+  assert.equal(d1.score, 0.5);
+  assert.equal(d2.score, 1);
+  assert.deepEqual(r.last.clubs.map((c) => !!c.stat), [true, true, true], 'ไดรเวอร์ เหล็ก 7 PW');
+  assert.equal(testResults([practiceOnly]), null);
+  assert.equal(testScore(null, [], 'driver'), null);
 });

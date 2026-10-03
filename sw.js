@@ -1,6 +1,6 @@
 // เก็บไฟล์แอปทั้งหมดไว้ในเครื่อง เพื่อเปิดใช้ได้เมื่อไม่มีสัญญาณ
 // เปลี่ยน VERSION ทุกครั้งที่แก้ไฟล์ในรายการ เพื่อให้เครื่องผู้ใช้ได้รุ่นใหม่
-const VERSION = 'shotlog-v0.23.0';
+const VERSION = 'shotlog-v0.24.0';
 const ASSETS = [
   './',
   './index.html',
@@ -43,6 +43,8 @@ const ASSETS = [
   './js/launchreport.js',
   './js/strategy.js',
   './js/views/holeplan.js',
+  './js/simgame.js',
+  './js/views/simgame.js',
   './js/views/launch.js',
   './js/live-view.js',
   './js/live-render.js',

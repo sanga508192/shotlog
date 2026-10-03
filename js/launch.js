@@ -271,7 +271,8 @@ export function toShots(parsed, units, clubMap) {
 export const signature = (shots) => `${shots.length}|${shots.slice(0, 3).map((s) => s.slice(1, 10).join(',')).join(';')}|${Math.round(shots.reduce((a, s) => a + (s[7] || 0), 0))}`;
 
 // บันทึกซ้อม 1 รายการต่อไม่เกิน 400 ช็อต (ขนาดต่อรายการของคลาวด์จำกัด)
-export function buildRecords({ shots, clubMap, date, file, source = 'garmin-r10', uid, now }) {
+// test = การทดสอบมาตรฐานประจำเดือน (ตีตามขั้นตอนเดียวกันทุกครั้ง ใช้เทียบพัฒนาการ)
+export function buildRecords({ shots, clubMap, date, file, source = 'garmin-r10', uid, now, test = false }) {
   const sig = signature(shots);
   const clubs = {};
   for (const s of shots) clubs[s[0]] = clubMap[s[0]] || null;
@@ -279,7 +280,7 @@ export function buildRecords({ shots, clubMap, date, file, source = 'garmin-r10'
   return Array.from({ length: parts }, (_, i) => ({
     id: uid(), kind: 'launch', source, date, topic: 'เครื่องซ้อม (Garmin R10)',
     drill_id: null, club_id_optional: null, attempts: null, successes: null, drill_context: '', target_definition: '', note: '',
-    launch: { v: 1, file: file || '', sig, part: parts > 1 ? [i + 1, parts] : null, cols: SHOT_COLS, clubs, shots: shots.slice(i * MAX_SHOTS_PER_RECORD, (i + 1) * MAX_SHOTS_PER_RECORD) },
+    launch: { v: 1, file: file || '', sig, part: parts > 1 ? [i + 1, parts] : null, cols: SHOT_COLS, clubs, shots: shots.slice(i * MAX_SHOTS_PER_RECORD, (i + 1) * MAX_SHOTS_PER_RECORD), ...(test ? { test: true } : {}) },
     created_at: now,
   }));
 }
@@ -598,8 +599,10 @@ export function launchSessions(practice) {
   for (const p of practice) {
     if (!isLaunch(p)) continue;
     const k = sessionKey(p);
-    if (!m.has(k)) m.set(k, { key: k, date: sessionDate(p), shots: [] });
-    m.get(k).shots.push(...sessionShots(p));
+    if (!m.has(k)) m.set(k, { key: k, date: sessionDate(p), shots: [], test: false });
+    const g = m.get(k);
+    g.shots.push(...sessionShots(p));
+    if (p.launch.test === true) g.test = true;
   }
   return [...m.values()].sort((a, b) => a.date.localeCompare(b.date));
 }

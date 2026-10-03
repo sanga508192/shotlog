@@ -262,7 +262,7 @@ export function analyzeGame({ rounds, holesOf, shotsOf, penaltiesOf, clubLabel =
 
   if (!teeFocused && tee.problem && tee.cue && cues.length < 3) cues.push(tee.cue);
   else if (!teeFocused) {
-    const sc = simCue(simIssues);
+    const sc = simCue(simIssues, simDriver);
     if (sc && cues.length < 3) cues.push(sc);
   }
 
@@ -531,7 +531,9 @@ export function teeAnalysis(facts, { clubOf = () => null, goal = goalOf('90'), d
   let sideCue = null;
   if (missSide) {
     const r = missSide === 'right';
-    const simWhy = driver?.shape ? `เครื่องซ้อม: ไดรเวอร์ลูก${driver.shape}` : driver?.side ? `เครื่องซ้อม: ไดรเวอร์หลุดแฟร์เวย์ทาง${th(driver.side)}บ่อย` : '';
+    // อ้างฝั่งที่ลูกไปจบจริงบนเครื่องซ้อม (ลูกออกซ้ายแล้วโค้งขวาอาจยังจบซ้าย จึงไม่อ้างทิศที่โค้ง)
+    const out = driver?.side === 'left' ? driver.missL : driver?.side === 'right' ? driver.missR : null;
+    const simWhy = driver?.side ? `เครื่องซ้อม: ไดรเวอร์หลุดแฟร์เวย์ทาง${th(driver.side)}${out != null ? ` ${pctTxt(out)}` : 'บ่อย'}` : '';
     sideCue = {
       text: `ทีออฟ: ตั้งทีฝั่ง${r ? 'ขวา' : 'ซ้าย'}ของแท่น แล้วเล็งไปขอบ${r ? 'ซ้าย' : 'ขวา'}ของแฟร์เวย์`,
       why: [dir?.v ? `ทีออฟที่พลาดไปทาง${th(dir.v)} ${pctTxt(dir.rate)}` : '', driver?.side === missSide ? simWhy : ''].filter(Boolean).join(' · '),
@@ -770,6 +772,60 @@ export function drillHistory(practice, id, limit = 3) {
     .slice(0, limit);
 }
 
+// ---------- แบ่งเวลาซ้อมตามสโตรกที่เสีย ----------
+// ใช้ Strokes Gained ถ้ามีหลุมข้อมูลครบอย่างน้อย 9 หลุม ไม่งั้นใช้ที่มาของสโตรกเทียบงบของเป้า
+// ทุกหมวดได้อย่างน้อย 15% (รักษาฝีมือ) ที่เหลือ 40% แบ่งตามสโตรกที่เสียเกินเป้า · เครื่องซ้อมมีปัญหาไม้ยาว → เพิ่มน้ำหนักทีออฟ
+export const PRACTICE_AREAS = [
+  { k: 'tee', th: 'ทีออฟและไม้ยาว', icon: '🏌️' },
+  { k: 'approach', th: 'ช็อตเข้ากรีน', icon: '🎯' },
+  { k: 'short', th: 'ลูกสั้นรอบกรีน', icon: '⛳' },
+  { k: 'putt', th: 'พัต', icon: '🟢' },
+];
+export const WEEK_MINUTES = 135;   // 3 ครั้ง × 45 นาที
+
+export function practiceSplit({ leaks = [], tee = null, sg = null, simLong = false } = {}) {
+  const lost = { tee: 0, approach: 0, short: 0, putt: 0 };
+  let basis = 'none';
+  if (sg?.holesComplete >= 9) {
+    for (const c of sg.cats) lost[c.k] = Math.max(0, -(c.diff ?? 0));
+    basis = 'sg';
+  } else {
+    const gap = (k) => Math.max(0, leaks.find((l) => l.k === k)?.gap ?? 0);
+    lost.tee = Math.max(gap('pen') + gap('long'), tee?.enough ? Math.max(0, tee.gap ?? 0) : 0);
+    lost.approach = gap('miss');
+    lost.short = gap('short') + gap('save') * 0.5;
+    lost.putt = gap('putt');
+    if (Object.values(lost).some((v) => v > 0)) basis = 'leaks';
+  }
+  if (simLong) {
+    lost.tee += 0.75;
+    if (basis === 'none') basis = 'sim';
+  }
+  const total = Object.values(lost).reduce((a, b) => a + b, 0);
+  const rows = PRACTICE_AREAS.map((a) => ({ ...a, lost: lost[a.k], pct: Math.round((total > 0 ? 0.15 + 0.4 * (lost[a.k] / total) : 0.25) * 20) * 5 }));
+  const diff = 100 - rows.reduce((a, r) => a + r.pct, 0);
+  if (diff) rows.reduce((m, r) => (r.pct > m.pct ? r : m)).pct += diff;
+  return { basis, rows: rows.map((r) => ({ ...r, minutes: Math.round(((r.pct / 100) * WEEK_MINUTES) / 5) * 5 })) };
+}
+
+// ซ้อม 3 ครั้งต่อสัปดาห์: แก้จุดหลัก → ใช้ในสถานการณ์จริง → ลูกสั้นและพัต
+export function weekSessions(split, { hasSim = false } = {}) {
+  const top = [...split.rows].filter((r) => r.k === 'tee' || r.k === 'approach').sort((a, b) => b.pct - a.pct)[0];
+  return [
+    { th: 'ครั้งที่ 1 · แก้จุดหลัก', where: hasSim ? 'เครื่องซ้อม' : 'สนามไดรฟ์', text: hasSim ? 'ทำตามแผนแก้ไขในหน้าเครื่องซ้อม (ขั้นที่ 1–3)' : `${top.th}: แบบฝึกในแผนด้านล่าง`, how: 'สวิงช้า 50–70% ดูผลทุกลูก' },
+    { th: 'ครั้งที่ 2 · ใช้ให้ได้ในสนาม', where: hasSim ? 'เครื่องซ้อมหรือสนามไดรฟ์' : 'สนามไดรฟ์', text: 'เกมออกรอบจำลอง: เปลี่ยนไม้และเป้าทุกลูก ทำรูทีนเต็ม', how: 'ดูตัวเลขทุก 3 ลูก', link: '#/sim-game' },
+    { th: 'ครั้งที่ 3 · ลูกสั้นและพัต', where: 'กรีนซ้อม', text: 'ชิพ/พิทช์ให้ขึ้นกรีนครั้งเดียว · พัต 1–2 เมตร · พัตไกลคุมน้ำหนัก', how: 'นับลูกผ่านเกณฑ์ บันทึกผลทุกครั้ง' },
+  ];
+}
+
+export const PRACTICE_PRINCIPLES = [
+  'ซ้อมสั้นบ่อยดีกว่ายาวครั้งเดียว: 3 ครั้งต่อสัปดาห์ ครั้งละราว 45 นาที',
+  'ตอนแก้วงสวิงใหม่ ดูตัวเลขทุกลูก พอเริ่มทำได้ให้ดูทุก 3 ลูก ร่างกายจะจำความรู้สึกเอง (ดูทุกลูกตลอดไป จะทำได้แค่ตอนมีเครื่อง)',
+  'คิดถึงสิ่งที่อยู่นอกตัวขณะสวิง เช่น "ส่งหัวไม้ไปทาง 1 นาฬิกา" "อย่าให้โดนคัฟเวอร์" ได้ผลกว่าคิดถึงข้อศอกหรือไหล่',
+  'ท้ายการซ้อมทุกครั้ง เปลี่ยนไม้และเป้าทุกลูกเหมือนออกรอบ ตีลูกเดิมซ้ำ ๆ ทำให้เก่งแค่ในสนามซ้อม',
+  'แก้วงสวิงที่ฝังมานานควรมีคนดู: ถ่ายวิดีโอด้านหน้าและด้านหลังแนวเป้า หรือเรียนกับโปร 1–2 ครั้ง (เครื่องวัดเห็นไม้กับลูก แต่ไม่เห็นร่างกาย)',
+];
+
 const STARTER = {
   110: ['contact-half', 'putt-ladder', 'short-landing'],
   100: ['putt-ladder', 'short-landing', 'contact-line'],
@@ -779,7 +835,18 @@ const STARTER = {
 };
 
 // โฟกัสรอบหน้าจากเครื่องซ้อม: ลูกโค้งเป็นประจำ → วางแผนทีออฟเผื่อทิศที่ลูกโค้ง (แก้วงสวิงใช้เวลา แต่เล่นรอบนี้ให้ดีได้เลย)
-export function simCue(simIssues = []) {
+// driver = ไดรเวอร์จากเครื่องซ้อม: ใช้ฝั่งที่ลูกไปจบจริงก่อน (ออกซ้ายแล้วโค้งขวาอาจยังจบซ้าย) ไม่มีจึงใช้ทิศที่ลูกโค้ง
+export function simCue(simIssues = [], driver = null) {
+  const land = driver?.side === 'left' || driver?.side === 'right' ? driver.side : null;
+  if (land) {
+    const r = land === 'right';
+    const out = r ? driver.missR : driver.missL;
+    return {
+      text: `ทีออฟ: ตั้งทีฝั่ง${r ? 'ขวา' : 'ซ้าย'}ของแท่น แล้วเล็งไปขอบ${r ? 'ซ้าย' : 'ขวา'}ของแฟร์เวย์ เผื่อลูกที่มักไปจบทาง${r ? 'ขวา' : 'ซ้าย'}`,
+      why: `จากเครื่องซ้อม: ไดรเวอร์หลุดแฟร์เวย์ทาง${r ? 'ขวา' : 'ซ้าย'}${out != null ? ` ${pctTxt(out)}` : ''}`,
+      src: 'sim',
+    };
+  }
   const c = simIssues.find((i) => i.k === 'curve' && i.dir);
   if (!c) return null;
   const r = c.dir === 'right';

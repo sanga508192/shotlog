@@ -7,7 +7,7 @@ import {
   DIST_UNITS, SPEED_UNITS, METRICS, num, inBetweenFor,
 } from '../launch.js';
 import { drill, drillHistory } from '../coach.js';
-import { launchReport, splitSuspect, shapeTh, shapeTerm, fixPlan, planText } from '../launchreport.js';
+import { launchReport, splitSuspect, shapeTh, shapeTerm, fixPlan, planText, testResults, TEST_PROTOCOL, TEST_EVERY_DAYS } from '../launchreport.js';
 import { drillCard, clipActions } from './drills.js';
 import { toUnit, unitTh } from '../holemap.js';
 
@@ -26,8 +26,9 @@ function groupSessions(list) {
   const m = new Map();
   for (const p of list) {
     const k = sessionKey(p);
-    if (!m.has(k)) m.set(k, { key: k, date: sessionDate(p), file: typeof p.launch.file === 'string' ? p.launch.file : '', records: [], shots: 0 });
+    if (!m.has(k)) m.set(k, { key: k, date: sessionDate(p), file: typeof p.launch.file === 'string' ? p.launch.file : '', records: [], shots: 0, test: false });
     const g = m.get(k);
+    if (p.launch.test === true) g.test = true;
     g.records.push(p);
     g.shots += sessionShots(p).length;
   }
@@ -106,6 +107,7 @@ export function launchView(_p, ctx) {
           </select></td></tr>`).join('')}
       </tbody></table>
       <p class="note">ค่าที่พบในไฟล์: ${found.map((m) => esc(m.th)).join(' · ') || '–'}</p>
+      <label class="check"><input type="checkbox" data-change="impTest" ${IMP.test ? 'checked' : ''}> เป็นการทดสอบมาตรฐานประจำเดือน <span class="small muted">(${TEST_PROTOCOL.map((p) => `${esc(p.th)} ${p.n} ลูก`).join(' · ')})</span></label>
       <div class="row gap"><button type="button" class="btn primary" data-act="impSave"${kept ? '' : ' disabled'}>บันทึก ${kept} ช็อต</button>
         <button type="button" class="btn" data-act="impCancel">ยกเลิก</button></div>
     </div>`;
@@ -294,6 +296,43 @@ export function launchView(_p, ctx) {
     </div>`;
   }
 
+  // ---------- ทดสอบมาตรฐานประจำเดือน ----------
+  const tests = testResults(all, clubOf, st.todayLocal());
+  function testHtml() {
+    const how = `<details class="card small lm-how"${tests ? '' : ' open'}><summary><b>วิธีทดสอบ (ราว 15 นาที)</b></summary>
+      <ol><li>วอร์มอัพได้ 10 ลูก แล้วเริ่มทดสอบ: ${TEST_PROTOCOL.map((p) => `${esc(p.th)} ${p.n} ลูก`).join(' · ')}</li>
+        <li>เล็งเป้าเดียวกันทุกลูก ทำรูทีนเต็มเหมือนออกรอบ ไม่แก้วงสวิงระหว่างทดสอบ และอย่าลืมเปลี่ยนไม้ในแอป Garmin</li>
+        <li>ส่งออกไฟล์แล้วนำเข้าที่นี่ ติ๊ก <b>“เป็นการทดสอบมาตรฐาน”</b> (หรือกด “ตั้งเป็นทดสอบ” ที่เซสชันด้านล่าง)</li></ol>
+      <p class="note">ทดสอบทุก ${TEST_EVERY_DAYS} วัน · ลูกที่ “ดี” = ระยะลอยห่างค่ากลางไม่เกิน 7% และเบี่ยงไม่เกิน 20 หลา (ไดรเวอร์) / 10 หลา (เหล็ก 7) / 7 หลา (PW)</p>
+    </details>`;
+    if (!tests) return `<h2>ทดสอบมาตรฐานประจำเดือน</h2><p class="note">วัดพัฒนาการแบบเทียบกันได้ทุกเดือน ด้วยชุดทดสอบเดิมทุกครั้ง</p>${how}`;
+    const pct = (x) => (x == null ? '–' : `${Math.round(x * 100)}%`);
+    const prevOf = (g) => tests.prev?.clubs.find((c) => c.group === g)?.stat ?? null;
+    const prevScore = (g) => tests.prev?.clubs.find((c) => c.group === g)?.score ?? null;
+    const diff = (now, before, f, better) => {
+      if (now == null || before == null) return '';
+      const d = now - before;
+      const good = better(d);
+      return ` <small class="${good == null ? '' : good ? 'good' : 'bad'}">${d > 0 ? '+' : d < 0 ? '−' : '±'}${f(Math.abs(d))}</small>`;
+    };
+    const rows = tests.last.clubs.map((c) => {
+      const s = c.stat, p = prevOf(c.group);
+      if (!s) return `<tr><td>${esc(c.th)}</td><td colspan="5" class="muted">ไม่มีในการทดสอบครั้งนี้</td></tr>`;
+      const spread = (x) => (x?.p25 != null ? x.p75 - x.p25 : null);
+      return `<tr><td>${esc(s.label)}</td>
+        <td><b>${pct(c.score)}</b>${diff(c.score, prevScore(c.group), (x) => `${Math.round(x * 100)}`, (d) => (Math.abs(d) < 0.05 ? null : d > 0))}</td>
+        <td>${dist(s.carry)}${diff(s.carry, p?.carry, dist, (d) => (Math.abs(d) < 3 * 0.9144 ? null : d > 0))}</td>
+        <td>${spread(s) == null ? '–' : dist(spread(s))}${diff(spread(s), spread(p), dist, (d) => (Math.abs(d) < 2 * 0.9144 ? null : d < 0))}</td>
+        <td>${s.sideAbs == null ? '–' : dist(s.sideAbs)}${diff(s.sideAbs, p?.sideAbs, dist, (d) => (Math.abs(d) < 2 * 0.9144 ? null : d < 0))}</td>
+        <td>${s.sf == null ? '–' : s.sf.toFixed(2)}${diff(s.sf, p?.sf, (x) => x.toFixed(2), (d) => (Math.abs(d) < 0.02 ? null : d > 0))}</td></tr>`;
+    }).join('');
+    return `<h2>ทดสอบมาตรฐานประจำเดือน <span class="badge ${tests.overdue ? 'bad' : 'ok'}">${tests.overdue ? 'ถึงกำหนดแล้ว' : `ครั้งถัดไป ${esc(fmtDate(tests.due))}`}</span></h2>
+    <div class="card dist-cmp lm-test"><b>ครั้งล่าสุด ${esc(fmtDate(tests.last.date))}${tests.prev ? ` เทียบ ${esc(fmtDate(tests.prev.date))}` : ''} · ทดสอบแล้ว ${tests.count} ครั้ง</b>
+      <table><thead><tr><th>ไม้</th><th>ลูกดี</th><th>ระยะลอย</th><th>ช่วงปกติ</th><th>เบี่ยง</th><th>Smash</th></tr></thead><tbody>${rows}</tbody></table>
+      <p class="note">ลูกดี = ระยะและทิศอยู่ในกรอบ (ยิ่งสูงยิ่งสม่ำเสมอ) · ช่วงปกติ = ระยะลอย 25–75% (ยิ่งแคบยิ่งดี) · เบี่ยง = ระยะเบี่ยงจากแนวเป้าเฉลี่ย (${unitTh(du)}) · ตัวเล็กสีเขียว/ส้ม = ดีขึ้น/แย่ลงจากครั้งก่อน</p>
+    </div>${how}`;
+  }
+
   const recDrills = [...new Set(issues.slice(0, 3).flatMap((i) => i.drills))].map(drill).filter(Boolean).slice(0, 3);
   const misAll = shots.length ? stats.reduce((a, s) => a + (s.n - s.good), 0) / Math.max(1, stats.reduce((a, s) => a + s.n, 0)) : 0;
 
@@ -333,6 +372,7 @@ export function launchView(_p, ctx) {
       ${recDrills.length ? `<h2>แบบฝึกที่แนะนำ</h2>
       <div class="drills">${recDrills.map((d) => drillCard(d, { history: drillHistory(practice, d.id) })).join('')}</div>` : ''}`}
 
+      ${testHtml()}
       ${clubCards()}
       ${compareHtml()}
 
@@ -345,8 +385,9 @@ export function launchView(_p, ctx) {
 
       <h2>เซสชันที่นำเข้า</h2>
       ${groups.map((g) => `<div class="card lm-session row between">
-        <div><b>${esc(fmtDate(g.date))}</b> <span class="small muted">${g.shots} ช็อต${g.file ? ` · ${esc(g.file)}` : ''}</span></div>
-        <button type="button" class="mini danger" data-act="delSession" data-k="${esc(g.key)}">ลบ</button>
+        <div><b>${esc(fmtDate(g.date))}</b>${g.test ? ' <span class="badge ok">ทดสอบ</span>' : ''} <span class="small muted">${g.shots} ช็อต${g.file ? ` · ${esc(g.file)}` : ''}</span></div>
+        <span class="row gap"><button type="button" class="mini" data-act="markTest" data-k="${esc(g.key)}">${g.test ? 'ยกเลิกทดสอบ' : 'ตั้งเป็นทดสอบ'}</button>
+        <button type="button" class="mini danger" data-act="delSession" data-k="${esc(g.key)}">ลบ</button></span>
       </div>`).join('')}` : ''}
     </div>`,
     actions: {
@@ -373,11 +414,21 @@ export function launchView(_p, ctx) {
       impSpeed: (el) => { if (IMP) { IMP.units.speed = el.dataset.v; ctx.rerender(); } },
       impClub: (el) => { if (IMP) { IMP.clubMap[el.dataset.raw] = el.value === '-' ? null : el.value; ctx.rerender(); } },
       impCancel: () => { IMP = null; ctx.rerender(); },
+      impTest: (el) => { if (IMP) IMP.test = el.checked; },
+      // ตั้ง/ยกเลิกเซสชันที่นำเข้าแล้วเป็นการทดสอบมาตรฐาน
+      markTest: async (el) => {
+        const recs = all.filter((p) => sessionKey(p) === el.dataset.k);
+        if (!recs.length) return;
+        const on = !recs.some((p) => p.launch.test === true);
+        await st.commit(recs.map((p) => st.patchOp('practice', p.id, { launch: { ...p.launch, test: on } })));
+        toast(on ? 'ตั้งเป็นการทดสอบมาตรฐานแล้ว' : 'ยกเลิกการทดสอบแล้ว');
+        ctx.rerender();
+      },
       impSave: async (el) => {
         if (!IMP || el.disabled) return;
         const shotsIn = toShots(IMP.parsed, IMP.units, IMP.clubMap);
         if (!shotsIn.length) { toast('ไม่มีช็อตที่จะบันทึก'); return; }
-        const recs = buildRecords({ shots: shotsIn, clubMap: IMP.clubMap, date: IMP.date, file: IMP.file, uid: st.uid, now: st.nowIso() });
+        const recs = buildRecords({ shots: shotsIn, clubMap: IMP.clubMap, date: IMP.date, file: IMP.file, uid: st.uid, now: st.nowIso(), test: !!IMP.test });
         if (all.some((p) => sessionKey(p) === recs[0].launch.sig)) { toast('นำเข้าไฟล์นี้ไปแล้ว'); return; }
         el.disabled = true;
         await st.commit(recs.map((r) => ({ store: 'practice', put: r })));

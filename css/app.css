@@ -884,6 +884,27 @@ a.map-card { display: flex; align-items: center; gap: 12px; text-decoration: non
 .lm-session { display: flex; flex-direction: column; gap: 8px; }
 .lm-session ol { margin: 0; }
 .lm-bw table td:first-child { color: var(--muted); }
+.lm-test small.good { color: var(--good); font-weight: 700; }
+/* หน้าโค้ช: แบ่งเวลาซ้อม */
+.week-split, .week-sessions { display: flex; flex-direction: column; gap: 8px; }
+.ws-row { display: grid; grid-template-columns: minmax(0, 8.5em) 1fr auto auto; gap: 8px; align-items: center; font-size: .86rem; }
+.ws-bar { height: 10px; border-radius: 6px; background: var(--surface-2); overflow: hidden; }
+.ws-bar i { display: block; height: 100%; background: var(--brand-2); border-radius: 6px; }
+.ws-row small { color: var(--muted); min-width: 4.5em; text-align: right; }
+/* เกมออกรอบจำลอง */
+.sg-hole { display: flex; flex-direction: column; gap: 6px; }
+.sg-shot { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; border-top: 1px solid var(--line); cursor: pointer; }
+.sg-shot input { width: 22px; height: 22px; margin-top: 2px; flex: none; }
+.sg-shot span { display: flex; flex-direction: column; font-size: .9rem; }
+.sg-shot small { color: var(--muted); font-size: .76rem; }
+.sg-score { display: flex; align-items: center; justify-content: space-between; gap: 10px; position: sticky; bottom: calc(var(--tabbar) + 8px + env(safe-area-inset-bottom));
+  padding: 8px 8px 8px 14px; border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-lg); border: 1px solid var(--line); }
+/* แผนทีออฟรายหลุม */
+.tee-plan { display: flex; flex-direction: column; gap: 6px; border-left: 4px solid var(--brand-2); }
+.tp-row { display: grid; grid-template-columns: 3.2em 1fr; gap: 4px 8px; align-items: baseline; font-size: .9rem; }
+.tp-row span { color: var(--muted); font-size: .8rem; }
+.tp-row small { grid-column: 2; color: var(--muted); font-size: .78rem; }
+.lm-test small.bad { color: var(--bad); font-weight: 700; }
 .lm-path { width: 100%; max-width: 360px; align-self: center; background: var(--surface-2); border-radius: 12px; }
 .lm-path .lm-tgt { stroke: var(--muted); stroke-dasharray: 4 4; stroke-width: 1.5; }
 .lm-path .lm-cpath { stroke: #e8833a; stroke-width: 4; stroke-linecap: round; }

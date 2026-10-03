@@ -121,7 +121,7 @@ export function compareLast(practice, clubOf = () => null) {
       key: b.key, label: b.label, group: groupOf(b),
       carry: p.nCarry >= 3 && b.nCarry >= 3 ? d('carry') : null, carryFrom: p.carry, carryTo: b.carry,
       sf: d('sf'), sfFrom: p.sf, sfTo: b.sf, f2p: d('f2p'), f2pFrom: p.f2p, f2pTo: b.f2p, path: d('path'), pathFrom: p.path, pathTo: b.path,
-      spin: d('spin'), spinFrom: p.spin, spinTo: b.spin, sideAbs: d('sideAbs'), sideFrom: p.sideAbs, sideTo: b.sideAbs,
+      spin: d('spin'), spinFrom: p.spin, spinTo: b.spin, sideAbs: d('sideAbs'), sideFrom: p.sideAbs, sideTo: b.sideAbs, csFrom: p.cs, csTo: b.cs,
     });
   }
   return { from: prev.date, to: last.date, rows };
@@ -187,6 +187,10 @@ export function launchReport(shots, clubOf = () => null, { hand = 'right', pract
       const why = [big.sf != null && Math.abs(big.sf) >= 0.03 ? `Smash ${big.sfFrom.toFixed(2)} → ${big.sfTo.toFixed(2)}` : '',
         big.path != null && Math.abs(big.path) >= 2 ? `แนวสวิง ${fmtDeg(big.pathFrom)} → ${fmtDeg(big.pathTo)}` : ''].filter(Boolean);
       headline.push({ k: 'change', tone: big.carry < 0 ? 'far' : 'ok', text: `${big.label} ${big.carry < 0 ? 'ไกลน้อยลง' : 'ไกลขึ้น'} ${fmt(Math.abs(big.carry))} จากครั้งก่อน (${fmt(big.carryFrom)} → ${fmt(big.carryTo)})${why.length ? ` · ${why.join(' · ')}` : ''}` });
+      // ระยะหายมากแต่ความเร็วหัวไม้แทบเท่าเดิม → ไม่ใช่เรื่องแรง: การปะทะลูก หรืออุปกรณ์ที่เปลี่ยนไป
+      if (big.carry < -15 * YD && big.csFrom && big.csTo && Math.abs(big.csTo - big.csFrom) / big.csFrom < 0.04) {
+        headline.push({ k: 'equipment', tone: 'near', text: `ความเร็วหัวไม้${big.label}แทบเท่าเดิม (${Math.round(big.csFrom / MPH)} → ${Math.round(big.csTo / MPH)} mph) แต่ระยะหายไป แปลว่าแรงยังอยู่ ระยะหายจากการปะทะลูก · ถ้าช่วงนี้เปลี่ยนไม้ ก้าน หรือปรับองศา ให้เช็กอุปกรณ์ด้วย` });
+      }
     }
   }
 
@@ -403,4 +407,48 @@ export function planText(report, plan, { fmt = (m) => `${Math.round(m / YD)} ห
     for (const x of plan.session) L.push(`• ${x.th} — ${x.balls} ลูก · ${x.text}`);
   }
   return L.join('\n');
+}
+
+// ---------- ทดสอบมาตรฐานประจำเดือน ----------
+// ตีชุดเดิมทุกครั้ง (รูทีนเต็ม เป้าเดียว ไม่แก้วงสวิงระหว่างทดสอบ) ถึงจะเทียบพัฒนาการได้จริง
+// การซ้อมปกติแต่ละครั้งตีไม้ต่างกัน ตั้งใจต่างกัน เอามาเทียบกันตรง ๆ ไม่แฟร์
+export const TEST_PROTOCOL = [
+  { group: 'driver', th: 'ไดรเวอร์', n: 10 },
+  { group: 'midIron', th: 'เหล็ก 7', n: 10 },
+  { group: 'wedge', th: 'พิทชิ่งเวดจ์ (PW)', n: 10 },
+];
+export const TEST_EVERY_DAYS = 28;
+// ลูกที่ "ดี" ในการทดสอบ: ระยะลอยห่างค่ากลางไม่เกิน 7% และเบี่ยงจากแนวเป้าไม่เกินค่านี้ (หลา)
+const GOOD_SIDE = { driver: 20, wood: 18, hybrid: 15, longIron: 12, midIron: 10, shortIron: 8, wedge: 7 };
+
+export function testScore(stat, shots, group) {
+  const xs = shots.filter((s) => s.carry != null);
+  if (xs.length < 5 || !stat?.carry) return null;
+  const side = (GOOD_SIDE[group] ?? 10) * YD;
+  return xs.filter((s) => Math.abs(s.carry - stat.carry) <= 0.07 * stat.carry && (s.cdev == null || Math.abs(s.cdev) <= side)).length / xs.length;
+}
+
+const addDays = (ymd, n) => new Date(Date.parse(`${ymd}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
+
+export function testResults(practice, clubOf = () => null, today = null) {
+  const tests = launchSessions(practice).filter((s) => s.test && s.date);
+  if (!tests.length) return null;
+  const summarize = (s) => {
+    const keep = splitSuspect(s.shots, clubOf).keep;
+    const stats = clubStats(keep, clubOf);
+    return TEST_PROTOCOL.map((p) => {
+      const stat = stats.filter((x) => groupOf(x) === p.group).sort((a, b) => b.n - a.n)[0] ?? null;
+      if (!stat) return { ...p, stat: null, score: null };
+      const mine = keep.filter((x) => keyOf(x, clubOf) === stat.key && !(x.sf != null && x.sf < 1.0));
+      return { ...p, stat, score: testScore(stat, mine, p.group) };
+    });
+  };
+  const last = tests.at(-1);
+  const prev = tests.length > 1 ? tests.at(-2) : null;
+  const due = addDays(last.date, TEST_EVERY_DAYS);
+  return {
+    count: tests.length, due, overdue: today ? today >= due : false,
+    last: { date: last.date, clubs: summarize(last) },
+    prev: prev ? { date: prev.date, clubs: summarize(prev) } : null,
+  };
 }
