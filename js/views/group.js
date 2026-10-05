@@ -10,6 +10,24 @@ export const myName = () => st.setting('my_name', 'ฉัน');
 export const shotLogging = (round) => round.shot_logging !== false;
 export const isGroupRound = (round) => playersOf(round).length > 1 || !shotLogging(round);
 export const gridOf = (round) => scoreGrid(round, st.holesOf(round.id), st.shotsOf, st.penaltiesOf, myName());
+export const NAME_MAX = 30;
+
+// เปลี่ยนชื่อของฉัน: ตั้งค่า + ทุกรอบก๊วนที่ยังใช้ชื่อเดิม (หรือ "ฉัน") · รอบที่ตั้งชื่ออื่นไว้เฉพาะรอบไม่แตะ ยกเว้น alsoRound
+export async function renameMe(name, alsoRound = null) {
+  const v = String(name ?? '').trim().slice(0, NAME_MAX);
+  if (!v) return false;
+  const old = myName();
+  const ops = [];
+  for (const r of st.rounds()) {
+    if (!Array.isArray(r.players)) continue;
+    const me = r.players.find((p) => p?.id === ME);
+    if (!me || me.name === v || (me.name !== old && me.name !== 'ฉัน' && r.id !== alsoRound)) continue;
+    ops.push(st.patchOp('rounds', r.id, { players: r.players.map((p) => (p?.id === ME ? { ...p, name: v } : p)) }));
+  }
+  ops.push({ store: 'settings', put: { key: 'my_name', value: v } });
+  await st.commit(ops);
+  return true;
+}
 
 // ---------- พาร์/HC ที่จำไว้ของสนาม ----------
 
@@ -239,7 +257,7 @@ export function setupView([roundId], ctx) {
       <h2>ผู้เล่นในก๊วน (${players.length}/${MAX_PLAYERS})</h2>
       <div class="players-edit">
         ${players.map((p) => `<div class="player-row">
-          <input class="input" value="${esc(p.name)}" data-change="pname" data-pid="${esc(p.id)}" aria-label="ชื่อ" ${p.id === ME ? 'title="ชื่อของคุณ"' : ''}>
+          <input class="input" value="${esc(p.name)}" maxlength="${NAME_MAX}" data-change="pname" data-pid="${esc(p.id)}" aria-label="ชื่อ" ${p.id === ME ? 'title="ชื่อของคุณ"' : ''}>
           <input class="input hc" type="number" inputmode="numeric" min="0" max="54" placeholder="HC" value="${p.handicap ?? ''}" data-change="phc" data-pid="${esc(p.id)}" aria-label="แต้มต่อ">
           ${p.id === ME ? '<span class="tag">ฉัน</span>' : `<button type="button" class="mini danger" data-act="premove" data-pid="${esc(p.id)}" aria-label="เอาออก">✕</button>`}
         </div>`).join('')}
@@ -258,9 +276,9 @@ export function setupView([roundId], ctx) {
     </div>`,
     actions: {
       pname: async (el) => {
-        const name = el.value.trim();
+        const name = el.value.trim().slice(0, NAME_MAX);
         if (!name) { ctx.rerender(); return; }
-        if (el.dataset.pid === ME) await st.setSetting('my_name', name);
+        if (el.dataset.pid === ME) { await renameMe(name, roundId); ctx.rerender(); return; }
         await savePlayers(players.map((p) => (p.id === el.dataset.pid ? { ...p, name } : p)));
       },
       phc: async (el) => {
@@ -377,12 +395,18 @@ export function parsView([roundId], ctx) {
 
 // ---------- ข้อมูลสำหรับรูปสกอร์การ์ด ----------
 
-export function scorecardData(round) {
-  const grid = gridOf(round);
-  const nm = (id) => grid.players.find((p) => p.id === id)?.name ?? '?';
+// show = รหัสผู้เล่นที่จะแสดงในรูป (null = ทุกคน) · ซ่อนใครแล้ว เกมที่มีคนนั้นอยู่ไม่แสดง · ไฮไลต์รายช็อตเป็นของฉัน แสดงเมื่อรูปมีแค่ฉัน
+export function scorecardData(round, { show = null } = {}) {
+  const full = gridOf(round);
+  const keep = Array.isArray(show) ? full.players.filter((p) => show.includes(p.id)) : full.players;
+  const hidden = new Set(full.players.filter((p) => !keep.includes(p)).map((p) => p.id));
+  const grid = hidden.size && keep.length ? { ...full, players: keep } : full;
+  const nm = (id) => full.players.find((p) => p.id === id)?.name ?? '?';
   const tone = (n) => (n > 0 ? 'pos' : n < 0 ? 'neg' : 'zero');
-  const games = (Array.isArray(round.games) ? round.games : []).filter((g) => GAME_TYPES.some((t) => t.v === g?.type)).map((g) => {
-    const r = computeGame(g, grid);
+  const inGame = (g) => (Array.isArray(g.players) && g.players.length ? g.players : full.players.map((p) => p.id));
+  const games = (Array.isArray(round.games) ? round.games : []).filter((g) => GAME_TYPES.some((t) => t.v === g?.type))
+    .filter((g) => grid === full || !inGame(g).some((id) => hidden.has(id))).map((g) => {
+    const r = computeGame(g, full);
     const lead = (id, rank) => (rank === 1 && r.holesCounted?.[id] ? 'lead' : 'plain');
     let items;
     if (['skin', 'match', 'team'].includes(g.type)) {
@@ -397,7 +421,7 @@ export function scorecardData(round) {
   });
   // ตัวเลขรายช็อตของเรา (เฉพาะรอบที่จดรายช็อตครบอย่างน้อยครึ่งหนึ่ง) ใช้ในไฮไลต์ของรูป
   let stats = null;
-  if (shotLogging(round)) {
+  if (shotLogging(round) && grid.players.length === 1 && grid.players[0].id === ME) {
     const facts = st.holesOf(round.id).map((h) => holeFacts(h, st.shotsOf(h.id), st.penaltiesOf(h.id))).filter(Boolean);
     if (facts.length >= Math.max(9, grid.rows.length / 2)) {
       const firKnown = facts.filter((f) => f.fir != null);

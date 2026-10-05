@@ -2,7 +2,7 @@
 import * as st from '../state.js';
 import { esc, header, toast, fmtDate } from '../ui.js';
 import { roundScore, fmtToPar, holeScore } from '../logic.js';
-import { groupTableHtml, countsTableHtml, gridOf, shotLogging } from './group.js';
+import { groupTableHtml, countsTableHtml, gridOf, shotLogging, myName, renameMe, NAME_MAX } from './group.js';
 import { playersOf, openHoles, fmtRanges, ME } from '../group.js';
 import { deleteRound } from './main.js';
 import { liveCardHtml, liveActions } from './live.js';
@@ -51,6 +51,11 @@ export function scorecardView([roundId], ctx) {
       </div>` : ''}
       ${round.status !== 'playing' ? `<div><span class="badge ${round.status === 'complete' ? 'good' : 'bad'}">${round.status === 'complete' ? 'จบรอบ' : 'จบรอบ (จดไม่ครบ)'}</span></div>` : ''}
       ${openHtml}
+      ${grid.players.some((p) => p.id === ME && p.name === 'ฉัน') ? `<form class="card name-card" data-submit="setName">
+        <b>ชื่อของคุณในสกอร์การ์ดยังเป็น “ฉัน”</b>
+        <div class="row gap"><input class="input" name="myname" maxlength="${NAME_MAX}" required placeholder="ชื่อหรือชื่อเล่น" value="${myName() === 'ฉัน' ? '' : esc(myName())}"><button class="btn primary">บันทึก</button></div>
+        <p class="note">ใช้ในรูปที่แชร์และรอบต่อ ๆ ไป รอบเก่าที่ใช้ “ฉัน” เปลี่ยนตามด้วย · แก้ภายหลังได้ที่ ตั้งค่า</p>
+      </form>` : ''}
       ${groupTableHtml(round, grid)}
       <p class="note">แตะแถวเพื่อไปหลุมนั้น${noPar ? ` · ยังไม่มีพาร์ ${noPar} หลุม (<a href="#/round/${roundId}/pars">กรอกพาร์/HC</a>)` : ''}</p>
       ${countsTableHtml(grid)}
@@ -71,6 +76,10 @@ export function scorecardView([roundId], ctx) {
     actions: {
       ...liveActions(ctx, roundId),
       goHole: (el) => ctx.go(`#/round/${roundId}/hole/${el.dataset.n}`),
+      setName: async (form) => {
+        if (await renameMe(form.myname.value, roundId)) toast('เปลี่ยนชื่อแล้ว');
+        ctx.rerender();
+      },
       confirmPending: async () => {
         const ids = new Set(myPending.map((h) => h.n));
         const ops = st.holesOf(roundId).filter((h) => ids.has(h.number) && h.status === 'playing')

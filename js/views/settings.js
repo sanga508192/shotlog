@@ -4,7 +4,7 @@ import { CLUB_CATEGORIES, UNITS, APP_VERSION } from '../constants.js';
 import { buildExport, parseImport, toCSV } from '../logic.js';
 import * as cloud from '../cloud.js';
 import { linkedOwner, restoreBackup } from '../sync.js';
-import { friends } from './group.js';
+import { friends, renameMe } from './group.js';
 import { recentErrors, clearErrors } from '../errors.js';
 import { sendFeedback, reportingOn } from '../reports.js';
 import * as sync from '../sync.js';
@@ -78,10 +78,10 @@ export function settingsView(_p, ctx) {
     html: `${header('ตั้งค่า')}<div class="page">
       <h2>ข้อมูลของฉัน</h2>
       <div class="player-row">
-        <input class="input" value="${esc(st.setting('my_name', 'ฉัน'))}" data-change="myName" aria-label="ชื่อของฉัน" placeholder="ชื่อที่แสดงในสกอร์การ์ด">
+        <input class="input" value="${esc(st.setting('my_name', 'ฉัน'))}" maxlength="30" data-change="myName" aria-label="ชื่อของฉัน" placeholder="ชื่อที่แสดงในสกอร์การ์ด">
         <input class="input hc" type="number" inputmode="numeric" min="0" max="54" placeholder="HC" value="${st.setting('my_handicap', '') ?? ''}" data-change="myHc" aria-label="แต้มต่อของฉัน">
       </div>
-      <p class="note">ชื่อและแต้มต่อ (HC) ใช้ในสกอร์การ์ดก๊วนและเกม เริ่มใช้กับรอบใหม่</p>
+      <p class="note">ชื่อใช้ในสกอร์การ์ดและรูปที่แชร์ เปลี่ยนแล้วรอบเก่าที่ใช้ชื่อเดิมเปลี่ยนตามด้วย · แต้มต่อ (HC) เริ่มใช้กับรอบใหม่</p>
 
       <h2>เพื่อนในก๊วน</h2>
       ${friends().length ? `<div class="players-edit">${friends().map((f, i) => `<div class="player-row">
@@ -249,8 +249,7 @@ export function settingsView(_p, ctx) {
       },
       autoHole: async (el) => { await st.setSetting('map_auto_hole', el.checked); toast(el.checked ? 'เปิดการเปลี่ยนหลุมอัตโนมัติ' : 'ปิดการเปลี่ยนหลุมอัตโนมัติ'); },
       myName: async (el) => {
-        const v = el.value.trim();
-        if (v) await st.setSetting('my_name', v); else ctx.rerender();
+        if (await renameMe(el.value)) toast('เปลี่ยนชื่อแล้ว'); else ctx.rerender();
       },
       myHc: async (el) => {
         const n = el.value === '' ? null : Math.max(0, Math.min(54, Math.round(Number(el.value))));

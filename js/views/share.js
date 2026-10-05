@@ -2,12 +2,15 @@
 import * as st from '../state.js';
 import { esc, header, toast } from '../ui.js';
 import { LAYOUTS, renderScorecard, shareBlob, saveBlob } from '../share.js';
-import { scorecardData } from './group.js';
+import { scorecardData, myName, renameMe, NAME_MAX } from './group.js';
+import { playersOf, ME } from '../group.js';
 import { openCropper } from './cropper.js';
 import { liveCardHtml, liveActions } from './live.js';
 
 // รูปก๊วนเก็บไว้ในหน่วยความจำระหว่างเปิดแอปเท่านั้น ไม่บันทึกลงเครื่องหรือคลาวด์
 const photos = new Map();
+// ผู้เล่นที่แสดงในรูป ต่อรอบ (ไม่มี = ทุกคน) จำไว้ระหว่างเปิดแอป
+const shown = new Map();
 
 // ใช้ onload ไม่ใช้ img.decode(): decode ค้างไม่ตอบเมื่อหน้าอยู่เบื้องหลัง (เช่น ตอนเพิ่งกลับจากหน้าเลือกรูปของมือถือ)
 async function loadPhoto(file) {
@@ -41,6 +44,15 @@ export function shareView([roundId], ctx) {
   let layout = st.setting('share_layout', 'landscape');
   if (!LAYOUTS.some((o) => o.v === layout)) layout = 'landscape';
   const ph = photos.get(roundId) ?? null;
+  const players = playersOf(round, myName());
+  const hasMe = players.some((p) => p.id === ME);
+  const showIds = () => {
+    const s = shown.get(roundId);
+    const ids = s ? players.filter((p) => s.includes(p.id)).map((p) => p.id) : [];
+    return ids.length ? ids : players.map((p) => p.id);
+  };
+  const onlyMe = () => { const ids = showIds(); return ids.length === 1 && ids[0] === ME; };
+  const allShown = () => showIds().length === players.length;
   let img = null;          // { blob, url }
   let root = null;
   let seq = 0;
@@ -74,7 +86,7 @@ export function shareView([roundId], ctx) {
     lastRect = null;
     try {
       const p = photos.get(roundId);
-      const out = await renderScorecard(scorecardData(round), layout, { photo: p?.img ?? null, crop: p ? cropFor(p) : {} });
+      const out = await renderScorecard(scorecardData(round, { show: showIds() }), layout, { photo: p?.img ?? null, crop: p ? cropFor(p) : {} });
       if (!alive || my !== seq) return;
       if (img) URL.revokeObjectURL(img.url);
       img = { blob: out.blob, url: URL.createObjectURL(out.blob) };
@@ -98,6 +110,18 @@ export function shareView([roundId], ctx) {
 
   const ori = (v) => `<span class="ori ori-${v}" aria-hidden="true"></span>`;
   const fileInput = '<input type="file" accept="image/*" hidden data-change="photo">';
+  const gamesHidden = !allShown() && Array.isArray(round.games) && round.games.length;
+  const whoHtml = players.length > 1 ? `<div class="card share-who">
+      <b>แสดงในรูป</b>
+      <div class="chips">
+        <button type="button" class="chip${allShown() ? ' on' : ''}" data-act="whoAll">ทั้งก๊วน (${players.length} คน)</button>
+        ${hasMe ? `<button type="button" class="chip${onlyMe() ? ' on' : ''}" data-act="whoMe">เฉพาะของฉัน</button>` : ''}
+      </div>
+      <div class="chips">${players.map((p) => `<button type="button" class="chip${showIds().includes(p.id) ? ' on' : ''}" data-act="whoToggle" data-pid="${esc(p.id)}" aria-pressed="${showIds().includes(p.id)}">${showIds().includes(p.id) ? '✓ ' : ''}${esc(p.name)}</button>`).join('')}</div>
+      ${gamesHidden ? '<p class="note">ผลเกมที่มีคนที่ซ่อนอยู่จะไม่แสดงในรูป</p>' : ''}
+    </div>` : '';
+  const nameHtml = hasMe ? `<label class="lbl share-name">ชื่อของคุณในรูป
+      <input class="input" value="${esc(players.find((p) => p.id === ME).name)}" maxlength="${NAME_MAX}" data-change="myName" placeholder="ชื่อที่จะแสดงในสกอร์การ์ด"></label>` : '';
   return {
     html: `${header('แชร์สกอร์การ์ด', { back: `#/round/${roundId}/card`, sub: esc(round.course_name_snapshot) })}
     <div class="page">
@@ -105,6 +129,8 @@ export function shareView([roundId], ctx) {
         ${LAYOUTS.map((o) => `<button type="button" class="seg-btn${o.v === layout ? ' on' : ''}" role="radio" aria-checked="${o.v === layout}"
           data-act="layout" data-v="${o.v}">${ori(o.v)}${o.th}</button>`).join('')}
       </div>
+      ${whoHtml}
+      ${nameHtml}
       ${ph ? `<div class="card photo-pick">
           <img class="photo-thumb" src="${ph.url}" alt="รูปก๊วนที่เลือก">
           <div class="grow"><b>รูปก๊วน</b><span class="small muted">ใส่ในรูปสกอร์การ์ดเท่านั้น ไม่ได้เก็บไว้ในแอป</span>
@@ -152,6 +178,19 @@ export function shareView([roundId], ctx) {
         ctx.rerender();
       },
       photoCrop: () => openCrop(),
+      whoAll: () => { shown.delete(roundId); ctx.rerender(); },
+      whoMe: () => { shown.set(roundId, [ME]); ctx.rerender(); },
+      whoToggle: (el) => {
+        const ids = showIds();
+        const next = ids.includes(el.dataset.pid) ? ids.filter((x) => x !== el.dataset.pid) : [...ids, el.dataset.pid];
+        if (!next.length) { toast('ต้องมีอย่างน้อย 1 คนในรูป'); return; }
+        if (next.length === players.length) shown.delete(roundId); else shown.set(roundId, next);
+        ctx.rerender();
+      },
+      myName: async (el) => {
+        if (await renameMe(el.value, roundId)) toast('เปลี่ยนชื่อแล้ว');
+        ctx.rerender();
+      },
       photoDel: () => {
         dropPhoto(roundId);
         ctx.rerender();
