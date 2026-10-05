@@ -39,6 +39,9 @@ test('จุดที่ลูกไปจบ: หมุดที่ปักม
   assert.equal(landOf({ land: { lat: 'x', lon: 1 } }), null);
   assert.equal(cleanLand({ lat: 200, lon: 1 }), null);
   assert.deepEqual(cleanLand({ lat: 14, lon: 101, extra: 1 }), { lat: 14, lon: 101, via: 'map' });
+  // ยืนที่ลูกแล้วใช้ GPS: เก็บที่มาและความคลาดเคลื่อน
+  assert.deepEqual(cleanLand({ lat: 14, lon: 101 }, 'gps', 6.4), { lat: 14, lon: 101, via: 'gps', acc: 6 });
+  assert.deepEqual(cleanLand({ lat: 14, lon: 101 }, 'weird', 6), { lat: 14, lon: 101, via: 'map' });
 });
 
 test('ระยะออกจากแนว: ขวาเป็นบวก ซ้ายเป็นลบ · ทิศที่แนะนำใช้เกณฑ์ตามประเภทช็อต', () => {

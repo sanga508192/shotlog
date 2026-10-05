@@ -127,8 +127,16 @@ export function holeView([roundId, numStr], ctx) {
     }
   }
 
-  function pickLand({ seq, start, value, exceptId, onSave }) {
-    openLandPicker({ pins, n: num, seq, start, value, others: othersFor(exceptId), unit, teeShot: teeShotOf(seq), onSave });
+  function pickLand({ seq, start, value, exceptId, gps = false, onSave }) {
+    openLandPicker({ pins, n: num, seq, start, value, others: othersFor(exceptId), unit, teeShot: teeShotOf(seq), gps, onSave });
+  }
+  // ทิศจากจุดที่ลูกไปจบ เทียบแนวจุดตี→กรีน (ต้องรู้จุดตีจริงและกรีนที่ยืนยันแล้ว · จุดตีที่เป็นหมุดแท่นทีประมาณไม่ใช้)
+  function sideFromLand(start, p, seq) {
+    const green = confirmedPoint(pins, 'green');
+    const estTee = start && pins?.tee && !confirmedPoint(pins, 'tee') && start.lat === pins.tee.lat && start.lon === pins.tee.lon;
+    if (!p || !green || !start || estTee) return null;
+    const side = landInfo(start, p, green, teeShotOf(seq))?.side;
+    return side === 'left' || side === 'right' ? side : null;
   }
 
   // จดเร็ว (ค่าเริ่มต้น) สำหรับช็อตใหม่ · แก้/แทรกช็อตใช้แบบละเอียดเสมอ
@@ -407,15 +415,10 @@ export function holeView([roundId, numStr], ctx) {
             if (!d.F || d.F.id !== draftId) return;
             d.F.land = p ? { ...p, at: st.nowIso() } : null;
             let msg = p ? 'ปักจุดแล้ว — กดบันทึกช็อตเพื่อเก็บ' : 'ลบจุดแล้ว';
-            const green = confirmedPoint(pins, 'green');
-            // จุดตีที่เป็นหมุดแท่นทีประมาณ ไม่ใช้เติมข้อมูลที่บันทึกถาวร
-            const estTee = start && pins?.tee && !confirmedPoint(pins, 'tee') && start.lat === pins.tee.lat && start.lon === pins.tee.lon;
-            if (p && green && start && !estTee && d.F.direction == null) {
-              const side = landInfo(start, p, green, teeShotOf(d.F.sequence))?.side;
-              if (side === 'left' || side === 'right') {
-                d.F.direction = side;
-                msg = `ปักจุดแล้ว · ตั้งทิศเป็น${sideTh(side)}ให้ (แก้ได้) — กดบันทึกช็อตเพื่อเก็บ`;
-              }
+            const side = d.F.direction == null ? sideFromLand(start, p, d.F.sequence) : null;
+            if (side) {
+              d.F.direction = side;
+              msg = `ปักจุดแล้ว · ตั้งทิศเป็น${sideTh(side)}ให้ (แก้ได้) — กดบันทึกช็อตเพื่อเก็บ`;
             }
             refresh();
             toast(msg);
@@ -497,6 +500,26 @@ export function holeView([roundId, numStr], ctx) {
         await st.patch('shots', s.id, { assessment: el.dataset.v });
         refresh();
         toast(`ช็อต ${s.sequence}: ${el.dataset.v === 'good' ? 'ดี' : 'ต้องปรับ'}`);
+      },
+      // เดินไปถึงลูกแล้ว: ปักจุดที่ลูกไปจบด้วย GPS ตรงที่ยืน (ดูบนแผนที่ก่อนยืนยัน)
+      qland: (el) => {
+        const s = st.S.shots.get(el.dataset.id);
+        if (!s) return;
+        const x = shotPath(st.shotsOf(hole.id), pins?.tee ?? null, st.penaltiesOf(hole.id)).find((y) => y.shot.id === s.id);
+        const start = x?.start ?? null;
+        pickLand({
+          seq: s.sequence, start, value: s.land, exceptId: s.id, gps: true,
+          onSave: async (p) => {
+            const cur = st.S.shots.get(s.id);
+            if (!cur) return;
+            const side = p && cur.direction == null ? sideFromLand(start, p, cur.sequence) : null;
+            await st.patch('shots', s.id, { land: p ? { ...p, at: st.nowIso() } : null, ...(side ? { direction: side } : {}) });
+            refresh();
+            if (!p) { toast('ลบจุดแล้ว'); return; }
+            const txt = landText(landInfo(start, p, pins?.green ?? null, teeShotOf(cur.sequence)), unit);
+            toast(`ปักจุดลูกช็อต ${cur.sequence} แล้ว${txt ? ` · ${txt}` : ''}${side ? ` · ทิศ${sideTh(side)}` : ''}`);
+          },
+        });
       },
       qdir: async (el) => {
         const s = st.S.shots.get(el.dataset.id);

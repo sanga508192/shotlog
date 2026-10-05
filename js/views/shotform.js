@@ -64,7 +64,7 @@ export function landButton(land) {
   if (!land.can) return `<a class="btn block land-btn" href="${land.setup}">📍 วางหมุดแท่นทีและกรีนหลุมนี้ก่อน เพื่อปักจุดที่ลูกไปจบ</a>`;
   if (d.F.land) return `<button type="button" class="btn block land-btn on" data-act="land">📍 จุดที่ลูกไปจบ: ${esc(land.text || 'ปักแล้ว')} <small>แตะเพื่อแก้</small></button>`;
   if (what) return `<button type="button" class="btn block land-btn suggest" data-act="land">📍 ปักจุดที่ลูก${what} <small>แนะนำ · แตะบนแผนที่ แอปจะรู้ระยะและทิศจริง</small></button>`;
-  return '<button type="button" class="btn block land-btn" data-act="land">📍 ปักจุดที่ลูกไปจบบนแผนที่ <small>ไม่บังคับ · ใช้เมื่ออยากรู้ระยะ หรือไม่ได้เปิด GPS</small></button>';
+  return '<button type="button" class="btn block land-btn" data-act="land">📍 ปักจุดที่ลูกไปจบ <small>ไม่บังคับ · แตะบนแผนที่ หรือใช้ GPS ตรงที่ยืน</small></button>';
 }
 
 // ลูกไปจบที่ไหน (แตะครั้งเดียว) · ไปทางไหน · ลงน้ำ/OB/หาย: ตีต่อแบบไหน แล้วบันทึกสโตรกปรับให้เอง
@@ -147,8 +147,11 @@ export function quickPad(bag, shots, gpsOn = false) {
   const live = last && last.counted !== false && last.shot_type !== 'putt';
   const askDir = live && last.direction == null && MISS_ENDS.has(last.end_lie);
   const askGood = live && last.assessment == null;
-  const ask = askDir || askGood ? `<div class="qp-last">
+  // เดินไปถึงลูกแล้วปักจุดด้วย GPS (ไม่บังคับ) · ลูกที่ลงหลุมไม่ต้อง
+  const askLand = live && !landOf(last) && last.end_lie !== 'holed';
+  const ask = askDir || askGood || askLand ? `<div class="qp-last">
       <span class="small">ช็อต ${last.sequence}${lastClub ? ` ${esc(lastClub)}` : ''} → ${esc(label(LIES, last.end_lie) || 'ไม่ระบุ')}</span>
+      ${askLand ? `<button type="button" class="mini qp-land" data-act="qland" data-id="${last.id}">📍 ถึงลูกแล้ว · ปักจุดที่ยืน</button>` : ''}
       ${askDir ? `<span class="row gap">${[['left', '← ซ้าย'], ['right', 'ขวา →']].map(([v, th]) => `<button type="button" class="mini" data-act="qdir" data-id="${last.id}" data-v="${v}">${th}</button>`).join('')}</span>` : ''}
       ${askGood ? `<span class="row gap"><button type="button" class="mini" data-act="qassess" data-id="${last.id}" data-v="good">👍 ดี</button><button type="button" class="mini" data-act="qassess" data-id="${last.id}" data-v="needs_work">👎 ต้องปรับ</button></span>` : ''}
     </div>` : '';

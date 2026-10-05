@@ -9,7 +9,9 @@ export const GPS_MAX_ACC = 25;   // เมตร: ตำแหน่งคลา
 const valid = (p) => !!p && Number.isFinite(p.lat) && Number.isFinite(p.lon) && Math.abs(p.lat) <= 90 && Math.abs(p.lon) <= 180;
 export const gpsOf = (s) => (valid(s?.gps) && (s.gps.acc ?? 0) <= GPS_MAX_ACC ? { lat: s.gps.lat, lon: s.gps.lon } : null);
 export const landOf = (s) => (valid(s?.land) ? { lat: s.land.lat, lon: s.land.lon } : null);
-export const cleanLand = (p) => (valid(p) ? { lat: p.lat, lon: p.lon, via: 'map' } : null);
+// via = 'map' (แตะบนแผนที่) | 'gps' (ยืนที่ลูก) · acc = ความคลาดเคลื่อนของ GPS ตอนยืนยัน (เมตร)
+export const cleanLand = (p, via = 'map', acc = null) => (valid(p)
+  ? { lat: p.lat, lon: p.lon, via: via === 'gps' ? 'gps' : 'map', ...(via === 'gps' && Number.isFinite(acc) ? { acc: Math.round(acc) } : {}) } : null);
 
 // เส้นทางของทุกช็อตในหลุม (เรียงตามลำดับ เฉพาะช็อตที่นับ) → [{ shot, start, end, penalized, dist }]
 // ตีใหม่จากจุดเดิม (relief 'rehit' หลัง OB/ลูกหาย/ลงน้ำ) → จุดตีเดียวกับช็อตก่อน

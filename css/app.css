@@ -961,3 +961,8 @@ a.map-card { display: flex; align-items: center; gap: 12px; text-decoration: non
 .qp-foot { margin-top: 2px; }
 .qp-foot .check { margin: 0; }
 .hole-done { display: flex; flex-direction: column; gap: 10px; border: 2px solid var(--good); }
+.lp-gps { margin: 0; font-size: .86rem; font-weight: 700; text-align: center; padding: 5px 12px; border-radius: 999px; background: rgba(0, 0, 0, .55); color: #fff; }
+.lp-gps.good { color: #7ee2a8; }
+.lp-gps.fair { color: #ffe14d; }
+.lp-gps.poor, .lp-gps.bad { color: #ffab7a; }
+.qp-land { flex-basis: 100%; min-height: 40px; justify-content: center; border-color: var(--brand); color: var(--brand); font-weight: 700; }
