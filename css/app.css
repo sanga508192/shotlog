@@ -966,3 +966,62 @@ a.map-card { display: flex; align-items: center; gap: 12px; text-decoration: non
 .lp-gps.fair { color: #ffe14d; }
 .lp-gps.poor, .lp-gps.bad { color: #ffab7a; }
 .qp-land { flex-basis: 100%; min-height: 40px; justify-content: center; border-color: var(--brand); color: var(--brand); font-weight: 700; }
+
+/* โหมดแดดจ้า: พื้นขาว ตัวดำ เส้นเข้ม ตัวใหญ่ขึ้น (ทับธีมมืดของเครื่องด้วย) */
+html:root[data-sun="1"] {
+  --bg: #ffffff; --surface: #ffffff; --surface-2: #eef2ef; --text: #000000; --muted: #1f2b25; --line: #6f8278;
+  --brand: #08532d; --brand-2: #0d7240; --brand-ink: #ffffff; --brand-soft: #cfe9d9;
+  --gold: #a87300; --gold-ink: #4f3600; --gold-soft: #fbe9b8;
+  --good: #075f31; --good-soft: #d0eedc; --bad: #9a3600; --bad-soft: #fddcc6;
+  --none: #2f3a34; --none-soft: #e3e9e5; --warn-soft: #ffeab0;
+  --danger: #a3140b; --birdie: #b8001c; --parc: #0a41ad; --hio: #b8001c; --table-head: #0b1a11;
+  --shadow: 0 0 0 1px #6f8278; --shadow-lg: 0 4px 16px rgba(0, 0, 0, .28);
+  color-scheme: light;
+  font-size: 18px;
+}
+html[data-sun="1"] body { font-size: 18px; font-weight: 500; }
+html[data-sun="1"] .card { border: 1.5px solid var(--line); }
+html[data-sun="1"] .chip, html[data-sun="1"] .qp-btn, html[data-sun="1"] .btn, html[data-sun="1"] .mini { border-width: 2px; }
+html[data-sun="1"] .muted, html[data-sun="1"] .note, html[data-sun="1"] .small { opacity: 1; }
+.hole-tools { margin: 2px 0; }
+.sun-btn[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
+
+/* แผนเกมทั้งรอบ */
+.gp-sum { display: flex; flex-direction: column; gap: 6px; }
+.gp-list { display: flex; flex-direction: column; gap: 6px; }
+.gp-hole { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border-radius: var(--radius); background: var(--surface);
+  border: 1px solid var(--line); color: var(--text); text-decoration: none; }
+.gp-hole.warn { border-left: 4px solid var(--gold); }
+.gp-n { display: flex; flex-direction: column; align-items: center; min-width: 54px; line-height: 1.2; }
+.gp-n b { font-size: 1.35rem; }
+.gp-n small { font-size: .74rem; color: var(--muted); white-space: nowrap; }
+.gp-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.gp-body > b { font-size: 1.05rem; }
+.gp-body small { font-size: .84rem; }
+.gp-note { color: var(--gold-ink); }
+
+/* สรุปหลังรอบ */
+.recap-score { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.recap-score > div { display: flex; flex-direction: column; gap: 2px; }
+.recap-score > div:last-child { align-items: flex-end; text-align: right; }
+.recap small.up { color: var(--good); font-weight: 700; }
+.recap small.down { color: var(--bad); font-weight: 700; }
+.recap-key p { margin: 4px 0; }
+.recap-table td:not(:first-child), .recap-table th:not(:first-child) { text-align: center; }
+.recap-table tr.bad td:first-child, .recap-table tr.bad td:nth-child(2) { color: var(--bad); font-weight: 700; }
+.recap-table tr.save td { color: var(--good); }
+.recap-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; margin-top: 10px; }
+.recap-stats > div { display: flex; flex-direction: column; gap: 2px; padding: 10px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); }
+.recap-stats span { font-size: .78rem; color: var(--muted); }
+.recap-stats b { font-size: 1.3rem; }
+.recap-stats small { font-size: .72rem; }
+.recap-tee { display: flex; flex-direction: column; gap: 6px; }
+.recap-blow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 0; color: var(--text); text-decoration: none; border-bottom: 1px solid var(--line); }
+.recap-blow:last-child { border-bottom: 0; }
+.recap-practice { display: flex; flex-direction: column; gap: 8px; }
+.recap-drill { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px;
+  background: var(--surface-2); color: var(--text); text-decoration: none; }
+.recap-drill span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.recap-drill small { font-size: .78rem; color: var(--muted); }
+.recap-score .big-num { font-size: 2rem; line-height: 1.1; }
+.recap-tee .tp-row { grid-template-columns: 5.5em 1fr; }

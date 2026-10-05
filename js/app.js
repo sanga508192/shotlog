@@ -17,9 +17,12 @@ import { watchLive } from './views/live.js';
 import { drillsView } from './views/drills.js';
 import { launchView } from './views/launch.js';
 import { simGameView } from './views/simgame.js';
+import { gamePlanView } from './views/gameplan.js';
+import { recapView } from './views/recap.js';
 import { resumeHref } from './views/main.js';
 import * as sync from './sync.js';
 import * as cloud from './cloud.js';
+import { applySun } from './display.js';
 
 const routes = [
   [/^#?\/?$/, homeView],
@@ -33,6 +36,8 @@ const routes = [
   [/^#\/round\/([^/]+)\/pars$/, parsView],
   [/^#\/round\/([^/]+)\/share$/, shareView],
   [/^#\/round\/([^/]+)\/summary$/, summaryView],
+  [/^#\/round\/([^/]+)\/plan$/, gamePlanView],
+  [/^#\/round\/([^/]+)\/recap$/, recapView],
   [/^#\/summary$/, summaryView],
   [/^#\/coach$/, coachView],
   [/^#\/map\/([^/?]+)\/(\d+)(?:\?(.*))?$/, mapView],
@@ -230,6 +235,7 @@ async function start() {
   };
   try {
     await st.load();
+    applySun();
     initReports();
   } catch (err) {
     logError('load', err);

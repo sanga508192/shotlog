@@ -62,6 +62,8 @@ export function scorecardView([roundId], ctx) {
       <div class="action-grid">
         <a class="btn primary" href="#/round/${roundId}/share">📤 แชร์รูปสกอร์การ์ด</a>
         ${games.length ? `<a class="btn" href="#/round/${roundId}/games">🎲 ผลเกม (${games.length})</a>` : ''}
+        ${logShots && round.status !== 'playing' ? `<a class="btn" href="#/round/${roundId}/recap">📋 สรุปหลังรอบ</a>` : ''}
+        ${logShots ? `<a class="btn" href="#/round/${roundId}/plan">🧭 แผนเกม</a>` : ''}
         <a class="btn" href="#/round/${roundId}/setup">👥 ผู้เล่น / เกม</a>
         <a class="btn" href="#/round/${roundId}/pars">⛳ พาร์ / HC</a>
         ${logShots ? `<a class="btn" href="#/round/${roundId}/summary">📊 สรุปการเล่นของฉัน</a>` : ''}
@@ -104,7 +106,9 @@ export function scorecardView([roundId], ctx) {
         }
         await st.patch('rounds', roundId, { status, finished_at: st.nowIso() });
         toast('บันทึกการจบรอบแล้ว');
-        ctx.rerender();
+        // จดรายช็อต: ไปหน้าสรุปหลังรอบเลย
+        if (logShots) ctx.go(`#/round/${roundId}/recap`);
+        else ctx.rerender();
       },
       reopenRound: async () => {
         await st.patch('rounds', roundId, { status: 'playing' });

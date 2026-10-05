@@ -17,6 +17,8 @@ import { coachView } from '../js/views/coach.js';
 import { mapView } from '../js/views/map.js';
 import { drillsView } from '../js/views/drills.js';
 import { launchView } from '../js/views/launch.js';
+import { gamePlanView } from '../js/views/gameplan.js';
+import { recapView } from '../js/views/recap.js';
 
 const ctx = { rerender() {}, go() {} };
 
@@ -145,13 +147,15 @@ function routesFor(ids) {
       [`${name} pars`, () => parsView([rid], ctx)],
       [`${name} summary`, () => summaryView([rid], ctx)],
       [`${name} share`, () => shareView([rid], ctx)],
+      [`${name} plan`, () => gamePlanView([rid], ctx)],
+      [`${name} recap`, () => recapView([rid], ctx)],
       [`${name} map`, () => mapView([r.course_id || 'x', '1', `r=${rid}`], ctx)],
       [`${name} share data`, () => ({ html: JSON.stringify(Object.keys(scorecardData(st.S.rounds.get(rid)))) })],
     );
     for (const num of ['1', '2', '9', '18', '19', '0']) list.push([`${name} hole ${num}`, () => holeView([rid, num], ctx)]);
   }
-  for (const v of ['card', 'setup', 'games', 'pars', 'share']) {
-    list.push([`missing round ${v}`, () => ({ card: scorecardView, setup: setupView, games: gamesView, pars: parsView, share: shareView }[v])(['missing'], ctx)]);
+  for (const v of ['card', 'setup', 'games', 'pars', 'share', 'plan', 'recap']) {
+    list.push([`missing round ${v}`, () => ({ card: scorecardView, setup: setupView, games: gamesView, pars: parsView, share: shareView, plan: gamePlanView, recap: recapView }[v])(['missing'], ctx)]);
   }
   list.push(['missing round hole', () => holeView(['missing', '1'], ctx)]);
   return list;

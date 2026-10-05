@@ -17,6 +17,7 @@ import { shotPath, offLine } from '../shotgeo.js';
 import { courseTiles, downloadTiles, dropMissingZooms } from '../tiles.js';
 import { maxZoomAt } from '../map.js';
 import { teePlanFor } from './holeplan.js';
+import { keepAwake } from '../display.js';
 
 // สถานะที่อยู่ข้ามการเปลี่ยนหลุม (ของสนามที่เปิดอยู่)
 // edit = กดแก้หมุดเอง (อยู่จนกดเสร็จ) · editHole = หลุมที่กำลังวางหมุดใหม่ (อยู่โหมดวางจนออกจากหลุมนั้น)
@@ -436,6 +437,7 @@ export function mapView([courseId, numStr, query], ctx) {
     </div>`,
     mount(el) {
       root = el;
+      keepAwake(round?.status === 'playing');
       if (editing() && !M.placing) { const h = H(); M.placing = !h.tee ? 'tee' : !h.green ? 'green' : null; refresh(); }
       map = new TileMap(el.querySelector('#hole-map'), { onTap: (p) => { onTap(p).catch((e) => toast(e.message)); } });
       map.setOverlay(overlay);
@@ -463,7 +465,7 @@ export function mapView([courseId, numStr, query], ctx) {
         root.querySelector('#map-gps').innerHTML = gpsCard();
       });
     },
-    unmount() { stopGps?.(); map?.destroy(); root = null; },
+    unmount() { stopGps?.(); map?.destroy(); root = null; keepAwake(false); },
     actions: {
       unit: async () => { await st.setSetting('map_unit', unit() === 'yd' ? 'm' : 'yd'); refresh(); },
       recenter: () => fitHole(),

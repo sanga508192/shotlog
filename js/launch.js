@@ -621,9 +621,12 @@ export function driverProfile(shots, clubOf = () => null, { hand = 'right' } = {
   const curve = s.f2pN >= 3 && s.f2p != null && Math.abs(s.f2p) >= 2.5 ? (s.f2p > 0 ? 'right' : 'left') : null;
   const outIn = s.path != null && Math.abs(s.path) >= 3 ? ((s.path < 0) === (hand === 'right') ? 'ตัดจากนอกเข้าใน' : 'ตีจากในออกนอก') : null;
   const missL = out((d) => d < -FAIRWAY_HALF), missR = out((d) => d > FAIRWAY_HALF);
-  // ฝั่งที่พลาดบ่อย: ลูกหลุดแฟร์เวย์ฝั่งหนึ่งมากกว่าอีกฝั่งชัดเจน ไม่งั้นใช้ทิศที่ลูกโค้ง
+  // ฝั่งที่พลาดบ่อย = ฝั่งที่ลูกไปจบ: หลุดแฟร์เวย์ฝั่งหนึ่งมากกว่าอีกฝั่งชัดเจน → ฝั่งนั้น
+  // ไม่ค่อยหลุด → ฝั่งที่ลูกไปจบโดยเฉลี่ย (ห่างกลาง 5 หลาขึ้นไป) · จบกลาง ๆ จึงใช้ทิศที่ลูกโค้ง
+  // (ออกซ้ายแล้วโค้งขวาแต่ยังจบซ้าย ต้องเผื่อซ้าย ไม่ใช่ขวา)
   const l = missL ?? 0, r = missR ?? 0;
-  const side = l + r >= 0.2 && Math.max(l, r) >= 0.65 * (l + r) ? (r > l ? 'right' : 'left') : curve;
+  const lean = s.side != null && Math.abs(s.side) >= 5 * YD ? (s.side > 0 ? 'right' : 'left') : null;
+  const side = l + r >= 0.2 && Math.max(l, r) >= 0.65 * (l + r) ? (r > l ? 'right' : 'left') : lean ?? curve;
   return {
     key: s.key, label: s.label, n: s.n, nDev: dev.length,
     carry: s.carry, p25: s.p25, p75: s.p75, total: s.total, sideAbs: s.sideAbs,

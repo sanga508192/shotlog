@@ -92,6 +92,9 @@ test('ไดรเวอร์จากเครื่องซ้อม: ลง
   const lefty = driverProfile(r10(10, (i) => dev[i]), clubOf, { hand: 'left' });
   assert.equal(lefty.shape, 'ฮุก/ดรอว์');
   assert.equal(lefty.outIn, 'ตีจากในออกนอก');
+  // ไม่หลุดแฟร์เวย์เลย: ใช้ฝั่งที่ลูกไปจบโดยเฉลี่ย ไม่ใช่ทิศที่โค้ง (โค้งขวาแต่จบซ้ายกลาง ๆ 7 หลา → ซ้าย)
+  assert.equal(driverProfile(r10(10, (i) => (-9 + (i % 5)) * 0.9144), clubOf).side, 'left');
+  assert.equal(driverProfile(r10(10, (i) => (i % 5 - 2) * 0.9144), clubOf).side, 'right', 'จบกลาง → ใช้ทิศที่โค้ง');
   assert.equal(driverProfile(r10(4, () => 0), clubOf), null, 'น้อยกว่า 5 ลูกไม่สรุป');
   assert.equal(driverProfile([], clubOf), null);
 });

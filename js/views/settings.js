@@ -9,6 +9,7 @@ import { recentErrors, clearErrors } from '../errors.js';
 import { sendFeedback, reportingOn } from '../reports.js';
 import * as sync from '../sync.js';
 import { stopSharing } from '../community.js';
+import { wakeSupported, applySun } from '../display.js';
 
 const stamp = () => st.todayLocal();
 
@@ -107,6 +108,12 @@ export function settingsView(_p, ctx) {
 
       <h2>หน่วยระยะเริ่มต้น</h2>
       ${chips('unit', 'unit', UNITS, st.setting('distance_unit', 'm'))}
+
+      <h2>ระหว่างออกรอบ</h2>
+      <label class="card row gap toggle-row"><input type="checkbox" ${st.setting('keep_awake', true) === false ? '' : 'checked'} data-change="keepAwake">
+        <span>จอไม่ดับเองตอนอยู่หน้าหลุมและแผนที่หลุม <small class="muted">${wakeSupported() ? '(กินแบตเพิ่มเล็กน้อย · ออกจากหน้าหลุมแล้วจอดับตามปกติ)' : '(เบราว์เซอร์นี้ยังไม่รองรับ · iPhone ต้อง iOS 16.4 ขึ้นไป)'}</small></span></label>
+      <label class="card row gap toggle-row"><input type="checkbox" ${st.setting('sun_mode', false) === true ? 'checked' : ''} data-change="sunMode">
+        <span>โหมดแดดจ้า <small class="muted">(พื้นขาว ตัวดำ ตัวใหญ่ขึ้น อ่านกลางแดดง่าย · สลับได้ที่ปุ่ม ☀️ ในหน้าหลุม)</small></span></label>
 
       <h2>แผนที่หลุม</h2>
       <label class="card row gap toggle-row"><input type="checkbox" ${st.setting('map_auto_hole', true) === false ? '' : 'checked'} data-change="autoHole">
@@ -247,6 +254,8 @@ export function settingsView(_p, ctx) {
           }
         }
       },
+      keepAwake: async (el) => { await st.setSetting('keep_awake', el.checked); toast(el.checked ? 'เปิดจอไม่ดับระหว่างออกรอบ' : 'ปิดจอไม่ดับแล้ว'); },
+      sunMode: async (el) => { await st.setSetting('sun_mode', el.checked); applySun(); toast(el.checked ? 'เปิดโหมดแดดจ้า' : 'ปิดโหมดแดดจ้า'); },
       autoHole: async (el) => { await st.setSetting('map_auto_hole', el.checked); toast(el.checked ? 'เปิดการเปลี่ยนหลุมอัตโนมัติ' : 'ปิดการเปลี่ยนหลุมอัตโนมัติ'); },
       myName: async (el) => {
         if (await renameMe(el.value)) toast('เปลี่ยนชื่อแล้ว'); else ctx.rerender();

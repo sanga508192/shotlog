@@ -39,21 +39,23 @@ export function missSide() {
   return sim && !sim.stale ? sim.driver?.side ?? null : null;
 }
 
-export function teePlanFor(round, hole, unit = 'yd') {
+// pre = { clubs, miss } คิดไว้แล้ว (หน้าแผนทั้งรอบเรียก 18 หลุม ไม่ต้องคิดระยะไม้ใหม่ทุกหลุม) · คืนระยะหลุม lengthM ด้วย
+export function teePlanFor(round, hole, unit = 'yd', pre = {}) {
   if (!Number.isInteger(hole.par)) return null;
   const pins = round.course_id ? courseHoles(round.course_id)[hole.number] : null;
   const lengthM = pins?.tee && pins?.green ? distM(pins.tee, pins.green)
     : Number(hole.distance) > 0 ? Number(hole.distance) * (hole.distance_unit === 'yd' ? 0.9144 : 1) : null;
   const fmt = (m) => `${Math.round(toUnit(m, unit))} ${unitTh(unit)}`;
-  return teePlan({
+  const tp = teePlan({
     par: hole.par, lengthM, hazards: hazardsAlong(pins), history: round.course_id ? holeHistory(round.course_id, hole.number, round.id) : null,
-    clubs: clubRows(), missSide: missSide(), fmt,
+    clubs: pre.clubs ?? clubRows(), missSide: 'miss' in pre ? pre.miss : missSide(), fmt,
   });
+  return tp ? { ...tp, lengthM } : null;
 }
 
 export const planClubId = (tp) => tp?.club?.club_id ?? tp?.club?.clubId ?? null;
 
-export function teePlanHtml(tp, unit = 'yd') {
+export function teePlanHtml(tp, unit = 'yd', roundId = null) {
   if (!tp) return '';
   const fmt = (m) => `${Math.round(toUnit(m, unit))} ${unitTh(unit)}`;
   return `<section class="card tee-plan">
@@ -62,6 +64,6 @@ export function teePlanHtml(tp, unit = 'yd') {
     <div class="tp-row"><span>เล็ง</span><b>${esc(tp.aim)}</b></div>
     ${tp.remain != null ? `<div class="tp-row"><span>ต่อไป</span><b>เหลือถึงกรีนราว ${esc(fmt(tp.remain))}</b></div>` : ''}
     ${tp.notes.length ? `<ul class="find">${tp.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
-    <p class="note">คิดจากระยะไม้จริง ลูกที่คุณพลาดบ่อย จุดอันตรายที่ปักในแผนที่ และประวัติหลุมนี้ · เลือกไม้ตามแผนให้แล้วในฟอร์มด้านล่าง</p>
+    <p class="note">คิดจากระยะไม้จริง ลูกที่คุณพลาดบ่อย จุดอันตรายที่ปักในแผนที่ และประวัติหลุมนี้ · เลือกไม้ตามแผนให้แล้วในช่องจดด้านล่าง${roundId ? ` · <a href="#/round/${encodeURIComponent(roundId)}/plan">ดูแผนทั้งรอบ ›</a>` : ''}</p>
   </section>`;
 }

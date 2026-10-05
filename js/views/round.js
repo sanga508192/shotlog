@@ -13,6 +13,7 @@ import { openLandPicker, landInfo, landText, sideTh } from './landpick.js';
 import { teePlanFor, teePlanHtml, planClubId } from './holeplan.js';
 import { d, blankShot, resetDraft, reliefOf, rehitAfter, usualClub } from './shotdraft.js';
 import { shotCard, shotForm, penaltySection, puttCard, quickPad, holeDoneHtml, LAND_REASONS } from './shotform.js';
+import { keepAwake, sunOn, toggleSun } from '../display.js';
 
 export { scorecardView } from './scorecard.js';
 
@@ -161,7 +162,10 @@ export function holeView([roundId, numStr], ctx) {
       <div class="hole-num"><span>หลุม</span><b>${num}</b><small>/ ${holes.length}</small></div>
       <div class="hole-meta">
         <div class="par-pick"><span class="lbl inline">พาร์</span>${chips('par', 'par', parOpts, hole.par, { cls: 'tight inline' })}</div>
-        ${round.course_id ? `<a class="mini map-link" href="#/map/${encodeURIComponent(round.course_id)}/${num}?r=${encodeURIComponent(roundId)}">🗺 แผนที่หลุม</a>` : ''}
+        <div class="row gap wrap hole-tools">
+          ${round.course_id ? `<a class="mini map-link" href="#/map/${encodeURIComponent(round.course_id)}/${num}?r=${encodeURIComponent(roundId)}">🗺 แผนที่หลุม</a>` : ''}
+          <button type="button" class="mini sun-btn" data-act="sun" aria-pressed="${sunOn()}">${sunOn() ? '🌙 จอปกติ' : '☀️ แดดจ้า'}</button>
+        </div>
         ${hole.hc_index || hole.distance ? `<div class="small muted">${[hole.distance ? `${hole.distance} ${hole.distance_unit === 'yd' ? 'หลา' : 'ม.'}${round.tee_name ? ` · แท่น${esc(round.tee_name)}` : ''}` : '', hole.hc_index ? `HC ${hole.hc_index}` : ''].filter(Boolean).join(' · ')}</div>` : ''}
         ${logShots ? `<div class="score-line">ตี <b>${sc.strokes}</b> + ปรับ <b>${sc.penalties}</b> = <b>${sc.total}</b>
           ${sc.par != null && hole.status === 'done' ? `<span class="topar">(${fmtToPar(sc.toPar)})</span>` : ''}
@@ -180,7 +184,7 @@ export function holeView([roundId, numStr], ctx) {
       </div>
     </div>` : ''}
 
-    ${teePlanHtml(tp, unit)}
+    ${teePlanHtml(tp, unit, roundId)}
 
     ${group && !logShots ? groupEntryHtml(round, hole) : ''}
 
@@ -320,6 +324,7 @@ export function holeView([roundId, numStr], ctx) {
   return {
     html,
     mount(el) {
+      keepAwake(round.status === 'playing');
       if (!gpsOn) return;
       const state = el.querySelector('#gps-state');
       stopGps = watchPosition((pos) => {
@@ -327,7 +332,7 @@ export function holeView([roundId, numStr], ctx) {
         if (logShots && d.mode === 'new' && pristine() && pos.accuracy <= GPS_MAX_ACC && (d.suggestedFor !== d.F.id || (d.F.sequence !== 1 && moved(pos)))) refresh();
       }, (err) => { if (state) state.textContent = `(${err.message})`; });
     },
-    unmount() { stopGps?.(); },
+    unmount() { stopGps?.(); keepAwake(false); },
     actions: {
       gpsShots: async (el) => {
         await st.setSetting('gps_shots', el.checked);
@@ -528,6 +533,7 @@ export function holeView([roundId, numStr], ctx) {
         refresh();
         toast(`ช็อต ${s.sequence}: ไป${el.dataset.v === 'left' ? 'ซ้าย' : 'ขวา'}`);
       },
+      sun: async () => { const on = await toggleSun(); refresh(); toast(on ? 'โหมดแดดจ้า: พื้นขาว ตัวใหญ่' : 'กลับเป็นจอปกติ'); },
       fullForm: async () => { await st.setSetting('shot_form', 'full'); refresh(); },
       quickForm: async () => { await st.setSetting('shot_form', 'quick'); refresh(); },
       remove: async (el) => {
