@@ -51,7 +51,9 @@ export function blankShot(round, hole, seq, prev) {
   const sug = suggestShotType({ seq, prev, clubCategory: null, rehit });
   return {
     id: st.uid(), round_id: round.id, hole_id: hole.id, sequence: seq,
-    club_id: rehit ? prev.club_id ?? null : null, shot_type: sug, assessment: null,
+    // พัต = พัตเตอร์ให้เลย (ไม่ต้องแตะเลือกไม้ทุกพัต)
+    club_id: rehit ? prev.club_id ?? null : sug === 'putt' ? st.bagClubs().find((c) => c.category === 'putter')?.id ?? null : null,
+    shot_type: sug, assessment: null,
     contact: null, direction: null, distance_result: null, target_result: null,
     start_lie: seq === 1 ? 'tee' : nextStart(prev, rehit),
     end_lie: null, distance_before: null, distance_after: null,

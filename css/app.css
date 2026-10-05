@@ -937,3 +937,27 @@ a.map-card { display: flex; align-items: center; gap: 12px; text-decoration: non
 .save-bar .btn { box-shadow: var(--shadow-lg); }
 .offline-btn { flex-direction: column; gap: 2px; margin-top: -4px; }
 .offline-btn small { font-weight: 400; font-size: .76rem; opacity: .75; }
+
+/* จดเร็ว: ปุ่มใหญ่ แตะผลช็อตแล้วบันทึกทันที */
+.entry.quick { gap: 6px; }
+.qp-head h3 { margin: 0; }
+.qp-type { width: auto; min-height: 38px; padding: 4px 10px; font-size: .9rem; }
+.qp-hint { margin: -2px 0 0; }
+.chips.qp-clubs .chip { min-height: 44px; }
+.chips.qp-dir { display: grid; grid-template-columns: repeat(3, 1fr); }
+.chips.qp-dir .chip { min-height: 44px; justify-content: center; }
+.qp-out { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.qp-btn {
+  min-height: 54px; border-radius: 14px; border: 2px solid var(--line); background: var(--surface);
+  color: var(--text); font-weight: 700; font-size: .95rem; cursor: pointer; padding: 4px 6px; line-height: 1.2;
+}
+.qp-btn:active { transform: scale(.97); }
+.qp-btn.good { border-color: var(--good); color: var(--good); }
+.qp-btn.holed { border-color: var(--brand); background: var(--brand); color: var(--brand-ink); }
+.qp-btn.pen { border-color: var(--bad-soft); color: var(--bad); font-size: .88rem; }
+.qp-btn small { display: block; font-weight: 600; opacity: .8; font-size: .78rem; }
+.qp-last { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px;
+  padding: 6px 8px; border-radius: 10px; background: var(--warn-soft); }
+.qp-foot { margin-top: 2px; }
+.qp-foot .check { margin: 0; }
+.hole-done { display: flex; flex-direction: column; gap: 10px; border: 2px solid var(--good); }

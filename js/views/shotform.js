@@ -24,7 +24,7 @@ function shotSummary(s) {
 function assessBadge(a) {
   if (a === 'good') return '<span class="badge good">ดี</span>';
   if (a === 'needs_work') return '<span class="badge bad">ต้องปรับ</span>';
-  return '<span class="badge none">ยังไม่ประเมิน</span>';
+  return '';   // ไม่ประเมินก็ได้ ไม่ต้องแสดงป้ายให้รก
 }
 
 export function shotCard(s, editingId, gpsM = null, unit = 'm') {
@@ -88,7 +88,7 @@ export function shotForm(bag, phrases, gpsOn = false, land = null) {
   const title = d.mode === 'edit' ? `แก้ไขช็อตที่ ${d.F.sequence}` : d.mode === 'insert' ? `แทรกช็อตที่ ${d.F.sequence}` : `ช็อตที่ ${d.F.sequence}`;
   const clubOpts = bag.map((c) => ({ v: c.id, th: c.label }));
   return `<section class="card entry" id="entry">
-    <div class="row between"><h3>${title}</h3>${d.mode !== 'new' ? '<button type="button" class="mini" data-act="cancel">ยกเลิก</button>' : ''}</div>
+    <div class="row between"><h3>${title}</h3>${d.mode !== 'new' ? '<button type="button" class="mini" data-act="cancel">ยกเลิก</button>' : '<button type="button" class="linklike" data-act="quickForm">‹ จดแบบเร็ว</button>'}</div>
     ${d.mode !== 'edit' ? `<label class="check gps-toggle"><input type="checkbox" data-change="gpsShots" ${gpsOn ? 'checked' : ''}> 📍 จับตำแหน่ง GPS ตอนบันทึก <span class="small muted" id="gps-state"></span></label>
     ${gpsOn ? '<p class="note">กดบันทึกขณะยืนที่จุดตี (ก่อนเดินไปลูกถัดไป)</p>' : ''}` : ''}
     <div class="lbl">ไม้${d.hint && d.F.club_id ? ` <span class="muted small">(แนะนำ: ${esc(d.hint)} · แตะเพื่อเปลี่ยน)</span>` : ''}</div>${chips('set', 'club_id', clubOpts, d.F.club_id, { cls: 'clubs' })}
@@ -123,6 +123,59 @@ export function shotForm(bag, phrases, gpsOn = false, land = null) {
     <textarea class="input" rows="2" data-input="text" data-field="note" placeholder="คำที่ใช้จริง เช่น ลูกออกขวาเยอะ">${esc(d.F.note)}</textarea>`
     : '<button type="button" class="linklike" data-act="noteOpen">＋ หมายเหตุ</button>'}
     <div class="save-bar"><button type="button" class="btn primary big block" data-act="save" id="save-btn">${d.mode === 'edit' ? 'บันทึกการแก้ไข' : `บันทึกช็อตที่ ${d.F.sequence}`}</button></div>
+  </section>`;
+}
+
+// ---------- จดเร็ว: ไม้ (แนะนำไว้ให้) → ทิศ (ถ้าไม่ตรง) → แตะว่าลูกไปจบที่ไหน = บันทึกทันที ----------
+// เรียงผลที่เกิดบ่อยของช็อตแต่ละแบบไว้ก่อน
+const QUICK_ORDER = {
+  tee: ['fairway', 'rough', 'trees', 'bunker', 'green', 'fringe', 'water', 'ob', 'lost', 'unplayable', 'holed'],
+  approach: ['green', 'fringe', 'bunker', 'rough', 'fairway', 'trees', 'water', 'ob', 'lost', 'unplayable', 'holed'],
+  short: ['green', 'holed', 'fringe', 'bunker', 'rough', 'fairway', 'trees', 'water', 'ob', 'lost', 'unplayable'],
+  putt: ['holed', 'green', 'fringe'],
+};
+const QUICK_DIRS = [{ v: 'left', th: '← ซ้าย' }, { v: 'on_line', th: 'ตรง' }, { v: 'right', th: 'ขวา →' }];
+const MISS_ENDS = new Set(['rough', 'trees', 'bunker', 'water', 'ob', 'lost', 'unplayable']);
+const kindOf = (t) => (t === 'putt' ? 'putt' : t === 'tee' || t === 'recovery' ? 'tee' : t === 'approach' ? 'approach' : 'short');
+
+export function quickPad(bag, shots, gpsOn = false) {
+  const putt = d.F.shot_type === 'putt';
+  const opts = QUICK_ORDER[kindOf(d.F.shot_type)].map((v) => OUTCOMES.find((o) => o.v === v)).filter(Boolean);
+  const last = shots.at(-1);
+  const lastClub = last ? st.club(last.club_id)?.label : null;
+  // ถามต่อเรื่องช็อตที่เพิ่งตี (ไม่บังคับ ไม่ถามพัต): พลาดแต่ยังไม่บอกทิศ → ซ้ายหรือขวา · ยังไม่ประเมิน → ดีไหม
+  const live = last && last.counted !== false && last.shot_type !== 'putt';
+  const askDir = live && last.direction == null && MISS_ENDS.has(last.end_lie);
+  const askGood = live && last.assessment == null;
+  const ask = askDir || askGood ? `<div class="qp-last">
+      <span class="small">ช็อต ${last.sequence}${lastClub ? ` ${esc(lastClub)}` : ''} → ${esc(label(LIES, last.end_lie) || 'ไม่ระบุ')}</span>
+      ${askDir ? `<span class="row gap">${[['left', '← ซ้าย'], ['right', 'ขวา →']].map(([v, th]) => `<button type="button" class="mini" data-act="qdir" data-id="${last.id}" data-v="${v}">${th}</button>`).join('')}</span>` : ''}
+      ${askGood ? `<span class="row gap"><button type="button" class="mini" data-act="qassess" data-id="${last.id}" data-v="good">👍 ดี</button><button type="button" class="mini" data-act="qassess" data-id="${last.id}" data-v="needs_work">👎 ต้องปรับ</button></span>` : ''}
+    </div>` : '';
+  const clubName = st.club(d.F.club_id)?.label;
+  return `<section class="card entry quick" id="entry">
+    ${ask}
+    <div class="row between qp-head"><h3>ช็อตที่ ${d.F.sequence}</h3>
+      <select class="input qp-type" data-change="qtype" aria-label="ประเภทช็อต">${SHOT_TYPES.map((t) => `<option value="${t.v}"${t.v === d.F.shot_type ? ' selected' : ''}>${esc(t.th)}</option>`).join('')}</select></div>
+    ${d.hint && clubName ? `<p class="small muted qp-hint">แนะนำ ${esc(clubName)} · ${esc(d.hint)}</p>` : ''}
+    ${chips('set', 'club_id', bag.map((c) => ({ v: c.id, th: c.label })), d.F.club_id, { cls: 'clubs qp-clubs' })}
+    ${putt ? '' : `<div class="lbl">ทิศ <span class="muted small">(ถ้าไม่ตรง)</span></div>${chips('set', 'direction', QUICK_DIRS, d.F.direction, { cls: 'qp-dir' })}`}
+    <div class="lbl">ลูกไปจบที่ไหน <span class="muted small">แตะแล้วบันทึกเลย</span></div>
+    <div class="qp-out">${opts.map((o) => `<button type="button" class="qp-btn${PENALTY_ENDS[o.v] ? ' pen' : ''}${o.v === 'holed' ? ' holed' : ''}${o.v === 'fairway' || o.v === 'green' ? ' good' : ''}" data-act="qout" data-v="${o.v}">${esc(o.th)}${PENALTY_ENDS[o.v] ? ' <small>+1</small>' : ''}</button>`).join('')}</div>
+    <div class="row between qp-foot">
+      <label class="check small"><input type="checkbox" data-change="gpsShots" ${gpsOn ? 'checked' : ''}> 📍 GPS <span class="muted" id="gps-state"></span></label>
+      <button type="button" class="linklike" data-act="fullForm">จดแบบละเอียด ›</button>
+    </div>
+  </section>`;
+}
+
+// หลุมจบแล้ว (แบบจดเร็ว): สกอร์ + ปุ่มไปหลุมถัดไป
+export function holeDoneHtml(num, sc, next) {
+  const toPar = sc.par != null && sc.toPar != null ? ` (${sc.toPar === 0 ? 'พาร์' : `${sc.toPar > 0 ? '+' : ''}${sc.toPar}`})` : '';
+  return `<section class="card hole-done">
+    <b>⛳ หลุม ${num} จบแล้ว · สกอร์ ${sc.total}${toPar}</b>
+    <a class="btn primary big block" href="${next.href}">${esc(next.th)} ›</a>
+    <p class="note">จดผิด แตะช็อตด้านล่างเพื่อแก้ · จดเพิ่ม กด “เปิดหลุมนี้อีกครั้ง” ท้ายหน้า</p>
   </section>`;
 }
 

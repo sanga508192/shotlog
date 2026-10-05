@@ -12,7 +12,7 @@ import { shotPath, landOf } from '../shotgeo.js';
 import { openLandPicker, landInfo, landText, sideTh } from './landpick.js';
 import { teePlanFor, teePlanHtml, planClubId } from './holeplan.js';
 import { d, blankShot, resetDraft, reliefOf, rehitAfter, usualClub } from './shotdraft.js';
-import { shotCard, shotForm, penaltySection, puttCard, LAND_REASONS } from './shotform.js';
+import { shotCard, shotForm, penaltySection, puttCard, quickPad, holeDoneHtml, LAND_REASONS } from './shotform.js';
 
 export { scorecardView } from './scorecard.js';
 
@@ -119,7 +119,7 @@ export function holeView([roundId, numStr], ctx) {
     const needsPos = d.F.sequence !== 1;
     if ((d.suggestedFor !== d.F.id && (!needsPos || pos)) || (d.suggestedFor === d.F.id && needsPos && moved(pos))) {
       const s = clubSuggestion(pos);
-      d.F.club_id = s?.club ?? null;
+      d.F.club_id = s?.club ?? (d.F.shot_type === 'putt' ? d.F.club_id : null);   // ไม่มีคำแนะนำ: พัตยังใช้พัตเตอร์เดิม
       d.F.shot_type = s?.type ?? d.draftType;
       d.hint = s?.club ? s.why : '';
       d.suggestedFor = d.F.id;
@@ -129,6 +129,19 @@ export function holeView([roundId, numStr], ctx) {
 
   function pickLand({ seq, start, value, exceptId, onSave }) {
     openLandPicker({ pins, n: num, seq, start, value, others: othersFor(exceptId), unit, teeShot: teeShotOf(seq), onSave });
+  }
+
+  // จดเร็ว (ค่าเริ่มต้น) สำหรับช็อตใหม่ · แก้/แทรกช็อตใช้แบบละเอียดเสมอ
+  const quick = logShots && d.mode === 'new' && st.setting('shot_form', 'quick') !== 'full';
+  const lastShot = shots.at(-1);
+  const onGreen = !!lastShot && !lastShot.holed && (lastShot.shot_type === 'putt' || ['green', 'fringe'].includes(lastShot.end_lie));
+  const next = nextN ? { href: `#/round/${roundId}/hole/${nextN}`, th: `ไปหลุม ${nextN}` } : { href: `#/round/${roundId}/card`, th: 'ดูสกอร์การ์ด' };
+  let entryHtml = '';
+  if (quick) {
+    entryHtml = hole.status === 'done' ? holeDoneHtml(num, sc, next)
+      : `${onGreen ? puttCard(unit) : ''}${quickPad(bag, shots, gpsOn)}`;
+  } else if (logShots) {
+    entryHtml = `${hole.status === 'playing' && shots.length && d.mode === 'new' && !shots.some((s) => s.holed) ? puttCard(unit) : ''}${shotForm(bag, phrases, gpsOn, landBtn)}`;
   }
 
   const html = `${header(`หลุม ${num} / ${holes.length}`, {
@@ -161,14 +174,13 @@ export function holeView([roundId, numStr], ctx) {
 
     ${teePlanHtml(tp, unit)}
 
-    ${group ? groupEntryHtml(round, hole) : ''}
+    ${group && !logShots ? groupEntryHtml(round, hole) : ''}
 
-    ${logShots ? `<div class="shots">${shots.length ? shots.map((s) => shotCard(s, d.mode === 'edit' ? d.F.id : null, gpsDist.get(s.id) ?? null, unit)).join('') : '<p class="muted center">ยังไม่มีช็อต</p>'}</div>
+    ${logShots ? `${entryHtml}
+    ${shots.length ? '<div class="lbl">ช็อตในหลุมนี้ <span class="muted small">แตะเพื่อแก้</span></div>' : ''}
+    <div class="shots">${shots.map((s) => shotCard(s, d.mode === 'edit' ? d.F.id : null, gpsDist.get(s.id) ?? null, unit)).join('')}</div>
     ${penaltySection(hole, shots, canLand)}
-
-    ${hole.status === 'playing' && shots.length && d.mode === 'new' && !shots.some((s) => s.holed) ? puttCard(unit) : ''}
-
-    ${shotForm(bag, phrases, gpsOn, landBtn)}
+    ${group ? groupEntryHtml(round, hole) : ''}
 
     <section class="card">
       <h3>จบหลุม</h3>
@@ -194,6 +206,108 @@ export function holeView([roundId, numStr], ctx) {
 
   const saveHole = (changes) => st.patch('holes', hole.id, changes);
 
+  // บันทึกช็อตในร่าง · quick = มาจากปุ่มผลช็อตของแบบจดเร็ว (บอกผลสั้น ๆ พร้อมเลิกทำ)
+  async function saveShot(quick = false) {
+    if (d.saving) return;  // กันแตะบันทึกรัว ๆ
+    d.saving = true;
+    const btn = document.getElementById('save-btn');
+    if (btn) btn.disabled = true;
+    try {
+      const shot = { ...d.F, note: d.F.note.trim(), raw_distance_text: (d.F.raw_distance_text || '').trim() };
+      if (shot.holed) shot.end_lie = 'holed';
+      if (shot.counted !== false) shot.not_counted_reason = '';
+      const current = st.shotsOf(hole.id).filter((s) => s.id !== shot.id);
+      const ops = [];
+      if (d.mode === 'insert') {
+        for (const s of shiftForInsert(current, shot.sequence)) {
+          if (s.sequence !== st.S.shots.get(s.id).sequence) ops.push({ store: 'shots', put: s });
+        }
+      } else if (d.mode === 'new') {
+        shot.sequence = current.length + 1;
+      }
+      if (!shot.created_at) shot.created_at = st.nowIso();
+      let gpsNote = '';
+      if (gpsOn && d.mode !== 'edit') {
+        const pos = lastPosition(20000);
+        if (pos && pos.accuracy <= GPS_MAX_ACC) {
+          shot.gps = { lat: pos.lat, lon: pos.lon, acc: Math.round(pos.accuracy), at: st.nowIso() };
+          // เติมระยะถึงกรีนจากหมุดที่ยืนยันแล้วเท่านั้น (หมุดประมาณอาจผิดหลุม จะกลายเป็นข้อมูลผิดถาวร)
+          const green = confirmedPoint(pins, 'green');
+          if (green && shot.shot_type !== 'putt' && shot.distance_before == null) {
+            shot.distance_before = Math.round(toUnit(distM(pos, green), shot.distance_unit === 'yd' ? 'yd' : 'm'));
+            shot.measurement_method = shot.measurement_method ?? 'gps';
+          }
+        } else {
+          gpsNote = pos ? ` · GPS ยังไม่แม่น (±${Math.round(pos.accuracy)} ม.) ไม่ได้เก็บตำแหน่ง` : ' · ยังไม่ได้ตำแหน่ง GPS';
+        }
+      }
+      let autoDone = null;
+      const holeBefore = { ...st.S.holes.get(hole.id) };
+      let prevBefore = null;
+      if (d.mode === 'new' && !current.length) {
+        const prevNum = st.S.rounds.get(roundId)?.current_hole;
+        const ph = prevNum && prevNum !== num ? st.holesOf(roundId).find((h) => h.number === prevNum) : null;
+        if (ph && ph.status === 'playing' && st.shotsOf(ph.id).length) {
+          prevBefore = { ...ph };
+          ops.push(st.patchOp('holes', ph.id, { status: 'done', finish: 'holed' }));
+          autoDone = { n: ph.number, total: holeScore(ph, st.shotsOf(ph.id), st.penaltiesOf(ph.id)).total };
+        }
+      }
+      ops.push({ store: 'shots', put: shot });
+      const auto = autoPenaltyOps(shot);
+      ops.push(...auto.ops);
+      let holedMsg = false;
+      if (shot.holed && st.S.holes.get(hole.id)?.status === 'playing') {
+        ops.push(st.patchOp('holes', hole.id, { status: 'done', finish: 'holed' }));
+        holedMsg = true;
+      }
+      ops.push(st.patchOp('rounds', roundId, { current_hole: num }));
+      await st.commit(ops);
+      const wasEdit = d.mode === 'edit';
+      const wasNew = d.mode === 'new';
+      if (!wasEdit && shot.sequence === 1 && shot.gps && shot.gps.acc <= 12 && round.course_id) {
+        const p = courseHoles(round.course_id)[num];
+        const near = !p?.tee || distM(p.tee, shot.gps) <= 80;
+        if (p?.src?.tee !== 'mine' && near) {
+          await setHolePoint(round.course_id, num, 'tee', { lat: shot.gps.lat, lon: shot.gps.lon, via: 'gps' });
+          gpsNote += ' · ปักหมุดแท่นทีจาก GPS แล้ว';
+        }
+      }
+      resetDraft(round, st.S.holes.get(hole.id));
+      refresh();
+      // จดเร็ว: บอกสั้น ๆ ว่าบันทึกอะไรไป และเลิกทำได้ทันทีถ้าแตะผิด
+      if (quick && wasNew) {
+        const club = st.club(shot.club_id)?.label;
+        const bits = [`ช็อต ${shot.sequence}${club ? ` ${club}` : ''} → ${label(LIES, shot.end_lie)}`];
+        if (auto.added) bits.push(`+${auto.added.strokes} สโตรกปรับ (${RELIEFS.find((r) => r.v === auto.added.relief)?.th ?? ''})`);
+        if (holedMsg) bits.push(`จบหลุม สกอร์ ${holeScore(st.S.holes.get(hole.id), st.shotsOf(hole.id), st.penaltiesOf(hole.id)).total}`);
+        if (autoDone) bits.push(`หลุม ${autoDone.n} จบให้อัตโนมัติ (${autoDone.total})`);
+        const newPens = auto.ops.filter((o) => o.put).map((o) => o.put.id);   // ช็อตใหม่ = สโตรกปรับที่เพิ่งสร้างทั้งหมด
+        toast(`${bits.join(' · ')}${gpsNote}`, {
+          label: 'เลิกทำ',
+          run: async () => {
+            await st.commit([{ store: 'shots', del: shot.id }, ...newPens.map((id) => ({ store: 'penalties', del: id })),
+              { store: 'holes', put: holeBefore }, ...(prevBefore ? [{ store: 'holes', put: prevBefore }] : [])]);
+            resetDraft(round, holeBefore);
+            ctx.go(`#/round/${roundId}/hole/${num}`);
+          },
+        });
+        return;
+      }
+      if (holedMsg && nextN) toast('ลงหลุม — บันทึกในเครื่องแล้ว', { label: `ไปหลุม ${nextN}`, run: () => ctx.go(`#/round/${roundId}/hole/${nextN}`) });
+      else if (auto.added) {
+        const msg = `บันทึกแล้ว · ${label(LIES, shot.end_lie)} +${auto.added.strokes} สโตรกปรับ${autoDone ? ` · หลุม ${autoDone.n} จบให้อัตโนมัติ (${autoDone.total})` : ''}${gpsNote}`;
+        // ลูกที่เดินไปไม่ถึง ชวนปักจุดบนแผนที่ (ปุ่มเดียวกับแถวสโตรกปรับ)
+        if (canLand && !landOf(shot)) toast(msg, { label: '📍 ปักจุด', run: () => document.querySelector(`[data-act="penLand"][data-shot="${shot.id}"]`)?.click() });
+        else toast(msg);
+      } else if (autoDone) {
+        toast(`บันทึกแล้ว · หลุม ${autoDone.n} ที่จดไว้จบให้อัตโนมัติ (${autoDone.total})${gpsNote}`, { label: `ดูหลุม ${autoDone.n}`, run: () => ctx.go(`#/round/${roundId}/hole/${autoDone.n}`) });
+      } else toast(wasEdit ? 'แก้ไขแล้ว — บันทึกในเครื่องแล้ว' : `บันทึกในเครื่องแล้ว${gpsNote}`);
+    } finally {
+      d.saving = false;
+    }
+  }
+
   let stopGps = null;
   return {
     html,
@@ -213,7 +327,8 @@ export function holeView([roundId, numStr], ctx) {
       },
       set: (el) => {
         const { field, v } = el.dataset;
-        d.F[field] = field === 'distance_unit' ? v : (d.F[field] === v ? null : v);
+        // ไม้: แตะไม้ที่เลือกอยู่ (เช่น ไม้ที่แนะนำ) = ยืนยัน ไม่ใช่ยกเลิก · ช่องอื่นแตะซ้ำเพื่อยกเลิก
+        d.F[field] = field === 'distance_unit' || field === 'club_id' ? v : (d.F[field] === v ? null : v);
         if (field === 'club_id') { d.hint = ''; d.clubTouched = true; }
         if (field === 'club_id' && !d.typeTouched) {
           const prev = shots.filter((s) => s.sequence < d.F.sequence && s.id !== d.F.id).at(-1) ?? null;
@@ -356,82 +471,42 @@ export function holeView([roundId, numStr], ctx) {
         refresh();
         document.getElementById('entry')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       },
-      save: async () => {
-        if (d.saving) return;  // กันแตะบันทึกรัว ๆ
-        d.saving = true;
-        document.getElementById('save-btn').disabled = true;
-        try {
-          const shot = { ...d.F, note: d.F.note.trim(), raw_distance_text: (d.F.raw_distance_text || '').trim() };
-          if (shot.holed) shot.end_lie = 'holed';
-          if (shot.counted !== false) shot.not_counted_reason = '';
-          const current = st.shotsOf(hole.id).filter((s) => s.id !== shot.id);
-          const ops = [];
-          if (d.mode === 'insert') {
-            for (const s of shiftForInsert(current, shot.sequence)) {
-              if (s.sequence !== st.S.shots.get(s.id).sequence) ops.push({ store: 'shots', put: s });
-            }
-          } else if (d.mode === 'new') {
-            shot.sequence = current.length + 1;
-          }
-          if (!shot.created_at) shot.created_at = st.nowIso();
-          let gpsNote = '';
-          if (gpsOn && d.mode !== 'edit') {
-            const pos = lastPosition(20000);
-            if (pos && pos.accuracy <= GPS_MAX_ACC) {
-              shot.gps = { lat: pos.lat, lon: pos.lon, acc: Math.round(pos.accuracy), at: st.nowIso() };
-              // เติมระยะถึงกรีนจากหมุดที่ยืนยันแล้วเท่านั้น (หมุดประมาณอาจผิดหลุม จะกลายเป็นข้อมูลผิดถาวร)
-              const green = confirmedPoint(pins, 'green');
-              if (green && shot.shot_type !== 'putt' && shot.distance_before == null) {
-                shot.distance_before = Math.round(toUnit(distM(pos, green), shot.distance_unit === 'yd' ? 'yd' : 'm'));
-                shot.measurement_method = shot.measurement_method ?? 'gps';
-              }
-            } else {
-              gpsNote = pos ? ` · GPS ยังไม่แม่น (±${Math.round(pos.accuracy)} ม.) ไม่ได้เก็บตำแหน่ง` : ' · ยังไม่ได้ตำแหน่ง GPS';
-            }
-          }
-          let autoDone = null;
-          if (d.mode === 'new' && !current.length) {
-            const prevNum = st.S.rounds.get(roundId)?.current_hole;
-            const ph = prevNum && prevNum !== num ? st.holesOf(roundId).find((h) => h.number === prevNum) : null;
-            if (ph && ph.status === 'playing' && st.shotsOf(ph.id).length) {
-              ops.push(st.patchOp('holes', ph.id, { status: 'done', finish: 'holed' }));
-              autoDone = { n: ph.number, total: holeScore(ph, st.shotsOf(ph.id), st.penaltiesOf(ph.id)).total };
-            }
-          }
-          ops.push({ store: 'shots', put: shot });
-          const auto = autoPenaltyOps(shot);
-          ops.push(...auto.ops);
-          let holedMsg = false;
-          if (shot.holed && st.S.holes.get(hole.id)?.status === 'playing') {
-            ops.push(st.patchOp('holes', hole.id, { status: 'done', finish: 'holed' }));
-            holedMsg = true;
-          }
-          ops.push(st.patchOp('rounds', roundId, { current_hole: num }));
-          await st.commit(ops);
-          const wasEdit = d.mode === 'edit';
-          if (!wasEdit && shot.sequence === 1 && shot.gps && shot.gps.acc <= 12 && round.course_id) {
-            const p = courseHoles(round.course_id)[num];
-            const near = !p?.tee || distM(p.tee, shot.gps) <= 80;
-            if (p?.src?.tee !== 'mine' && near) {
-              await setHolePoint(round.course_id, num, 'tee', { lat: shot.gps.lat, lon: shot.gps.lon, via: 'gps' });
-              gpsNote += ' · ปักหมุดแท่นทีจาก GPS แล้ว';
-            }
-          }
-          resetDraft(round, st.S.holes.get(hole.id));
-          refresh();
-          if (holedMsg && nextN) toast('ลงหลุม — บันทึกในเครื่องแล้ว', { label: `ไปหลุม ${nextN}`, run: () => ctx.go(`#/round/${roundId}/hole/${nextN}`) });
-          else if (auto.added) {
-            const msg = `บันทึกแล้ว · ${label(LIES, shot.end_lie)} +${auto.added.strokes} สโตรกปรับ${autoDone ? ` · หลุม ${autoDone.n} จบให้อัตโนมัติ (${autoDone.total})` : ''}${gpsNote}`;
-            // ลูกที่เดินไปไม่ถึง ชวนปักจุดบนแผนที่ (ปุ่มเดียวกับแถวสโตรกปรับ)
-            if (canLand && !landOf(shot)) toast(msg, { label: '📍 ปักจุด', run: () => document.querySelector(`[data-act="penLand"][data-shot="${shot.id}"]`)?.click() });
-            else toast(msg);
-          } else if (autoDone) {
-            toast(`บันทึกแล้ว · หลุม ${autoDone.n} ที่จดไว้จบให้อัตโนมัติ (${autoDone.total})${gpsNote}`, { label: `ดูหลุม ${autoDone.n}`, run: () => ctx.go(`#/round/${roundId}/hole/${autoDone.n}`) });
-          } else toast(wasEdit ? 'แก้ไขแล้ว — บันทึกในเครื่องแล้ว' : `บันทึกในเครื่องแล้ว${gpsNote}`);
-        } finally {
-          d.saving = false;
-        }
+      save: () => saveShot(),
+      // จดเร็ว: แตะผลช็อต = บันทึกเลย · ลงน้ำ/OB/หาย ใช้วิธีตีต่อที่พบบ่อยที่สุด (แก้ได้ที่ช็อตนั้น)
+      qout: async (el) => {
+        if (d.saving) return;
+        const v = el.dataset.v;
+        d.F.end_lie = v;
+        d.F.holed = v === 'holed';
+        const pe = PENALTY_ENDS[v];
+        if (pe) {
+          if (!pe.reliefs.includes(d.relief)) d.relief = pe.reliefs[0];
+          if (d.F.assessment == null) d.F.assessment = 'needs_work';
+        } else d.relief = null;
+        await saveShot(true);
       },
+      qtype: (el) => {
+        d.F.shot_type = el.value;
+        d.typeTouched = true;
+        if (el.value === 'putt' && !d.clubTouched) d.F.club_id = bag.find((c) => c.category === 'putter')?.id ?? d.F.club_id;
+        refresh();
+      },
+      qassess: async (el) => {
+        const s = st.S.shots.get(el.dataset.id);
+        if (!s) return;
+        await st.patch('shots', s.id, { assessment: el.dataset.v });
+        refresh();
+        toast(`ช็อต ${s.sequence}: ${el.dataset.v === 'good' ? 'ดี' : 'ต้องปรับ'}`);
+      },
+      qdir: async (el) => {
+        const s = st.S.shots.get(el.dataset.id);
+        if (!s) return;
+        await st.patch('shots', s.id, { direction: el.dataset.v });
+        refresh();
+        toast(`ช็อต ${s.sequence}: ไป${el.dataset.v === 'left' ? 'ซ้าย' : 'ขวา'}`);
+      },
+      fullForm: async () => { await st.setSetting('shot_form', 'full'); refresh(); },
+      quickForm: async () => { await st.setSetting('shot_form', 'quick'); refresh(); },
       remove: async (el) => {
         const s = st.S.shots.get(el.dataset.id);
         if (!s) return;
