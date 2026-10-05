@@ -157,6 +157,7 @@ export function settingsView(_p, ctx) {
       <label class="check"><input type="checkbox" data-change="reportErrors" ${reportingOn() ? 'checked' : ''}> ส่งรายงานข้อผิดพลาดให้ผู้พัฒนาอัตโนมัติ</label>
       <p class="note">ส่งเฉพาะข้อความผิดพลาด หน้าที่เกิด รุ่นแอป และรุ่นเบราว์เซอร์ ไม่มีข้อมูลรอบ สกอร์ ตำแหน่ง หรืออีเมล · ปิดได้ทุกเมื่อ</p>` : ''}
 
+      <a class="btn block" href="#/whats-new">✨ มีอะไรใหม่</a>
       <p class="note center">ShotLog รุ่น ${APP_VERSION} · ข้อมูลเก็บในเครื่องนี้เท่านั้น</p>
     </div>`,
     mount: () => {

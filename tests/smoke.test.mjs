@@ -19,6 +19,8 @@ import { drillsView } from '../js/views/drills.js';
 import { launchView } from '../js/views/launch.js';
 import { gamePlanView } from '../js/views/gameplan.js';
 import { recapView } from '../js/views/recap.js';
+import { progressView } from '../js/views/progress.js';
+import { whatsNewView, whatsNewCard } from '../js/views/whatsnew.js';
 
 const ctx = { rerender() {}, go() {} };
 
@@ -121,6 +123,9 @@ function routesFor(ids) {
     ['new unknown', () => newRoundView(['nope'], ctx)],
     ['summary all', () => summaryView([], ctx)],
     ['coach', () => coachView([], ctx)],
+    ['progress', () => progressView([], ctx)],
+    ['whats new', () => whatsNewView([], ctx)],
+    ['whats new card', () => ({ html: whatsNewCard() })],
     ['practice', () => practiceView([], ctx)],
     ['drills', () => drillsView([], ctx)],
     ['launch', () => launchView([], ctx)],

@@ -19,6 +19,9 @@ import { launchView } from './views/launch.js';
 import { simGameView } from './views/simgame.js';
 import { gamePlanView } from './views/gameplan.js';
 import { recapView } from './views/recap.js';
+import { progressView } from './views/progress.js';
+import { whatsNewView } from './views/whatsnew.js';
+import { LATEST } from './whatsnew.js';
 import { resumeHref } from './views/main.js';
 import * as sync from './sync.js';
 import * as cloud from './cloud.js';
@@ -40,6 +43,8 @@ const routes = [
   [/^#\/round\/([^/]+)\/recap$/, recapView],
   [/^#\/summary$/, summaryView],
   [/^#\/coach$/, coachView],
+  [/^#\/progress$/, progressView],
+  [/^#\/whats-new$/, whatsNewView],
   [/^#\/map\/([^/?]+)\/(\d+)(?:\?(.*))?$/, mapView],
   [/^#\/practice$/, practiceView],
   [/^#\/drills$/, drillsView],
@@ -236,6 +241,8 @@ async function start() {
   try {
     await st.load();
     applySun();
+    // ติดตั้งใหม่ (ยังไม่มีข้อมูล): ไม่ต้องโชว์ "มีอะไรใหม่" ของรุ่นก่อน ๆ
+    if (!st.S.settings.has('news_seen') && !st.S.rounds.size && !st.S.practice.size) st.setSetting('news_seen', LATEST).catch(() => {});
     initReports();
   } catch (err) {
     logError('load', err);

@@ -10,6 +10,7 @@ import { ME, MAX_PLAYERS, playersOf, fmtOver } from '../group.js';
 import { coachData, focusListHtml } from './coach.js';
 import { courseHoles, holeReady, isEstimated } from '../holemap.js';
 import { offlineButton, saveCourseOffline } from './map.js';
+import { whatsNewCard, markNewsSeen } from './whatsnew.js';
 
 // ---------- หน้าแรก ----------
 
@@ -162,6 +163,7 @@ export function homeView(_p, ctx) {
         <div><b>${best != null && Number.isFinite(best) ? fmtOver(best) : '–'}</b><span>ดีสุด (9 หลุมขึ้นไป)</span></div>
         <div><b>${st.S.shots.size}</b><span>ช็อตที่จด</span></div>
       </div>` : ''}
+      ${whatsNewCard()}
       ${coachTeaser()}
       <div class="row between"><h2>รอบล่าสุด</h2>${all.length ? '<a class="mini" href="#/history">ดูทั้งหมด / ลบ</a>' : ''}</div>
       ${past.length ? past.slice(0, 5).map((r) => roundRow(r, `#/round/${r.id}/card`)).join('')
@@ -172,6 +174,7 @@ export function homeView(_p, ctx) {
     </div>`,
     actions: {
       delRound: (el) => deleteRound(el.dataset.id, { after: () => ctx.rerender() }),
+      newsSeen: async () => { await markNewsSeen(); ctx.rerender(); },
     },
   };
 }

@@ -260,7 +260,7 @@ export function sgHtml(goal) {
 }
 
 // รอบ 18 หลุมที่มีสกอร์ของเราครบ เรียงเก่า→ใหม่
-function handicapRounds() {
+export function handicapRounds() {
   return st.rounds().filter((r) => r.status !== 'playing')
     .sort((a, b) => String(a.played_at || '').localeCompare(String(b.played_at || '')) || String(a.created_at || '').localeCompare(String(b.created_at || '')))
     .map((r) => {
@@ -273,10 +273,14 @@ function handicapRounds() {
     });
 }
 
+// Course Rating/Slope: ที่ผู้ใช้ใส่เอง ก่อนค่าในสกอร์การ์ดของสนาม · แต้มต่อเดิมของผู้เล่น (ใช้คิดสกอร์ปรับ)
+const cardRating = (c, t) => st.scorecard(c)?.tees?.find((x) => x.id === t)?.rating ?? null;
+export const ratingOf = (c, t) => st.setting(ratingKey(c, t), null) ?? cardRating(c, t);
+export const priorIndex = () => (Number.isFinite(Number(st.setting('my_handicap', null))) && st.setting('my_handicap', null) !== null ? Number(st.setting('my_handicap')) : null);
+
 export function handicapHtml() {
-  const prior = Number.isFinite(Number(st.setting('my_handicap', null))) && st.setting('my_handicap', null) !== null ? Number(st.setting('my_handicap')) : null;
-  const cardRating = (c, t) => st.scorecard(c)?.tees?.find((x) => x.id === t)?.rating ?? null;
-  const r = estimateHandicap(handicapRounds(), (c, t) => st.setting(ratingKey(c, t), null) ?? cardRating(c, t), prior);
+  const prior = priorIndex();
+  const r = estimateHandicap(handicapRounds(), ratingOf, prior);
   const forms = r.missing.slice(0, 4).map((m) => `<form class="rating-form" data-submit="rating" data-course="${esc(m.courseId)}" data-tee="${esc(m.teeId ?? '')}">
       <span><b>${esc(m.name || 'สนาม')}</b>${m.tee ? ` · แท่น${esc(m.tee)}` : ''} <small class="muted">${m.count} รอบ</small></span>
       <input class="input" name="cr" type="number" inputmode="decimal" step="0.1" min="50" max="90" placeholder="Course Rating เช่น 71.8" required aria-label="Course Rating">
@@ -332,6 +336,7 @@ export function coachView(_p, ctx) {
     ? `✓ เฉลี่ยถึงเป้า${esc(g.th)}แล้ว ลองตั้งเป้าถัดไป`
     : `เป้า${esc(g.th)} ต้องลดอีก <b>${f1(need)}</b> สโตรกต่อรอบ`}</div>
         ${trendChart(a.scoreRounds, g.score)}
+        <a class="mini" href="#/progress">📈 ดูกราฟพัฒนาการทั้งหมด (รายเดือน · แต้มต่อ) ›</a>
         <div class="par-types">${a.byPar.filter((p) => p.n).map((p) => `<span>พาร์ ${p.par} <b>${fmtSigned(p.avgOver)}</b></span>`).join('')}</div>
         <p class="note">สกอร์เทียบ 18 หลุม พาร์ 72 · รวมรอบจดเร็วและรอบก๊วน (ใช้สกอร์ของคุณ)</p>`
     : `<p><b>ยังไม่มีรอบที่จบ</b></p><p class="small">เล่นให้จบอย่างน้อย 9 หลุมที่มีพาร์ แล้วกลับมาดูหน้านี้ ระหว่างนี้ดูแผนซ้อมเริ่มต้นด้านล่างได้</p>`}

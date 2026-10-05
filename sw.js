@@ -1,6 +1,6 @@
 // เก็บไฟล์แอปทั้งหมดไว้ในเครื่อง เพื่อเปิดใช้ได้เมื่อไม่มีสัญญาณ
 // เปลี่ยน VERSION ทุกครั้งที่แก้ไฟล์ในรายการ เพื่อให้เครื่องผู้ใช้ได้รุ่นใหม่
-const VERSION = 'shotlog-v0.28.0';
+const VERSION = 'shotlog-v0.29.0';
 const ASSETS = [
   './',
   './index.html',
@@ -19,6 +19,10 @@ const ASSETS = [
   './fonts/plex-thai-latin-700.woff2',
   './js/app.js',
   './js/display.js',
+  './js/whatsnew.js',
+  './js/progress.js',
+  './js/views/whatsnew.js',
+  './js/views/progress.js',
   './js/recap.js',
   './js/views/gameplan.js',
   './js/views/recap.js',

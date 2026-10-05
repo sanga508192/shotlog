@@ -1025,3 +1025,22 @@ html[data-sun="1"] .muted, html[data-sun="1"] .note, html[data-sun="1"] .small {
 .recap-drill small { font-size: .78rem; color: var(--muted); }
 .recap-score .big-num { font-size: 2rem; line-height: 1.1; }
 .recap-tee .tp-row { grid-template-columns: 5.5em 1fr; }
+
+/* มีอะไรใหม่ */
+.wn-card, .wn-ver { display: flex; flex-direction: column; gap: 6px; }
+.wn-card { border: 2px solid var(--brand-soft); }
+.wn-item { display: flex; align-items: center; gap: 10px; padding: 6px 0; color: var(--text); text-decoration: none; }
+.wn-icon { font-size: 1.3rem; width: 1.6em; text-align: center; flex: none; }
+.wn-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.wn-text small { color: var(--muted); font-size: .82rem; }
+.wn-go { color: var(--brand); font-weight: 700; }
+
+/* พัฒนาการ */
+.prog-chart .grid { stroke: var(--line); stroke-width: 1; }
+.prog-chart circle.dot { opacity: .75; }
+.prog-table td, .prog-table th { text-align: center; white-space: nowrap; }
+.prog-table td:first-child, .prog-table th:first-child { text-align: left; }
+.progress .stat-strip b.good { color: var(--good); }
+.progress .stat-strip b.bad { color: var(--bad); }
+.progress .stat-strip { grid-template-columns: repeat(4, 1fr); }
+.progress .stat-strip span { font-size: .7rem; }
