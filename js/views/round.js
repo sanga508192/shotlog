@@ -93,7 +93,7 @@ export function holeView([roundId, numStr], ctx) {
     const fmtD = (m) => `${Math.round(toUnit(m, unit))} ${unitTh(unit)}`;
     const planned = planClubId(tp);
     if (d.F.sequence === 1 && planned && bag.some((c) => c.id === planned)) return { club: planned, type: 'tee', why: 'ตามแผนทีออฟหลุมนี้' };
-    if (d.F.sequence === 1 && (hole.par ?? 4) >= 4) {
+    if (d.F.sequence === 1 && hole.par >= 4) {
       const id = usualClub((s, h) => s.sequence === 1 && (h.par ?? 0) >= 4);
       return id ? { club: id, type: 'tee', why: 'ไม้ทีออฟที่คุณใช้บ่อย' } : null;
     }

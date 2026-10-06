@@ -36,9 +36,10 @@ export function clubRows() {
     rounds: st.rounds(), holesOf: st.holesOf, shotsOf: st.shotsOf, penaltiesOf: st.penaltiesOf, clubOf: st.club,
     teeOf: (r, h) => confirmedPoint(courseHoles(r.course_id)[courseHoleNo(h)], 'tee'),
   });
-  const have = new Set(gps.filter((r) => r.n >= 3).map((r) => r.club_id));
+  const ok = gps.filter((r) => !r.suspect);
+  const have = new Set(ok.filter((r) => r.n >= 3).map((r) => r.club_id));
   const sim = launchCarryRows([...st.S.practice.values()], st.club).filter((r) => !have.has(r.clubId));
-  return [...gps, ...sim];
+  return [...ok, ...sim];
 }
 
 export const pinHtml = {

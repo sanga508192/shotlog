@@ -915,6 +915,16 @@ const quant = (arr, p) => {
 };
 
 // ระยะของแต่ละไม้จากช็อตเต็ม (ทีออฟ/เข้ากรีน) ที่สัมผัสไม่พลาด ไม่โดนลูกโทษ ไม่ออกนอกเขต
+// ระยะรวมที่เป็นไปได้ของไม้แต่ละประเภท (เมตร กว้างพอสำหรับมือสมัครเล่นทุกระดับ)
+// ระยะกลางจาก GPS หลุดช่วงนี้ = น่าจะจดไม้ผิด (เช่น ไม้ที่แอปเลือกไว้ให้แล้วไม่ได้เปลี่ยน) → ไม่นำไปแนะนำไม้
+export const CLUB_RANGE = {
+  driver: [128, 320], wood: [110, 290], hybrid: [100, 250], iron: [50, 230], wedge: [15, 150],
+};
+export const clubSuspect = (category, median) => {
+  const r = CLUB_RANGE[category];
+  return !!r && Number.isFinite(median) && (median < r[0] || median > r[1]);
+};
+
 export function clubDistances({ rounds, holesOf, shotsOf, penaltiesOf, clubOf, teeOf = () => null }) {
   const by = new Map();
   for (const r of rounds) {
@@ -930,13 +940,19 @@ export function clubDistances({ rounds, holesOf, shotsOf, penaltiesOf, clubOf, t
         if (!club || club.category === 'putter' || !['tee', 'approach'].includes(s.shot_type)) continue;
         if (['top', 'fat'].includes(s.contact) || penalized.has(id) || TROUBLE_ENDS.includes(s.end_lie)) continue;
         if (d < 20 || d > 400) continue;
-        if (!by.has(club.id)) by.set(club.id, { club, ds: [] });
+        if (!by.has(club.id)) by.set(club.id, { club, ds: [], refs: [] });
         by.get(club.id).ds.push(d);
+        by.get(club.id).refs.push({ roundId: r.id, date: r.played_at, hole: h.number, d });
       }
     }
   }
-  return [...by.values()].map(({ club, ds }) => {
+  return [...by.values()].map(({ club, ds, refs }) => {
     ds.sort((a, b) => a - b);
-    return { club_id: club.id, label: club.label, category: club.category, order: club.order ?? 0, n: ds.length, median: quant(ds, 0.5), p25: quant(ds, 0.25), p75: quant(ds, 0.75), max: ds.at(-1) };
+    const median = quant(ds, 0.5);
+    const suspect = ds.length >= 3 && clubSuspect(club.category, median);
+    return {
+      club_id: club.id, label: club.label, category: club.category, order: club.order ?? 0, n: ds.length, median, p25: quant(ds, 0.25), p75: quant(ds, 0.75), max: ds.at(-1),
+      suspect, ...(suspect ? { refs: refs.sort((a, b) => String(b.date).localeCompare(String(a.date)) || a.hole - b.hole) } : {}),
+    };
   }).sort((a, b) => a.order - b.order);
 }

@@ -208,7 +208,7 @@ export function clubDistanceHtml() {
   }
   const unit = st.setting('map_unit', 'yd');
   const u = (m) => Math.round(toUnit(m, unit));
-  const cmp = compareDistances(rows, simRows);
+  const cmp = compareDistances(rows.filter((r) => !r.suspect), simRows);
   const pctTxt = cmp.avgPct == null ? '' : Math.abs(cmp.avgPct) < 0.06
     ? 'ระยะในสนามใกล้เคียงกับตอนซ้อม เลือกไม้ตามระยะซ้อมได้'
     : cmp.avgPct < 0 ? `ในสนามได้ระยะน้อยกว่าตอนซ้อมเฉลี่ย ${Math.round(-cmp.avgPct * 100)}% เลือกไม้ตามระยะในสนาม (บนสุดของตาราง) ไม่ใช่ระยะซ้อม`
@@ -217,10 +217,16 @@ export function clubDistanceHtml() {
       <table><thead><tr><th>ไม้</th><th>ในสนาม</th><th>เครื่องซ้อม</th><th>ต่าง</th></tr></thead><tbody>
       ${cmp.rows.map((r) => `<tr><td>${esc(r.label)}</td><td>${u(r.course)}</td><td>${u(r.sim)}</td><td class="${r.pct < -0.06 ? 'bad' : r.pct > 0.06 ? 'good' : ''}">${r.diff > 0 ? '+' : ''}${u(r.diff)}</td></tr>`).join('')}
       </tbody></table><p class="note">${esc(pctTxt)} · เครื่องซ้อมใช้ระยะรวม (ลอย + กลิ้ง)</p></div>` : '';
+  const catTh = { driver: 'ไดรเวอร์', wood: 'หัวไม้', hybrid: 'ไฮบริด', iron: 'เหล็ก', wedge: 'เวดจ์' };
+  const suspects = rows.filter((r) => r.suspect);
+  const suspectHtml = suspects.map((r) => `<div class="card warn small cd-suspect">
+      <b>⚠️ ระยะ ${esc(r.label)} ${u(r.median)} ${unitTh(unit)} ไม่น่าใช่${catTh[r.category] ?? 'ไม้นี้'}</b> อาจจดไม้ผิด (เช่น ไม้ที่แอปเลือกไว้ให้แล้วไม่ได้เปลี่ยน) · แอปไม่ใช้ระยะนี้แนะนำไม้
+      <div class="cd-refs">แก้ไม้ของช็อตได้ที่: ${r.refs.slice(0, 8).map((x) => `<a href="#/round/${encodeURIComponent(x.roundId)}/hole/${x.hole}">${esc(fmtDate(x.date))} หลุม ${x.hole} (${u(x.d)})</a>`).join(' ')}${r.refs.length > 8 ? ` และอีก ${r.refs.length - 8}` : ''}</div>
+    </div>`).join('');
   const top = Math.max(...rows.map((r) => r.p75)) * 1.08;
   const pct = (m) => `${((m / top) * 100).toFixed(1)}%`;
-  return `<div class="card club-dist">
-    ${rows.map((r) => `<div class="cd-row${r.n < 3 ? ' few' : ''}">
+  return `${suspectHtml}<div class="card club-dist">
+    ${rows.map((r) => `<div class="cd-row${r.n < 3 ? ' few' : ''}${r.suspect ? ' suspect' : ''}">
       <b class="cd-club">${esc(r.label)}</b>
       <div class="cd-bar" aria-hidden="true"><span style="left:${pct(r.p25)};width:${pct(Math.max(r.p75 - r.p25, top * 0.01))}"></span><i style="left:${pct(r.median)}"></i></div>
       <span class="cd-num"><b>${u(r.median)}</b> <small>${u(r.p25)}–${u(r.p75)} · ${r.n} ครั้ง</small></span>

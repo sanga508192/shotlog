@@ -100,6 +100,32 @@ test('ระยะไม้จริง: ใช้เฉพาะช็อตเ
   near(rows[1].median / YD, 150, 0.5);
 });
 
+test('ระยะไม้ที่ไม่สมเหตุสมผล (ไดรเวอร์ 100 หลาในสนามพาร์ 3) = น่าจะจดไม้ผิด ไม่นำไปแนะนำ', async () => {
+  const { clubSuspect } = await import('../js/coach.js');
+  assert.equal(clubSuspect('driver', 102 * YD), true);
+  assert.equal(clubSuspect('driver', 200 * YD), false);
+  assert.equal(clubSuspect('wedge', 100 * YD), false);
+  assert.equal(clubSuspect('iron', 30), true);
+  assert.equal(clubSuspect('putter', 3), false, 'ไม่ตรวจพัตเตอร์');
+  const clubs = { D: { id: 'D', label: 'D', category: 'driver', order: 0 } };
+  const tee = { lat: 14.5, lon: 101.4 };
+  const holes = [], shots = new Map();
+  for (let i = 1; i <= 4; i++) {
+    holes.push({ id: `p${i}`, number: i, round_id: 'r3' });
+    const g = destination(tee, 0, (95 + i * 3) * YD);
+    shots.set(`p${i}`, [
+      { id: `p${i}a`, sequence: 1, club_id: 'D', shot_type: 'tee', gps: { ...tee, acc: 5 } },
+      { id: `p${i}b`, sequence: 2, club_id: null, shot_type: 'putt', gps: { ...g, acc: 5 } },
+    ]);
+  }
+  const [d] = clubDistances({
+    rounds: [{ id: 'r3', played_at: '2026-10-05', shot_logging: true }], holesOf: () => holes, shotsOf: (id) => shots.get(id), penaltiesOf: () => [], clubOf: (id) => clubs[id],
+  });
+  assert.equal(d.suspect, true);
+  assert.equal(d.refs.length, 4);
+  assert.deepEqual(d.refs.map((x) => x.hole), [1, 2, 3, 4]);
+});
+
 test('หมุดเริ่มต้นของคีรีมายา: ครบ 18 หลุม เป็นค่าประมาณ และผู้ใช้แก้ทับได้ทีละหมุด', async () => {
   const { COURSE_HOLES } = await import('../js/holedata.js');
   const { isEstimated } = await import('../js/holemap.js');

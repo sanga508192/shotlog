@@ -194,7 +194,11 @@ export class TileMap {
             img.classList.add('on');
             this._maybeDropBack();
           };
-          img.onerror = () => { img.classList.add('err'); this._maybeDropBack(); };
+          img.onerror = () => {
+            img.classList.add('err');
+            if (tz > 12) this._checkMissing(tz, img.src);
+            this._maybeDropBack();
+          };
           img.src = tileUrl(tz, ((tx % n) + n) % n, ty);
           front.node.appendChild(img);
           front.tiles.set(key, img);
@@ -208,6 +212,18 @@ export class TileMap {
     this.onView?.(this);
   }
 
+  // บริการแบบมี API key ตอบ 404 เมื่อไม่มีภาพระดับนี้ (บริการสาธารณะส่งภาพเทาแทน) → ถามสถานะจริงครั้งเดียวต่อระดับ
+  // 404 = ไม่มีภาพ ลดระดับแล้วขยายภาพระดับที่มีแทน · เน็ตมีปัญหา = ไม่ลด (ไม่อยากจำผิดว่าพื้นที่นี้ไม่มีภาพ)
+  _checkMissing(tz, url) {
+    this.checked ??= new Set();
+    if (this.checked.has(tz) || this.maxNative < tz) return;
+    this.checked.add(tz);
+    fetch(url, { mode: 'cors' }).then((res) => {
+      if (res.status === 404) this._lowerMax(tz);
+      else this.checked.delete(tz);
+    }).catch(() => { this.checked.delete(tz); });
+  }
+
   _lowerMax(tz) {
     if (this.maxNative < tz) return;
     this.maxNative = tz - 1;
@@ -218,7 +234,7 @@ export class TileMap {
   _maybeDropBack() {
     const [front, back] = this.layers;
     if (back.tz == null) return;
-    for (const img of front.tiles.values()) if (!img.classList.contains('on') && !img.classList.contains('err')) return;
+    for (const img of front.tiles.values()) if (!img.classList.contains('on')) return;
     for (const img of back.tiles.values()) img.remove();
     back.tiles.clear();
     back.tz = null;

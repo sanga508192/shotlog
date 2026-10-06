@@ -1044,3 +1044,6 @@ html[data-sun="1"] .muted, html[data-sun="1"] .note, html[data-sun="1"] .small {
 .progress .stat-strip b.bad { color: var(--bad); }
 .progress .stat-strip { grid-template-columns: repeat(4, 1fr); }
 .progress .stat-strip span { font-size: .7rem; }
+.cd-row.suspect { opacity: .45; }
+.cd-refs { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 4px; }
+.cd-refs a { white-space: nowrap; }
