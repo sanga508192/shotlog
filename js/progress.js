@@ -1,5 +1,5 @@
 // พัฒนาการ (คำนวณล้วน ๆ): สกอร์รายรอบ ค่าเฉลี่ยเคลื่อนที่ สรุปรายเดือน และแต้มต่อ (WHS โดยประมาณ) หลังแต่ละรอบ
-import { holeFacts } from './coach.js';
+import { holeFacts, scoredEnough } from './coach.js';
 import { playerHoleScore, ME } from './group.js';
 import { differential, indexFrom, validRating } from './handicap.js';
 
@@ -22,7 +22,7 @@ export function scoreRounds({ rounds, holesOf, shotsOf, penaltiesOf }) {
         if (f) facts.push(f);
       }
     }
-    if (n < 9) continue;
+    if (!scoredEnough(n, r.hole_count)) continue;
     out.push({ id: r.id, date: String(r.played_at || '').slice(0, 10), course: r.course_name_snapshot || '', n, over, score18: 72 + (over * 18) / n, facts });
   }
   return out;

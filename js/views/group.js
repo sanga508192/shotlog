@@ -2,9 +2,10 @@
 import * as st from '../state.js';
 import { esc, header, chips, toast } from '../ui.js';
 import {
-  ME, MAX_PLAYERS, SCORE_KINDS, GAME_TYPES, playersOf, scoreGrid, computeGame, pointsSummary, fmtOver,
+  ME, MAX_PLAYERS, SCORE_KINDS, GAME_TYPES, playersOf, scoreGrid, computeGame, pointsSummary, fmtOver, halfLabels,
 } from '../group.js';
 import { holeFacts } from '../coach.js';
+import { courseHoleNo } from '../holemap.js';
 
 export const myName = () => st.setting('my_name', 'ฉัน');
 export const shotLogging = (round) => round.shot_logging !== false;
@@ -29,6 +30,24 @@ export async function renameMe(name, alsoRound = null) {
   return true;
 }
 
+// ---------- จำนวนหลุมของสนาม ----------
+// สนามที่เพิ่มเองเก็บในรายการสนาม · สนามในรายชื่อเก็บในค่าตั้ง · ไม่ได้ตั้ง = ดูจากสกอร์การ์ด (สั้นกว่า 18 หลุม) ไม่งั้น 18
+const sizeKey = (courseId) => `course_size:${courseId}`;
+export const SIZE_MAX = 27;
+export function courseSize(courseId) {
+  const own = Number(st.S.userCourses.get(courseId)?.holes ?? st.setting(sizeKey(courseId), null));
+  if (Number.isInteger(own) && own >= 1 && own <= SIZE_MAX) return own;
+  const n = st.scorecard(courseId)?.par?.length;
+  return n && n < 18 ? n : 18;
+}
+export async function setCourseSize(courseId, n) {
+  if (!Number.isInteger(n) || n < 1 || n > SIZE_MAX) return false;
+  const uc = st.S.userCourses.get(courseId);
+  if (uc) await st.put('userCourses', { ...uc, holes: n });
+  else await st.setSetting(sizeKey(courseId), n);
+  return true;
+}
+
 // ---------- พาร์/HC ที่จำไว้ของสนาม ----------
 
 const cardKey = (courseId) => `course_card:${courseId}`;
@@ -38,8 +57,9 @@ export async function rememberCourseCard(courseId, holes) {
   const prev = courseCard(courseId) || { pars: {}, hc: {} };
   const next = { pars: { ...prev.pars }, hc: { ...prev.hc } };
   for (const h of holes) {
-    if (Number.isInteger(h.par)) next.pars[h.number] = h.par;
-    if (Number.isInteger(h.hc_index)) next.hc[h.number] = h.hc_index;
+    const n = courseHoleNo(h);   // เล่นวนรอบที่สอง: จำเป็นของหลุมจริงของสนาม
+    if (Number.isInteger(h.par)) next.pars[n] = h.par;
+    if (Number.isInteger(h.hc_index)) next.hc[n] = h.hc_index;
   }
   await st.setSetting(cardKey(courseId), next);
 }
@@ -116,6 +136,8 @@ const KIND_CLASS = { hio: 'k-hio', albatross: 'k-eagle', eagle: 'k-eagle', birdi
 
 export function groupTableHtml(round, grid) {
   const ps = grid.players;
+  const half = grid.half ?? 9;
+  const labels = halfLabels(half);
   const hasHc = grid.rows.some((r) => Number.isInteger(r.hc));
   const head = `<tr><th>H</th><th>P</th>${hasHc ? '<th>HC</th>' : ''}${ps.map((p) => `<th>${esc(p.name)}</th>`).join('')}</tr>`;
   const cell = (c) => {
@@ -129,11 +151,11 @@ export function groupTableHtml(round, grid) {
   const body = [];
   for (const r of grid.rows) {
     body.push(`<tr data-act="goHole" data-n="${r.number}"><td>${r.number}</td><td>${r.par ?? '–'}</td>${hasHc ? `<td class="muted">${r.hc ?? ''}</td>` : ''}${ps.map((p) => cell(r.cells[p.id])).join('')}</tr>`);
-    if (r.number === 9 && grid.rows.length > 9) body.push(sub('9แรก', grid.front, 'sub'));
-    if (r.number === 18 && grid.rows.length > 18) body.push(sub('9หลัง', grid.back, 'sub'));
+    if (r.number === half && grid.rows.length > half) body.push(sub(labels[0], grid.front, 'sub'));
+    if (r.number === half * 2 && grid.rows.length > half * 2) body.push(sub(labels[1], grid.back, 'sub'));
   }
-  if (grid.rows.length > 9) {
-    if (grid.rows.length <= 18) body.push(sub('9หลัง', grid.back, 'sub'));
+  if (grid.rows.length > half) {
+    if (grid.rows.length <= half * 2) body.push(sub(labels[1], grid.back, 'sub'));
   }
   body.push(sub('รวม', grid.total, 'total'));
   return `<div class="table-wrap"><table class="card-table gtable">${head}${body.join('')}</table></div>`;

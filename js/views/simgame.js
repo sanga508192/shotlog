@@ -7,6 +7,7 @@ import { buildGame, passText, DEFAULT_NINE } from '../simgame.js';
 import { drillHistory } from '../coach.js';
 import { clubRows } from './map.js';
 import { missSide } from './holeplan.js';
+import { courseSize } from './group.js';
 
 const DRILL_ID = 'strategy-range-round';
 const G = { course: null, nine: 'front', done: new Set() };
@@ -15,7 +16,7 @@ const G = { course: null, nine: 'front', done: new Set() };
 function courseHolesList(courseId) {
   const sc = st.scorecard(courseId);
   const pins = courseHoles(courseId);
-  const n = sc?.par?.length || 18;
+  const n = Math.max(sc?.par?.length || 0, courseSize(courseId));
   return Array.from({ length: n }, (_, i) => {
     const num = i + 1;
     const p = pins[num];
@@ -29,7 +30,7 @@ function playedCourses() {
   const count = new Map();
   for (const r of st.rounds()) if (r.course_id) count.set(r.course_id, (count.get(r.course_id) || 0) + 1);
   return [...count].sort((a, b) => b[1] - a[1]).map(([id]) => id)
-    .filter((id) => courseHolesList(id).filter((h) => h.par && h.lengthM).length >= 9).slice(0, 5);
+    .filter((id) => courseHolesList(id).filter((h) => h.par && h.lengthM).length >= Math.min(9, courseSize(id))).slice(0, 5);
 }
 
 export function simGameView(_p, ctx) {

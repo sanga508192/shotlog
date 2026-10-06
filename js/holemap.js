@@ -127,6 +127,11 @@ export const holesSource = (courseId) => COURSE_HOLES[courseId]?.source ?? null;
 
 export const holeReady = (h) => !!(h?.tee && h?.green);
 
+// หลุมจริงของสนาม: สนามเล็ก (เช่น 8 หรือ 9 หลุม) เล่นวนรอบที่สอง หลุมในรอบเลข 9 คือหลุม 1 ของสนาม
+// หลุมของรอบเก็บ course_hole ไว้ตอนเริ่มรอบ · ไม่มี = เลขเดียวกับหลุมในรอบ
+export const courseHoleNo = (hole) => (Number.isInteger(hole?.course_hole) && hole.course_hole > 0 ? hole.course_hole : hole?.number);
+export const loopHoleNo = (n, size) => (Number.isInteger(size) && size > 0 && n > size ? ((n - 1) % size) + 1 : n);
+
 const round7 = (p) => ({ lat: Math.round(p.lat * 1e7) / 1e7, lon: Math.round(p.lon * 1e7) / 1e7 });
 
 async function updateHole(courseId, n, fn) {

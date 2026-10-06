@@ -5,10 +5,10 @@ import { CURATED_COURSES, ISAN_PROVINCES, searchCourses, findDuplicateCourse, so
 import { getPosition, lastPosition } from '../geo.js';
 import { UNITS } from '../constants.js';
 import { enabled as cloudEnabled, session as cloudSession } from '../cloud.js';
-import { courseCard, rememberCourseCard, rememberFriends, friends, myName, gridOf } from './group.js';
+import { courseCard, rememberCourseCard, rememberFriends, friends, myName, gridOf, courseSize, setCourseSize, SIZE_MAX } from './group.js';
 import { ME, MAX_PLAYERS, playersOf, fmtOver } from '../group.js';
 import { coachData, focusListHtml } from './coach.js';
-import { courseHoles, holeReady, isEstimated } from '../holemap.js';
+import { courseHoles, holeReady, isEstimated, loopHoleNo } from '../holemap.js';
 import { offlineButton, saveCourseOffline } from './map.js';
 import { whatsNewCard, markNewsSeen } from './whatsnew.js';
 
@@ -259,6 +259,7 @@ export function coursesView(_p, ctx) {
         <label>ชื่อสนาม<input class="input" name="name" required value="${esc(pick.q)}"></label>
         <label>ชื่ออังกฤษ (ถ้ามี)<input class="input" name="name_en"></label>
         <label>จังหวัด<input class="input" name="province" list="prov" required value="${esc(pick.province)}"></label>
+        <label>จำนวนหลุมของสนาม<select class="input" name="holes">${[18, 9, 8, 6, 12, 27].map((v) => `<option value="${v}">${v} หลุม</option>`).join('')}</select></label>
         <datalist id="prov">${ISAN_PROVINCES.map((p) => `<option value="${esc(p)}">`).join('')}</datalist>
         <label class="check"><input type="checkbox" name="here"> 📍 ใช้ตำแหน่งปัจจุบันเป็นตำแหน่งสนาม (ติ๊กเมื่ออยู่ที่สนาม)</label>
         <div class="row gap"><button class="btn primary">เพิ่มและเลือก</button><button type="button" class="btn" data-act="hideAdd">ยกเลิก</button></div>
@@ -314,6 +315,7 @@ export function coursesView(_p, ctx) {
             id, display_name_th: name, name_en: form.name_en.value.trim(), aliases: [], province,
             region: ISAN_PROVINCES.includes(province) ? 'northeast' : 'other',
             source_urls: [], checked_at: null, origin: 'user', scorecard_status: 'none', created_at: st.nowIso(), geo,
+            holes: Number(form.holes.value) || 18,
           });
         }
         pick.adding = false;
@@ -331,11 +333,18 @@ export function newRoundView([courseId], ctx) {
   const c = st.course(courseId);
   if (!c) return { html: `${header('ไม่พบสนาม', { back: '#/courses' })}<div class="page"><p>ไม่พบสนามนี้</p></div>` };
   const sc = st.scorecard(courseId);
+  const size = courseSize(courseId);
+  // ตัวเลือกจำนวนหลุม: สนามเล็ก = 1 รอบสนาม / เล่น 2 รอบ · สนาม 18 หลุม = 9 / 18
+  const holeOpts = size < 18
+    ? [{ v: size, th: `${size} หลุม (1 รอบสนาม)` }, { v: size * 2, th: `${size * 2} หลุม (เล่น 2 รอบ)` }, { v: 'custom', th: 'กำหนดเอง' }]
+    : [{ v: 9, th: '9 หลุม' }, { v: 18, th: '18 หลุม' }, { v: 'custom', th: 'กำหนดเอง' }];
+  const pickCount = (n) => (holeOpts.some((o) => o.v === n) ? { holes: n, custom: '' } : { holes: 'custom', custom: String(n) });
   if (!nr || nr.courseId !== courseId) {
     const card = courseCard(courseId);
     const pre = prefillFromScorecard(sc, null, card);
+    const last = st.rounds().find((r) => r.course_id === courseId && Number.isInteger(r.hole_count))?.hole_count;
     nr = {
-      courseId, date: st.todayLocal(), holes: sc?.par.length === 9 ? 9 : 18, custom: '', tee: '', teeId: null, unit: st.setting('distance_unit', 'm'), note: '',
+      courseId, date: st.todayLocal(), ...pickCount(last ?? (size < 18 ? size : sc?.par.length === 9 ? 9 : 18)), tee: '', teeId: null, unit: st.setting('distance_unit', 'm'), note: '', sizeEdit: false,
       pars: pre.pars, hc: pre.hc, dist: {}, fromCard: !!card,
       mates: [], mateName: '', shotLogging: st.setting('default_shot_logging', true),
     };
@@ -344,6 +353,8 @@ export function newRoundView([courseId], ctx) {
   const known = friends().filter((f) => !nr.mates.some((m) => m.name === f.name)).slice(0, 12);
   const parsSet = Object.values(nr.pars).filter(Boolean).length;
   const count = nr.holes === 'custom' ? Math.min(36, Math.max(1, parseInt(nr.custom, 10) || 0)) : nr.holes;
+  const loop = count > size;   // เล่นวน: หลุมเกินจำนวนหลุมของสนาม ใช้พาร์/HC/ระยะ/หมุดของหลุมจริง
+  const valOf = (map, n) => map[n] ?? (loop ? map[loopHoleNo(n, size)] : undefined);
   const parOpts = [{ v: '3', th: '3' }, { v: '4', th: '4' }, { v: '5', th: '5' }, { v: '6', th: '6' }];
   const { cues } = coachData();
   return {
@@ -352,6 +363,13 @@ export function newRoundView([courseId], ctx) {
         <div class="small muted">⛳ สนามที่เลือก <a class="mini" style="float:right" href="#/courses">เปลี่ยน</a></div>
         <div class="course-picked" id="picked-name">${esc(c.display_name_th)}</div>
         <div><span class="tag" id="picked-province">${esc(c.province)}</span>${c.origin === 'user' ? '<span class="tag user">เพิ่มเอง</span>' : ''}</div>
+        <div class="course-size">สนามนี้มี <b>${size} หลุม</b>${nr.sizeEdit ? '' : ' <button type="button" class="mini" data-act="sizeEdit">แก้จำนวนหลุม</button>'}</div>
+        ${nr.sizeEdit ? `<div class="size-edit">
+          <div class="chips">${[8, 9, 18].map((v) => `<button type="button" class="chip${v === size ? ' on' : ''}" data-act="sizePick" data-v="${v}">${v} หลุม</button>`).join('')}</div>
+          <div class="row gap"><input class="input" type="number" min="1" max="${SIZE_MAX}" inputmode="numeric" placeholder="จำนวนอื่น เช่น 6, 12, 27" data-change="sizeOther" aria-label="จำนวนหลุมของสนาม">
+            <button type="button" class="mini" data-act="sizeEdit">ยกเลิก</button></div>
+          <p class="note">จำไว้เป็นของสนามนี้ · สนามเล็กเล่นวน 2 รอบได้ หลุมในรอบที่สองใช้พาร์ HC ระยะ และหมุดของหลุมจริงซ้ำ</p>
+        </div>` : ''}
       </div>
       ${sc ? `<div class="card">
         <div class="row between"><b>📋 สกอร์การ์ดของสนามนี้</b><span class="small muted">พาร์ ${sc.par.reduce((a, b) => a + (b || 0), 0)} · ${sc.par.length} หลุม</span></div>
@@ -389,15 +407,16 @@ export function newRoundView([courseId], ctx) {
       <h2>รายละเอียดรอบ</h2>
       <label>วันที่<input class="input" type="date" value="${esc(nr.date)}" data-input="date"></label>
       <div class="field"><div class="lbl">จำนวนหลุม</div>
-        ${chips('holes', 'holes', [{ v: 9, th: '9 หลุม' }, { v: 18, th: '18 หลุม' }, { v: 'custom', th: 'กำหนดเอง' }], nr.holes)}
+        ${chips('holes', 'holes', holeOpts, nr.holes)}
+        ${loop ? `<p class="note">หลุม ${size + 1}–${count} คือหลุม 1–${Math.min(size, count - size)} ของสนามวนอีกรอบ</p>` : ''}
         ${nr.holes === 'custom' ? `<input class="input" type="number" min="1" max="36" inputmode="numeric" placeholder="จำนวนหลุม" value="${esc(nr.custom)}" data-change="custom">` : ''}
       </div>
       <label>ชุดแท่นที (ถ้าทราบ)<input class="input" value="${esc(nr.tee)}" placeholder="เช่น ขาว, ฟ้า" data-input="tee"></label>
       <div class="field"><div class="lbl">หน่วยระยะ</div>${chips('unit', 'unit', UNITS, nr.unit)}</div>
       <details class="card"${nr.fromCard ? '' : ''}><summary>พาร์รายหลุม ${parsSet ? `(${parsSet}/${count})` : '(ไม่บังคับ)'}</summary>
         <div class="row gap wrap"><span class="lbl inline">ตั้งทุกหลุม:</span>${[3, 4, 5].map((v) => `<button type="button" class="mini" data-act="allpar" data-v="${v}">พาร์ ${v}</button>`).join('')}</div>
-        <div class="par-grid">${Array.from({ length: count }, (_, i) => i + 1).map((n) => `<div class="par-cell"><span>หลุม ${n}</span>
-          ${chips('par', String(n), parOpts, nr.pars[n] ? String(nr.pars[n]) : null, { cls: 'tight' })}</div>`).join('')}
+        <div class="par-grid">${Array.from({ length: count }, (_, i) => i + 1).map((n) => `<div class="par-cell"><span>หลุม ${n}${loop && n > size ? ` <small class="muted">(หลุม ${loopHoleNo(n, size)})</small>` : ''}</span>
+          ${chips('par', String(n), parOpts, valOf(nr.pars, n) ? String(valOf(nr.pars, n)) : null, { cls: 'tight' })}</div>`).join('')}
         </div>
       </details>
       <label>หมายเหตุ<textarea class="input" rows="2" data-input="note">${esc(nr.note)}</textarea></label>
@@ -452,6 +471,21 @@ export function newRoundView([courseId], ctx) {
       note: (el) => { nr.note = el.value; },
       custom: (el) => { nr.custom = el.value; ctx.rerender(); },
       holes: (el) => { const v = el.dataset.v; nr.holes = v === 'custom' ? 'custom' : Number(v); ctx.rerender(); },
+      sizeEdit: () => { nr.sizeEdit = !nr.sizeEdit; ctx.rerender(); },
+      sizePick: async (el) => {
+        const n = Number(el.dataset.v);
+        if (!(await setCourseSize(courseId, n))) return;
+        Object.assign(nr, { sizeEdit: false, holes: n < 18 ? n : 18, custom: '' });
+        toast(`ตั้งสนามนี้เป็น ${n} หลุมแล้ว`);
+        ctx.rerender();
+      },
+      sizeOther: async (el) => {
+        const n = parseInt(el.value, 10);
+        if (!(await setCourseSize(courseId, n))) { toast(`ใส่ 1–${SIZE_MAX} หลุม`); return; }
+        Object.assign(nr, { sizeEdit: false, ...(n < 18 ? { holes: 'custom', custom: String(n) } : { holes: 18, custom: '' }) });
+        toast(`ตั้งสนามนี้เป็น ${n} หลุมแล้ว`);
+        ctx.rerender();
+      },
       unit: (el) => { nr.unit = el.dataset.v; ctx.rerender(); },
       par: (el) => {
         const n = el.dataset.field, v = Number(el.dataset.v);
@@ -465,7 +499,7 @@ export function newRoundView([courseId], ctx) {
         const round = {
           id: roundId, played_at: nr.date || st.todayLocal(), course_id: c.id,
           course_name_snapshot: c.display_name_th, province_snapshot: c.province,
-          tee_name: nr.tee.trim() || null, tee_id: nr.teeId, distance_unit: nr.unit, hole_count: count,
+          tee_name: nr.tee.trim() || null, tee_id: nr.teeId, distance_unit: nr.unit, hole_count: count, ...(loop ? { course_size: size } : {}),
           status: 'playing', note: nr.note.trim(), current_hole: 1, created_at: st.nowIso(),
           shot_logging: nr.shotLogging,
           players: [
@@ -476,9 +510,11 @@ export function newRoundView([courseId], ctx) {
         };
         const ops = [{ store: 'rounds', put: round }];
         for (let n = 1; n <= count; n++) {
+          const dist = valOf(nr.dist, n) ?? null;
           ops.push({ store: 'holes', put: {
-            id: st.uid(), round_id: roundId, number: n, par: nr.pars[n] ?? null, hc_index: nr.hc[n] ?? null,
-            distance: nr.dist[n] ?? null, distance_unit: nr.dist[n] != null ? (sc?.unit === 'm' ? 'm' : 'yd') : null,
+            id: st.uid(), round_id: roundId, number: n, par: valOf(nr.pars, n) ?? null, hc_index: valOf(nr.hc, n) ?? null,
+            ...(loop ? { course_hole: loopHoleNo(n, size) } : {}),
+            distance: dist, distance_unit: dist != null ? (sc?.unit === 'm' ? 'm' : 'yd') : null,
             status: 'playing', finish: null, logging_complete: false, note: '',
           } });
         }

@@ -1,7 +1,7 @@
 // แผนทีออฟของหลุม (แสดงตอนเริ่มหลุมและในแผนที่หลุม) · คิดในเครื่องจากข้อมูลของผู้เล่น
 import * as st from '../state.js';
 import { esc } from '../ui.js';
-import { courseHoles, distM, toUnit, unitTh } from '../holemap.js';
+import { courseHoles, distM, toUnit, unitTh, courseHoleNo } from '../holemap.js';
 import { teePlan, hazardsAlong } from '../strategy.js';
 import { clubRows } from './map.js';
 import { simData } from './coach.js';
@@ -11,13 +11,14 @@ function holeHistory(courseId, n, exceptRound) {
   const out = { n: 0, pen: 0, penDriver: 0 };
   for (const r of st.rounds()) {
     if (r.course_id !== courseId || r.id === exceptRound || r.shot_logging === false) continue;
-    const h = st.holesOf(r.id).find((x) => x.number === n);
-    const s1 = h ? st.shotsOf(h.id).find((s) => s.sequence === 1 && s.counted !== false) : null;
-    if (!s1) continue;
-    out.n++;
-    if (st.penaltiesOf(h.id).some((p) => p.related_shot_id_optional === s1.id)) {
-      out.pen++;
-      if (st.club(s1.club_id)?.category === 'driver') out.penDriver++;
+    for (const h of st.holesOf(r.id).filter((x) => courseHoleNo(x) === n)) {
+      const s1 = st.shotsOf(h.id).find((s) => s.sequence === 1 && s.counted !== false);
+      if (!s1) continue;
+      out.n++;
+      if (st.penaltiesOf(h.id).some((p) => p.related_shot_id_optional === s1.id)) {
+        out.pen++;
+        if (st.club(s1.club_id)?.category === 'driver') out.penDriver++;
+      }
     }
   }
   return out;
@@ -42,12 +43,12 @@ export function missSide() {
 // pre = { clubs, miss } คิดไว้แล้ว (หน้าแผนทั้งรอบเรียก 18 หลุม ไม่ต้องคิดระยะไม้ใหม่ทุกหลุม) · คืนระยะหลุม lengthM ด้วย
 export function teePlanFor(round, hole, unit = 'yd', pre = {}) {
   if (!Number.isInteger(hole.par)) return null;
-  const pins = round.course_id ? courseHoles(round.course_id)[hole.number] : null;
+  const pins = round.course_id ? courseHoles(round.course_id)[courseHoleNo(hole)] : null;
   const lengthM = pins?.tee && pins?.green ? distM(pins.tee, pins.green)
     : Number(hole.distance) > 0 ? Number(hole.distance) * (hole.distance_unit === 'yd' ? 0.9144 : 1) : null;
   const fmt = (m) => `${Math.round(toUnit(m, unit))} ${unitTh(unit)}`;
   const tp = teePlan({
-    par: hole.par, lengthM, hazards: hazardsAlong(pins), history: round.course_id ? holeHistory(round.course_id, hole.number, round.id) : null,
+    par: hole.par, lengthM, hazards: hazardsAlong(pins), history: round.course_id ? holeHistory(round.course_id, courseHoleNo(hole), round.id) : null,
     clubs: pre.clubs ?? clubRows(), missSide: 'miss' in pre ? pre.miss : missSide(), fmt,
   });
   return tp ? { ...tp, lengthM } : null;

@@ -38,6 +38,9 @@ export const GOALS = [
 ];
 
 export const goalOf = (v) => GOALS.find((g) => g.v === v) ?? GOALS[2];
+
+// รอบที่นับในระดับสกอร์: มีสกอร์อย่างน้อย 9 หลุม หรือเล่นครบทุกหลุมของรอบสั้น (สนาม 6–8 หลุม)
+export const scoredEnough = (n, holeCount) => n >= 9 || (n >= 6 && Number.isInteger(holeCount) && n >= holeCount);
 export const budgetOver = (goal) => ['pen', 'long', 'miss', 'short', 'putt'].reduce((a, k) => a + goal.budget[k], 0) - goal.budget.save;
 
 // เป้าถัดไปที่ต่ำกว่าค่าเฉลี่ยปัจจุบัน
@@ -158,7 +161,7 @@ export function analyzeGame({ rounds, holesOf, shotsOf, penaltiesOf, clubLabel =
       if (!sc?.final || !Number.isInteger(h.par)) continue;
       holes.push({ par: h.par, hc: h.hc_index ?? null, over: sc.strokes - h.par });
     }
-    if (holes.length < 9) continue;
+    if (!scoredEnough(holes.length, r.hole_count)) continue;
     const over = holes.reduce((a, x) => a + x.over, 0);
     scoreRounds.push({
       id: r.id, date: r.played_at, course: r.course_name_snapshot, holes,

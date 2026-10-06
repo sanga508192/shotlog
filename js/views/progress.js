@@ -57,7 +57,7 @@ export function progressView(_p, ctx) {
     label: `กราฟสกอร์ ${list.length} รอบ เทียบเป้า ${goal.score}`,
   })}
     <p class="note">จุด = สกอร์แต่ละรอบ (เทียบ 18 หลุม พาร์ 72) · เส้น = ค่าเฉลี่ย 5 รอบล่าสุด · ยิ่งต่ำยิ่งดี · จุดสีเขียว = ถึงเป้า</p>`
-    : `<div class="card small">${all.length ? 'ช่วงนี้มีรอบไม่ถึง 2 รอบ ลองเลือก "ทั้งหมด"' : 'ยังไม่มีรอบที่จบ (ต้องมีสกอร์อย่างน้อย 9 หลุมที่รู้พาร์)'}</div>`;
+    : `<div class="card small">${all.length ? 'ช่วงนี้มีรอบไม่ถึง 2 รอบ ลองเลือก "ทั้งหมด"' : 'ยังไม่มีรอบที่จบ (ต้องมีสกอร์อย่างน้อย 9 หลุมที่รู้พาร์ หรือครบทุกหลุมของรอบสั้น)'}</div>`;
 
   const hcpHtml = hcp.length >= 2 ? `${timeChart({
     points: hcp.map((h) => ({ date: h.date, v: h.index })), line: hcp.map((h) => ({ date: h.date, v: h.index })),

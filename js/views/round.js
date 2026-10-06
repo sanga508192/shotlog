@@ -5,7 +5,7 @@ import { LIES, HOLE_FINISH, HOLE_STATUS, label, PENALTY_ENDS, RELIEFS } from '..
 import { holeScore, fmtToPar, suggestShotType, shiftForInsert, resequence } from '../logic.js';
 import { groupEntryHtml, setGroupScore, isGroupRound, shotLogging, rememberCourseCard } from './group.js';
 import { watchPosition, lastPosition } from '../geo.js';
-import { courseHoles, distM, toUnit, unitTh, confirmedPoint, holeReady, setHolePoint } from '../holemap.js';
+import { courseHoles, distM, toUnit, unitTh, confirmedPoint, holeReady, setHolePoint, courseHoleNo } from '../holemap.js';
 import { GPS_MAX_ACC, suggestClub } from '../coach.js';
 import { clubRows } from './map.js';
 import { shotPath, landOf } from '../shotgeo.js';
@@ -37,7 +37,8 @@ export function holeView([roundId, numStr], ctx) {
   const logShots = shotLogging(round);
   const group = isGroupRound(round);
   const gpsOn = logShots && st.setting('gps_shots', false);
-  const pins = round.course_id ? courseHoles(round.course_id)[num] : null;
+  const pinNo = courseHoleNo(hole);   // เล่นวนรอบที่สอง: หมุดของหลุมจริงของสนาม
+  const pins = round.course_id ? courseHoles(round.course_id)[pinNo] : null;
   const unit = round.distance_unit === 'yd' ? 'yd' : 'm';
   // แผนทีออฟ: แสดงตอนเริ่มหลุม (ยังไม่มีช็อต)
   const tp = shots.length === 0 && hole.status === 'playing' ? teePlanFor(round, hole, unit) : null;
@@ -161,6 +162,7 @@ export function holeView([roundId, numStr], ctx) {
     <div class="card hole-head">
       <div class="hole-num"><span>หลุม</span><b>${num}</b><small>/ ${holes.length}</small></div>
       <div class="hole-meta">
+        ${pinNo !== num ? `<div class="small muted">รอบที่สองของสนาม · หลุม ${pinNo} ของสนาม</div>` : ''}
         <div class="par-pick"><span class="lbl inline">พาร์</span>${chips('par', 'par', parOpts, hole.par, { cls: 'tight inline' })}</div>
         <div class="row gap wrap hole-tools">
           ${round.course_id ? `<a class="mini map-link" href="#/map/${encodeURIComponent(round.course_id)}/${num}?r=${encodeURIComponent(roundId)}">🗺 แผนที่หลุม</a>` : ''}
@@ -278,10 +280,10 @@ export function holeView([roundId, numStr], ctx) {
       const wasEdit = d.mode === 'edit';
       const wasNew = d.mode === 'new';
       if (!wasEdit && shot.sequence === 1 && shot.gps && shot.gps.acc <= 12 && round.course_id) {
-        const p = courseHoles(round.course_id)[num];
+        const p = courseHoles(round.course_id)[pinNo];
         const near = !p?.tee || distM(p.tee, shot.gps) <= 80;
         if (p?.src?.tee !== 'mine' && near) {
-          await setHolePoint(round.course_id, num, 'tee', { lat: shot.gps.lat, lon: shot.gps.lon, via: 'gps' });
+          await setHolePoint(round.course_id, pinNo, 'tee', { lat: shot.gps.lat, lon: shot.gps.lon, via: 'gps' });
           gpsNote += ' · ปักหมุดแท่นทีจาก GPS แล้ว';
         }
       }

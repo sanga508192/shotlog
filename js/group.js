@@ -57,6 +57,13 @@ export function classify(strokes, par) {
   return 'mess';
 }
 
+// ครึ่งรอบ: ปกติแบ่งที่หลุม 9 · สนามเล็กที่เล่นวน (เช่น 8 หลุม × 2) แบ่งที่รอบสนามแรก
+export function halfOf(round, holeCount) {
+  const s = round?.course_size;
+  return Number.isInteger(s) && s >= 1 && s < holeCount ? s : 9;
+}
+export const halfLabels = (half) => (half === 9 ? ['9แรก', '9หลัง'] : ['รอบแรก', 'รอบหลัง']);
+
 // ตาราง: แถวหลุม × คอลัมน์ผู้เล่น พร้อมรวม 9 แรก / 9 หลัง / ทั้งหมด และจำนวนแต่ละประเภท
 // "เกิน" นับเฉพาะหลุมที่มีสกอร์ครบแล้วของคนนั้น
 export function scoreGrid(round, holes, shotsOf = () => [], penaltiesOf = () => [], myName) {
@@ -95,11 +102,13 @@ export function scoreGrid(round, holes, shotsOf = () => [], penaltiesOf = () => 
       if (k) counts[p.id][k]++;
     }
   }
+  const half = halfOf(round, rows.length);
   return {
     players,
     rows,
-    front: part((r) => r.number <= 9),
-    back: part((r) => r.number >= 10 && r.number <= 18),
+    half,
+    front: part((r) => r.number <= half),
+    back: part((r) => r.number > half && r.number <= half * 2),
     total: part(() => true),
     counts,
   };

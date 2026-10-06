@@ -3,7 +3,7 @@ import * as st from '../state.js';
 import { esc, header, fmtDate, toast } from '../ui.js';
 import { GOALS, analyzeGame, budgetOver, fmtSigned, clubDistances, drill, drillHistory, TEE_MIN, practiceSplit, weekSessions, PRACTICE_PRINCIPLES, WEEK_MINUTES } from '../coach.js';
 import { testResults } from '../launchreport.js';
-import { courseHoles, toUnit, unitTh, confirmedPoint } from '../holemap.js';
+import { courseHoles, toUnit, unitTh, confirmedPoint, courseHoleNo } from '../holemap.js';
 import { drillCard, clipActions } from './drills.js';
 import { analyzeSG } from '../sg.js';
 import { estimateHandicap, ratingKey, validRating } from '../handicap.js';
@@ -27,7 +27,7 @@ export function coachData(goalV = st.setting('coach_goal', null)) {
   const pinsOf = (r, h) => {
     if (!r.course_id) return null;
     if (!byCourse.has(r.course_id)) byCourse.set(r.course_id, courseHoles(r.course_id));
-    const p = byCourse.get(r.course_id)[h.number];
+    const p = byCourse.get(r.course_id)[courseHoleNo(h)];
     return p ? { tee: confirmedPoint(p, 'tee'), green: confirmedPoint(p, 'green') } : null;
   };
   const a = analyzeGame({
@@ -198,7 +198,7 @@ function statTiles(a) {
 export function clubDistanceHtml() {
   const rows = clubDistances({
     rounds: st.rounds(), holesOf: st.holesOf, shotsOf: st.shotsOf, penaltiesOf: st.penaltiesOf, clubOf: st.club,
-    teeOf: (r, h) => confirmedPoint(courseHoles(r.course_id)[h.number], 'tee'),
+    teeOf: (r, h) => confirmedPoint(courseHoles(r.course_id)[courseHoleNo(h)], 'tee'),
   });
   const simRows = launchCarryRows([...st.S.practice.values()], st.club);
   if (!rows.length) {
@@ -339,7 +339,7 @@ export function coachView(_p, ctx) {
         <a class="mini" href="#/progress">📈 ดูกราฟพัฒนาการทั้งหมด (รายเดือน · แต้มต่อ) ›</a>
         <div class="par-types">${a.byPar.filter((p) => p.n).map((p) => `<span>พาร์ ${p.par} <b>${fmtSigned(p.avgOver)}</b></span>`).join('')}</div>
         <p class="note">สกอร์เทียบ 18 หลุม พาร์ 72 · รวมรอบจดเร็วและรอบก๊วน (ใช้สกอร์ของคุณ)</p>`
-    : `<p><b>ยังไม่มีรอบที่จบ</b></p><p class="small">เล่นให้จบอย่างน้อย 9 หลุมที่มีพาร์ แล้วกลับมาดูหน้านี้ ระหว่างนี้ดูแผนซ้อมเริ่มต้นด้านล่างได้</p>`}
+    : `<p><b>ยังไม่มีรอบที่จบ</b></p><p class="small">เล่นให้จบอย่างน้อย 9 หลุมที่มีพาร์ (สนามเล็กเล่นครบทุกหลุมของรอบ) แล้วกลับมาดูหน้านี้ ระหว่างนี้ดูแผนซ้อมเริ่มต้นด้านล่างได้</p>`}
       </section>
 
       <h2>สโตรกหายไปไหน <span class="badge ${confCls}">${confTxt}</span></h2>

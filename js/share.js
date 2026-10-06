@@ -1,5 +1,5 @@
 // สร้างรูปสกอร์การ์ด แบบแนวนอน 16:9 หรือแนวตั้ง (ใส่รูปก๊วนได้) แล้วแชร์ผ่านเมนูแชร์ของมือถือ หรือบันทึกเป็นไฟล์
-import { SCORE_KINDS, fmtOver, openNote, standings } from './group.js';
+import { SCORE_KINDS, fmtOver, openNote, standings, halfLabels } from './group.js';
 
 export const LAYOUTS = [
   { v: 'landscape', th: 'แนวนอน' },
@@ -377,8 +377,9 @@ function highlightTiles(grid, stats) {
   const b = (part) => part.byPlayer[id];
   const tiles = [];
   if (b(grid.front).count && b(grid.back).count) {
-    tiles.push({ label: 'OUT (9 แรก)', value: b(grid.front).strokes, sub: fmtOver(b(grid.front).over) });
-    tiles.push({ label: 'IN (9 หลัง)', value: b(grid.back).strokes, sub: fmtOver(b(grid.back).over) });
+    const [l1, l2] = (grid.half ?? 9) === 9 ? ['9 แรก', '9 หลัง'] : halfLabels(grid.half);
+    tiles.push({ label: `OUT (${l1})`, value: b(grid.front).strokes, sub: fmtOver(b(grid.front).over) });
+    tiles.push({ label: `IN (${l2})`, value: b(grid.back).strokes, sub: fmtOver(b(grid.back).over) });
   }
   const c = grid.counts[id];
   const parOrBetter = c.par + c.birdie + c.eagle + c.albatross + c.hio;
@@ -405,8 +406,9 @@ function drawLandscape({ round, grid, games = [], stats = null }, { photo = null
   const n = ps.length;
   const solo = n === 1;
   const rows = grid.rows;
-  const front = rows.filter((r) => r.number <= 9);
-  const back = rows.filter((r) => r.number > 9);
+  const half = grid.half ?? 9;
+  const front = rows.filter((r) => r.number <= half);
+  const back = rows.filter((r) => r.number > half);
   const split = front.length > 0 && back.length > 0;
   const hasHc = rows.some((r) => Number.isInteger(r.hc));
   const dist = (r) => (Number(r.hole?.distance) > 0 ? Number(r.hole.distance) : null);
@@ -611,6 +613,7 @@ function drawLandscape({ round, grid, games = [], stats = null }, { photo = null
 
 function drawPortrait({ round, grid, games = [] }, { photo = null, crop = {} } = {}) {
   const ps = grid.players;
+  const half = grid.half ?? 9;
   const hasHc = grid.rows.some((r) => Number.isInteger(r.hc));
   const PAD = 16;
   const colW = [54, 46, ...(hasHc ? [42] : [])];
@@ -624,9 +627,9 @@ function drawPortrait({ round, grid, games = [] }, { photo = null, crop = {} } =
   const lines = [{ type: 'head' }];
   for (const r of grid.rows) {
     lines.push({ type: 'hole', r });
-    if (r.number === 9 && grid.rows.some((x) => x.number > 9)) lines.push({ type: 'sub', label: '9 แรก', part: grid.front });
+    if (r.number === half && grid.rows.some((x) => x.number > half)) lines.push({ type: 'sub', label: halfLabels(half)[0], part: grid.front });
   }
-  if (grid.rows.some((x) => x.number > 9) && grid.rows.some((x) => x.number <= 9)) lines.push({ type: 'sub', label: '9 หลัง', part: grid.back });
+  if (grid.rows.some((x) => x.number > half) && grid.rows.some((x) => x.number <= half)) lines.push({ type: 'sub', label: halfLabels(half)[1], part: grid.back });
   lines.push({ type: 'total', label: 'รวม', part: grid.total });
 
   const m = measurer();

@@ -6,6 +6,7 @@ import { ISAN_PROVINCES, findDuplicateCourse } from '../courses.js';
 import { preprocess, wordsFromTsv, gridFromWords } from '../scorecard-ocr.js';
 import { cardFromGrid, parseScorecardText, validateCard, filledCount, mergeCards } from '../scorecard-parse.js';
 import { getPosition } from '../geo.js';
+import { courseSize, setCourseSize } from './group.js';
 
 // ล็อกรุ่นและตรวจความถูกต้องของไฟล์ (SRI) ไฟล์นี้เหมือนกับในแพ็กเกจ npm tesseract.js@7.0.0 ทุกไบต์
 const TESS_URL = 'https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.min.js';
@@ -100,7 +101,7 @@ function summaryHtml(card) {
   const flagged = Object.keys(card.flags).length;
   const blanks = card.par.filter((x) => x == null).length;
   return `<div class="scan-sum">
-    <span class="${v.parTotal === 72 || (card.holes === 9 && v.parTotal === 36) ? 'ok' : 'warn'}">พาร์รวม ${v.parTotal || '–'}${card.holes === 18 ? ` (${v.parFront}/${v.parBack})` : ''}</span>
+    <span class="${(card.holes === 18 ? v.parTotal === 72 : card.holes === 9 ? v.parTotal === 36 : v.parTotal > 0) ? 'ok' : 'warn'}">พาร์รวม ${v.parTotal || '–'}${card.holes === 18 ? ` (${v.parFront}/${v.parBack})` : ''}</span>
     <span class="${v.hcMissing ? 'warn' : 'ok'}">HC ${card.hc.length - v.hcMissing}/${card.hc.length}</span>
     ${card.tees.map((t, i) => `<span>${esc(t.name)} ${v.teeTotals[i] ? v.teeTotals[i].toLocaleString('th-TH') : '–'}</span>`).join('')}
     ${v.count || flagged || blanks ? `<span class="warn">ควรตรวจ ${v.count + flagged} จุด${blanks ? ` · พาร์ว่าง ${blanks}` : ''}</span>` : '<span class="ok">✓ ไม่พบจุดผิดปกติ</span>'}
@@ -172,7 +173,7 @@ export function scanView([courseId], ctx) {
       ${card.warnings.length ? `<ul class="note warn">${card.warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}
       <div id="scan-sum">${summaryHtml(card)}</div>
       <div class="row gap wrap">
-        <button type="button" class="mini" data-act="holes" data-v="${card.holes === 18 ? 9 : 18}">เปลี่ยนเป็น ${card.holes === 18 ? 9 : 18} หลุม</button>
+        <span class="small muted">จำนวนหลุม</span>${[8, 9, 18].map((n) => `<button type="button" class="mini${card.holes === n ? ' primary' : ''}" data-act="holes" data-v="${n}" aria-pressed="${card.holes === n}">${n}</button>`).join('')}
         <button type="button" class="mini" data-act="unit">หน่วย: ${card.unit === 'm' ? 'เมตร' : 'หลา'}</button>
         ${card.tees.length < 6 ? '<button type="button" class="mini" data-act="teeAdd">＋ แท่นที</button>' : ''}
       </div>
@@ -187,7 +188,7 @@ export function scanView([courseId], ctx) {
     actions: {
       f: (el) => { sc[el.dataset.f] = el.value; },
       here: (el) => { sc.here = el.checked; },
-      manual: () => { sc.card = blankCard(18); ctx.rerender(); },
+      manual: () => { sc.card = blankCard(courseId ? courseSize(courseId) : 18); ctx.rerender(); },
       photos: async (el) => {
         const files = [...(el.files || [])];
         el.value = '';
@@ -251,7 +252,7 @@ export function scanView([courseId], ctx) {
         const n = Number(el.dataset.v);
         const fit = (a) => (a.length >= n ? a.slice(0, n) : [...a, ...Array(n - a.length).fill(null)]);
         if (n < card.holes && [card.par, card.hc, ...card.tees.map((t) => t.yards)].some((a) => a.slice(n).some((v) => v != null))
-          && !confirm('ข้อมูลหลุม 10–18 จะถูกตัดออก ดำเนินการต่อ?')) return;
+          && !confirm(`ข้อมูลหลุม ${n + 1}–${card.holes} จะถูกตัดออก ดำเนินการต่อ?`)) return;
         card.holes = n;
         card.par = fit(card.par); card.hc = fit(card.hc);
         card.tees.forEach((t) => { t.yards = fit(t.yards); });
@@ -295,6 +296,8 @@ export function scanView([courseId], ctx) {
             });
           }
         }
+        // การ์ดสั้นกว่า 18 หลุม = จำนวนหลุมของสนาม (ใช้ตอนเริ่มรอบ)
+        if (card.holes < 18) await setCourseSize(id, card.holes);
         sc.photos.forEach((p) => URL.revokeObjectURL(p.url));
         sc = null;
         toast('บันทึกสกอร์การ์ดแล้ว');
