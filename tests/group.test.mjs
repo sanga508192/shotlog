@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   ME, scoreGrid, classify, strokesReceived, skinGame, matchGame, teamGame, stablefordGame, strokeGame,
-  pointsSummary, playerHoleScore,
+  pointsSummary, playerHoleScore, prorate, strokeIndexes,
 } from '../js/group.js';
 
 const holesFrom = (pars, scores, hc = []) => pars.map((par, i) => ({
@@ -84,7 +84,8 @@ test('Skin: หลุมที่ยังกรอกไม่ครบทุ�
 test('Matchplay ทุกคู่ พร้อมแต้มต่อส่วนต่างตามหลุม HC', () => {
   const players = [{ id: 'a', name: 'A', handicap: 10 }, { id: 'b', name: 'B', handicap: 12 }];
   // B ได้ 2 สโตรกที่หลุม HC 1 และ 2
-  const grid = scoreGrid(roundWith(players), holesFrom([4, 4, 4], { a: [4, 4, 4], b: [5, 4, 5] }, [1, 2, 3]));
+  const hc18 = Array.from({ length: 18 }, (_, i) => i + 1);
+  const grid = scoreGrid(roundWith(players), holesFrom(Array(18).fill(4), { a: [4, 4, 4], b: [5, 4, 5] }, hc18));
   const r = matchGame({ type: 'match', point: 1 }, grid);
   const pair = r.pairs[0];
   // หลุม1: 4 vs 5-1=4 เสมอ, หลุม2: 4 vs 4-1=3 B ชนะ, หลุม3: 4 vs 5 A ชนะ
@@ -110,7 +111,7 @@ test('ทีม 2 ต่อ 2: สกอร์ดีที่สุดของ�
 
 test('Stableford และสโตรกรวม (หักแต้มต่อ)', () => {
   const players = [{ id: 'a', handicap: 0 }, { id: 'b', handicap: 18 }];
-  const grid = scoreGrid(roundWith(players), holesFrom([4, 3], { a: [3, 6], b: [5, 4] }, [1, 2]));
+  const grid = scoreGrid(roundWith(players), holesFrom([4, 3, ...Array(16).fill(4)], { a: [3, 6], b: [5, 4] }, Array.from({ length: 18 }, (_, i) => i + 1)));
   const s = stablefordGame({ type: 'stableford' }, grid);
   // a: เบอร์ดี้ 3 + ทริปเปิ้ล 0 = 3, b: net 4 พาร์ 2 + net 3 พาร์ 2 = 4
   assert.deepEqual(s.totals, { a: 3, b: 4 });
@@ -151,4 +152,36 @@ test('สกอร์รวมที่ยังไม่ครบ: บอกห
   const g2 = scoreGrid(roundWith([{ id: ME, name: 'ฉัน' }]), done, shotsOf);
   assert.equal(g2.total.byPlayer[ME].strokes, 82);
   assert.equal(openNote(g2), '');
+});
+
+test('แต้มต่อรอบสั้น: ตามสัดส่วนจำนวนหลุม และแจกตามความยากของหลุมที่เล่นจริง', () => {
+  assert.equal(prorate(18, 9), 9);
+  assert.equal(prorate(10, 16), 9, '10 × 16/18 = 8.9');
+  assert.equal(prorate(5, 18), 5);
+  // เล่น 9 หลุมแรกของสนาม 18 หลุม: HC เป็นเลขคี่ → ลำดับ 1–9 ตามความยาก
+  const nineHc = [7, 15, 3, 11, 17, 9, 1, 13, 5];
+  const nine = scoreGrid(roundWith([{ id: 'a' }]), holesFrom(Array(9).fill(4), { a: [] }, nineHc));
+  assert.deepEqual([...strokeIndexes(nine.rows)].sort((x, y) => x[1] - y[1]).map(([n]) => n), [7, 3, 9, 1, 6, 4, 8, 2, 5]);
+
+  // แต้มต่อ 18 เล่น 9 หลุม = 9 สโตรก หลุมละ 1 (เดิมได้ 18 = หลุมละ 2)
+  const players = [{ id: 'a', handicap: 0 }, { id: 'b', handicap: 18 }];
+  const g9 = scoreGrid(roundWith(players), holesFrom(Array(9).fill(4), { a: Array(9).fill(4), b: Array(9).fill(5) }, nineHc));
+  const m = matchGame({ type: 'match' }, g9).pairs[0];
+  assert.deepEqual([m.strokes, m.wonA, m.wonB, m.halved], [9, 0, 0, 9]);
+  assert.deepEqual(stablefordGame({ type: 'stableford' }, g9).totals, { a: 18, b: 18 });
+  assert.deepEqual(strokeGame({ type: 'stroke' }, g9).net, { a: 36, b: 36 });
+});
+
+test('แต้มต่อสนามเล็กเล่นวน (8 หลุม × 2): HC ซ้ำ แจกสลับรอบแรก/รอบหลัง', () => {
+  const hc8 = [3, 7, 1, 5, 2, 8, 4, 6];
+  const round = { id: 'r', course_size: 8, players: [{ id: 'a', handicap: 0 }, { id: 'b', handicap: 10 }] };
+  const holes = holesFrom(Array(16).fill(4), { a: Array(16).fill(4), b: Array(16).fill(5) }, [...hc8, ...hc8]);
+  const grid = scoreGrid(round, holes);
+  const si = strokeIndexes(grid.rows);
+  assert.deepEqual([si.get(3), si.get(11), si.get(5), si.get(13)], [1, 2, 3, 4], 'HC 1 รอบแรก → รอบหลัง → HC 2 …');
+  // แต้มต่อ 10 × 16/18 = 9 สโตรก: HC 1–4 ทั้งสองรอบ (8) + HC 5 รอบแรก (1)
+  const m = matchGame({ type: 'match' }, grid).pairs[0];
+  assert.equal(m.strokes, 9);
+  const got = m.log.filter((x) => x.winner == null).map((x) => x.number).sort((x, y) => x - y);
+  assert.deepEqual(got, [1, 3, 4, 5, 7, 9, 11, 13, 15], 'หลุมที่ B ได้สโตรกจึงเสมอ (5−1 = 4)');
 });

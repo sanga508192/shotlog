@@ -177,6 +177,18 @@ export function strokesReceived(allowance, si, holeCount = 18) {
 
 const hcpOf = (players, pid) => Math.max(0, Math.round(Number(players.find((p) => p.id === pid)?.handicap) || 0));
 
+// แต้มต่อของผู้เล่นเป็นของ 18 หลุม: รอบที่สั้นกว่า (9 หลุม หรือสนามเล็ก 8 หลุม × 2 = 16) ให้ตามสัดส่วนจำนวนหลุมของรอบ
+// เช่น แต้มต่อ 18 เล่น 9 หลุม = 9 สโตรก (ตามหลัก WHS ครึ่งหนึ่งสำหรับ 9 หลุม)
+export const prorate = (allowance, holeCount) => (holeCount > 0 && holeCount !== 18 ? Math.round((allowance * holeCount) / 18) : allowance);
+
+// ลำดับความยากของหลุมในรอบนี้ (1 = ยากสุด) จาก HC ของสนาม
+// เล่น 9 หลุมของสนาม 18 หลุม (HC 1–18 ปน) หรือสนามเล็กเล่นวน (HC ซ้ำ 2 ครั้ง) ก็แจกสโตรกตามความยากได้ถูก
+// HC เท่ากัน: หลุมที่มาก่อนได้ก่อน (เล่นวน = แจกสลับรอบแรก/รอบหลัง) · หลุมที่ไม่มี HC ไม่ได้สโตรก
+export function strokeIndexes(rows) {
+  const list = rows.filter((r) => Number.isInteger(r.hc) && r.hc >= 1).sort((a, b) => a.hc - b.hc || a.number - b.number);
+  return new Map(list.map((r, i) => [r.number, i + 1]));
+}
+
 // ---------- เกม ----------
 
 function gameContext(game, grid) {
@@ -190,15 +202,23 @@ function gameContext(game, grid) {
   if (useHc && ids.some((id) => hcpOf(grid.players, id) > 0) && holes.some((r) => !Number.isInteger(r.hc))) {
     warnings.push('บางหลุมยังไม่ได้กรอก HC (ดัชนีความยาก) จึงไม่ได้ให้แต้มต่อในหลุมนั้น');
   }
-  return { ids, point, useHc, holes, warnings };
+  return { ids, point, useHc, holes, warnings, ...strokePlan(grid) };
 }
 
-const net = (row, pid, allowance) => row.cells[pid].strokes - strokesReceived(allowance, row.hc);
+// รอบนี้มีกี่หลุม (ทั้งรอบ ไม่ใช่เฉพาะที่เล่นแล้ว) และลำดับความยากของแต่ละหลุม
+function strokePlan(grid) {
+  const n = grid.rows.length;
+  const si = strokeIndexes(grid.rows);
+  return { n, si, scale: (allowance) => prorate(allowance, n), got: (row, allowance) => strokesReceived(allowance, si.get(row.number), n) };
+}
 
-function relativeAllowances(ids, players, useHc) {
+const net = (plan, row, pid, allowance) => row.cells[pid].strokes - plan.got(row, allowance);
+
+// คนแฮนดิแคปต่ำสุดเล่นที่ 0 คนอื่นได้ส่วนต่าง (ตามสัดส่วนจำนวนหลุมของรอบ)
+function relativeAllowances(ids, players, useHc, plan) {
   if (!useHc) return Object.fromEntries(ids.map((id) => [id, 0]));
   const min = Math.min(...ids.map((id) => hcpOf(players, id)));
-  return Object.fromEntries(ids.map((id) => [id, hcpOf(players, id) - min]));
+  return Object.fromEntries(ids.map((id) => [id, plan.scale(hcpOf(players, id) - min)]));
 }
 
 function zeroPoints(ids) {
@@ -206,14 +226,15 @@ function zeroPoints(ids) {
 }
 
 export function skinGame(game, grid) {
-  const { ids, point, useHc, holes, warnings } = gameContext(game, grid);
-  const allow = relativeAllowances(ids, grid.players, useHc);
+  const ctx = gameContext(game, grid);
+  const { ids, point, useHc, holes, warnings } = ctx;
+  const allow = relativeAllowances(ids, grid.players, useHc, ctx);
   const points = zeroPoints(ids);
   const skins = zeroPoints(ids);
   const log = [];
   let carried = 0;
   for (const r of holes) {
-    const nets = ids.map((id) => [id, net(r, id, allow[id])]);
+    const nets = ids.map((id) => [id, net(ctx, r, id, allow[id])]);
     const best = Math.min(...nets.map(([, n]) => n));
     const winners = nets.filter(([, n]) => n === best).map(([id]) => id);
     if (winners.length === 1) {
@@ -232,20 +253,21 @@ export function skinGame(game, grid) {
 }
 
 export function matchGame(game, grid) {
-  const { ids, point, useHc, holes, warnings } = gameContext(game, grid);
+  const ctx = gameContext(game, grid);
+  const { ids, point, useHc, holes, warnings } = ctx;
   const points = zeroPoints(ids);
   const pairs = [];
   for (let i = 0; i < ids.length; i++) {
     for (let j = i + 1; j < ids.length; j++) {
       const a = ids[i], b = ids[j];
       const diff = useHc ? hcpOf(grid.players, a) - hcpOf(grid.players, b) : 0;
-      // คนที่แฮนดิแคปสูงกว่าได้แต้มต่อเท่ากับส่วนต่าง
-      const allowA = diff > 0 ? diff : 0;
-      const allowB = diff < 0 ? -diff : 0;
+      // คนที่แฮนดิแคปสูงกว่าได้แต้มต่อเท่ากับส่วนต่าง (ตามสัดส่วนจำนวนหลุมของรอบ)
+      const allowA = diff > 0 ? ctx.scale(diff) : 0;
+      const allowB = diff < 0 ? ctx.scale(-diff) : 0;
       let wa = 0, wb = 0, halved = 0;
       const log = [];
       for (const r of holes) {
-        const na = net(r, a, allowA), nb = net(r, b, allowB);
+        const na = net(ctx, r, a, allowA), nb = net(ctx, r, b, allowB);
         const res = na < nb ? a : nb < na ? b : null;
         if (res === a) wa++; else if (res === b) wb++; else halved++;
         log.push({ number: r.number, winner: res });
@@ -267,7 +289,7 @@ export function teamGame(game, grid) {
   const ids = teams.flat();
   const { point, useHc, warnings } = ctx;
   const holes = grid.rows.filter((r) => ids.every((id) => r.cells[id]?.final));
-  const allow = relativeAllowances(ids, grid.players, useHc);
+  const allow = relativeAllowances(ids, grid.players, useHc, ctx);
   const points = zeroPoints(ids);
   const won = [0, 0];
   const log = [];
@@ -276,7 +298,7 @@ export function teamGame(game, grid) {
     for (const id of teams[1 - t]) points[id] -= n * point;
   };
   for (const r of holes) {
-    const nets = teams.map((t) => t.map((id) => net(r, id, allow[id])));
+    const nets = teams.map((t) => t.map((id) => net(ctx, r, id, allow[id])));
     const best = nets.map((n) => Math.min(...n));
     const entry = { number: r.number, best: null, total: null };
     if (best[0] !== best[1]) { const t = best[0] < best[1] ? 0 : 1; award(t, 1); won[t]++; entry.best = t; }
@@ -290,7 +312,8 @@ export function teamGame(game, grid) {
 }
 
 export function stablefordGame(game, grid) {
-  const { ids, useHc, warnings } = gameContext(game, grid);
+  const ctx = gameContext(game, grid);
+  const { ids, useHc, warnings } = ctx;
   const totals = zeroPoints(ids);
   const holesCounted = zeroPoints(ids);
   for (const r of grid.rows) {
@@ -298,7 +321,7 @@ export function stablefordGame(game, grid) {
     for (const id of ids) {
       const c = r.cells[id];
       if (!c?.final) continue;
-      const n = c.strokes - (useHc ? strokesReceived(hcpOf(grid.players, id), r.hc) : 0);
+      const n = c.strokes - (useHc ? ctx.got(r, ctx.scale(hcpOf(grid.players, id))) : 0);
       totals[id] += Math.max(0, 2 + r.par - n);
       holesCounted[id]++;
     }
@@ -307,14 +330,15 @@ export function stablefordGame(game, grid) {
 }
 
 export function strokeGame(game, grid) {
-  const { ids, useHc, warnings } = gameContext(game, grid);
+  const ctx = gameContext(game, grid);
+  const { ids, useHc, warnings } = ctx;
   const gross = zeroPoints(ids), netTotal = zeroPoints(ids), holesCounted = zeroPoints(ids);
   for (const r of grid.rows) {
     for (const id of ids) {
       const c = r.cells[id];
       if (!c?.final) continue;
       gross[id] += c.strokes;
-      netTotal[id] += c.strokes - (useHc ? strokesReceived(hcpOf(grid.players, id), r.hc) : 0);
+      netTotal[id] += c.strokes - (useHc ? ctx.got(r, ctx.scale(hcpOf(grid.players, id))) : 0);
       holesCounted[id]++;
     }
   }

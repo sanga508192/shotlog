@@ -2,7 +2,7 @@
 import * as st from '../state.js';
 import { esc, header, chips, toast } from '../ui.js';
 import {
-  ME, MAX_PLAYERS, SCORE_KINDS, GAME_TYPES, playersOf, scoreGrid, computeGame, pointsSummary, fmtOver, halfLabels,
+  ME, MAX_PLAYERS, SCORE_KINDS, GAME_TYPES, playersOf, scoreGrid, computeGame, pointsSummary, fmtOver, halfLabels, prorate,
 } from '../group.js';
 import { holeFacts } from '../coach.js';
 import { courseHoleNo } from '../holemap.js';
@@ -233,6 +233,8 @@ export function gamesView([roundId], ctx) {
         }).join('')}</div>
         <p class="note">แต้มได้/เสียรวมกันเป็นศูนย์ ก๊วนตกลงกันเองว่าแต้มหนึ่งมีค่าเท่าไร</p></div>` : ''}
       ${games.map((g) => gameResultHtml(g, grid)).join('')}
+      ${games.some((g) => g.use_handicap !== false) && grid.rows.length !== 18 && grid.players.some((p) => Number(p.handicap) > 0)
+    ? `<p class="note">รอบนี้ ${grid.rows.length} หลุม: แต้มต่อของผู้เล่น (คิดเป็น 18 หลุม) ใช้ตามสัดส่วน ${grid.rows.length}/18 เช่น แต้มต่อ 18 ได้ ${prorate(18, grid.rows.length)} สโตรก แจกให้หลุมที่ยากที่สุดในรอบก่อน</p>` : ''}
       <a class="btn block" href="#/round/${roundId}/setup">ตั้งค่าผู้เล่นและเกม</a>
     </div>`,
   };
