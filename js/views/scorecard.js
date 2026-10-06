@@ -2,7 +2,7 @@
 import * as st from '../state.js';
 import { esc, header, toast, fmtDate } from '../ui.js';
 import { roundScore, fmtToPar, holeScore } from '../logic.js';
-import { groupTableHtml, countsTableHtml, gridOf, shotLogging, myName, renameMe, NAME_MAX } from './group.js';
+import { groupTableHtml, countsTableHtml, gridOf, shotLogging, myName, renameMe, NAME_MAX, extendInfo, extendRound } from './group.js';
 import { playersOf, openHoles, fmtRanges, ME } from '../group.js';
 import { deleteRound } from './main.js';
 import { liveCardHtml, liveActions } from './live.js';
@@ -26,6 +26,8 @@ export function scorecardView([roundId], ctx) {
     return f.length ? `หลุม ${h.number}: ${f.join(', ')}` : null;
   }).filter(Boolean) : [];
   const noPar = holes.filter((h) => h.par == null).length;
+  // เล่นต่อ: เสนอเมื่อหลุมสุดท้ายจบแล้ว (หรือจบรอบแล้ว) กันกดเพิ่มหลุมโดยไม่ตั้งใจ
+  const ext = holes.at(-1)?.status === 'done' || round.status !== 'playing' ? extendInfo(round) : null;
   // ระหว่างเล่น: บอกเฉพาะหลุมที่จดแล้วแต่ยังไม่จบ (ไม่นับหลุมที่กำลังเล่น) · จบรอบแล้ว: บอกหลุมที่ยังไม่มีสกอร์ด้วย
   const playing = round.status === 'playing';
   const open = grid.players.map((p) => {
@@ -59,6 +61,7 @@ export function scorecardView([roundId], ctx) {
       ${groupTableHtml(round, grid)}
       <p class="note">แตะแถวเพื่อไปหลุมนั้น${noPar ? ` · ยังไม่มีพาร์ ${noPar} หลุม (<a href="#/round/${roundId}/pars">กรอกพาร์/HC</a>)` : ''}</p>
       ${countsTableHtml(grid)}
+      ${ext ? `<button type="button" class="btn block extend-btn" data-act="extend"><b>🔁 ${esc(ext.th)}</b><small>${esc(ext.sub)}</small></button>` : ''}
       <div class="action-grid">
         <a class="btn primary" href="#/round/${roundId}/share">📤 แชร์รูปสกอร์การ์ด</a>
         ${games.length ? `<a class="btn" href="#/round/${roundId}/games">🎲 ผลเกม (${games.length})</a>` : ''}
@@ -78,6 +81,14 @@ export function scorecardView([roundId], ctx) {
     actions: {
       ...liveActions(ctx, roundId),
       goHole: (el) => ctx.go(`#/round/${roundId}/hole/${el.dataset.n}`),
+      extend: async (el) => {
+        if (el.disabled) return;
+        el.disabled = true;
+        const r = await extendRound(roundId);
+        if (!r) { ctx.rerender(); return; }
+        toast(`เพิ่มหลุม ${r.first}–${st.holesOf(roundId).length} แล้ว`, { label: 'เลิกทำ', run: async () => { await r.undo(); ctx.go(`#/round/${roundId}/card`); } });
+        ctx.go(`#/round/${roundId}/hole/${r.first}`);
+      },
       setName: async (form) => {
         if (await renameMe(form.myname.value, roundId)) toast('เปลี่ยนชื่อแล้ว');
         ctx.rerender();

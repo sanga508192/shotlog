@@ -173,11 +173,12 @@ export function quickPad(bag, shots, gpsOn = false) {
 }
 
 // หลุมจบแล้ว (แบบจดเร็ว): สกอร์ + ปุ่มไปหลุมถัดไป
-export function holeDoneHtml(num, sc, next) {
+export function holeDoneHtml(num, sc, next, ext = null) {
   const toPar = sc.par != null && sc.toPar != null ? ` (${sc.toPar === 0 ? 'พาร์' : `${sc.toPar > 0 ? '+' : ''}${sc.toPar}`})` : '';
   return `<section class="card hole-done">
     <b>⛳ หลุม ${num} จบแล้ว · สกอร์ ${sc.total}${toPar}</b>
     <a class="btn primary big block" href="${next.href}">${esc(next.th)} ›</a>
+    ${ext ? `<button type="button" class="btn block extend-btn" data-act="extend"><b>🔁 ${esc(ext.th)}</b><small>${esc(ext.sub)}</small></button>` : ''}
     <p class="note">จดผิด แตะช็อตด้านล่างเพื่อแก้ · จดเพิ่ม กด “เปิดหลุมนี้อีกครั้ง” ท้ายหน้า</p>
   </section>`;
 }

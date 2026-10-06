@@ -1047,3 +1047,5 @@ html[data-sun="1"] .muted, html[data-sun="1"] .note, html[data-sun="1"] .small {
 .cd-row.suspect { opacity: .45; }
 .cd-refs { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 4px; }
 .cd-refs a { white-space: nowrap; }
+.extend-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; border: 2px dashed var(--brand); color: var(--brand); }
+.extend-btn small { font-size: .78rem; color: var(--muted); font-weight: 500; }

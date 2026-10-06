@@ -3,7 +3,7 @@ import * as st from '../state.js';
 import { esc, header, chips, toast } from '../ui.js';
 import { LIES, HOLE_FINISH, HOLE_STATUS, label, PENALTY_ENDS, RELIEFS } from '../constants.js';
 import { holeScore, fmtToPar, suggestShotType, shiftForInsert, resequence } from '../logic.js';
-import { groupEntryHtml, setGroupScore, isGroupRound, shotLogging, rememberCourseCard } from './group.js';
+import { groupEntryHtml, setGroupScore, isGroupRound, shotLogging, rememberCourseCard, extendInfo, extendRound } from './group.js';
 import { watchPosition, lastPosition } from '../geo.js';
 import { courseHoles, distM, toUnit, unitTh, confirmedPoint, holeReady, setHolePoint, courseHoleNo } from '../holemap.js';
 import { GPS_MAX_ACC, suggestClub } from '../coach.js';
@@ -148,7 +148,7 @@ export function holeView([roundId, numStr], ctx) {
   const next = nextN ? { href: `#/round/${roundId}/hole/${nextN}`, th: `ไปหลุม ${nextN}` } : { href: `#/round/${roundId}/card`, th: 'ดูสกอร์การ์ด' };
   let entryHtml = '';
   if (quick) {
-    entryHtml = hole.status === 'done' ? holeDoneHtml(num, sc, next)
+    entryHtml = hole.status === 'done' ? holeDoneHtml(num, sc, next, nextN ? null : extendInfo(round))
       : `${onGreen ? puttCard(unit) : ''}${quickPad(bag, shots, gpsOn)}`;
   } else if (logShots) {
     entryHtml = `${hole.status === 'playing' && shots.length && d.mode === 'new' && !shots.some((s) => s.holed) ? puttCard(unit) : ''}${shotForm(bag, phrases, gpsOn, landBtn)}`;
@@ -536,6 +536,14 @@ export function holeView([roundId, numStr], ctx) {
         toast(`ช็อต ${s.sequence}: ไป${el.dataset.v === 'left' ? 'ซ้าย' : 'ขวา'}`);
       },
       sun: async () => { const on = await toggleSun(); refresh(); toast(on ? 'โหมดแดดจ้า: พื้นขาว ตัวใหญ่' : 'กลับเป็นจอปกติ'); },
+      extend: async (el) => {
+        if (el.disabled) return;
+        el.disabled = true;
+        const r = await extendRound(roundId);
+        if (!r) { refresh(); return; }
+        toast(`เพิ่มหลุม ${r.first}–${st.holesOf(roundId).length} แล้ว`, { label: 'เลิกทำ', run: async () => { await r.undo(); ctx.go(`#/round/${roundId}/hole/${num}`); } });
+        ctx.go(`#/round/${roundId}/hole/${r.first}`);
+      },
       fullForm: async () => { await st.setSetting('shot_form', 'full'); refresh(); },
       quickForm: async () => { await st.setSetting('shot_form', 'quick'); refresh(); },
       remove: async (el) => {

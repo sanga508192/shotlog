@@ -5,7 +5,7 @@ import {
   ME, MAX_PLAYERS, SCORE_KINDS, GAME_TYPES, playersOf, scoreGrid, computeGame, pointsSummary, fmtOver, halfLabels, prorate,
 } from '../group.js';
 import { holeFacts } from '../coach.js';
-import { courseHoleNo } from '../holemap.js';
+import { courseHoleNo, loopHoleNo } from '../holemap.js';
 
 export const myName = () => st.setting('my_name', 'ฉัน');
 export const shotLogging = (round) => round.shot_logging !== false;
@@ -46,6 +46,64 @@ export async function setCourseSize(courseId, n) {
   if (uc) await st.put('userCourses', { ...uc, holes: n });
   else await st.setSetting(sizeKey(courseId), n);
   return true;
+}
+
+// ---------- เล่นต่อ ----------
+// สนามเล็ก: เพิ่มอีกรอบสนาม (+จำนวนหลุมของสนาม) · รอบ 9 หลุมของสนาม 18 หลุม: เพิ่ม 9 หลุมหลัง (หลุม 10–18)
+export const EXTEND_MAX = 36;
+export function extendInfo(round) {
+  if (!round?.course_id) return null;
+  const size = courseSize(round.course_id);
+  const count = st.holesOf(round.id).length;
+  if (!count) return null;
+  if (size < 18 && count % size === 0 && count + size <= EXTEND_MAX) {
+    return { add: size, size, from: count + 1, th: `เล่นต่ออีกรอบสนาม (+${size} หลุม)`, sub: `หลุม ${count + 1}–${count + size} คือหลุม 1–${size} ของสนาม` };
+  }
+  if (size >= 18 && count === 9) return { add: 9, size, from: 10, th: 'เล่นต่อ 9 หลุมหลัง (+9 หลุม)', sub: 'หลุม 10–18 ของสนาม' };
+  return null;
+}
+
+// เพิ่มหลุมต่อท้ายรอบ: พาร์/HC/ระยะจากหลุมเดียวกันของสนามในรอบนี้ ไม่มีจึงใช้สกอร์การ์ดหรือค่าที่จำไว้ · คืนฟังก์ชันเลิกทำ
+export async function extendRound(roundId) {
+  const round = st.S.rounds.get(roundId);
+  const info = extendInfo(round);
+  if (!info) return null;
+  const before = { ...round };
+  const holes = st.holesOf(roundId);
+  const sc = st.scorecard(round.course_id);
+  const card = courseCard(round.course_id) || { pars: {}, hc: {} };
+  const tee = sc?.tees?.find((t) => t.id === round.tee_id) ?? null;
+  const loop = info.size < 18;
+  const ops = [];
+  const added = [];
+  for (let k = 0; k < info.add; k++) {
+    const n = info.from + k;
+    const c = loop ? loopHoleNo(n, info.size) : n;
+    const same = holes.find((h) => courseHoleNo(h) === c);
+    const dist = same?.distance ?? tee?.yards?.[c - 1] ?? null;
+    const h = {
+      id: st.uid(), round_id: roundId, number: n,
+      par: same?.par ?? card.pars[c] ?? sc?.par?.[c - 1] ?? null,
+      hc_index: same?.hc_index ?? card.hc[c] ?? sc?.hc?.[c - 1] ?? null,
+      ...(loop ? { course_hole: c } : {}),
+      distance: dist, distance_unit: dist != null ? same?.distance_unit ?? (sc?.unit === 'm' ? 'm' : 'yd') : null,
+      status: 'playing', finish: null, logging_complete: false, note: '',
+    };
+    added.push(h.id);
+    ops.push({ store: 'holes', put: h });
+  }
+  // รอบที่เล่นวน: หลุมรอบแรกก็บอกหลุมจริงไว้ด้วย (แผนที่ ประวัติหลุม แบ่งครึ่งรอบ)
+  if (loop) for (const h of holes) if (!Number.isInteger(h.course_hole)) ops.push(st.patchOp('holes', h.id, { course_hole: loopHoleNo(h.number, info.size) }));
+  ops.push(st.patchOp('rounds', roundId, {
+    hole_count: holes.length + info.add, status: 'playing', ...(loop ? { course_size: info.size } : {}),
+  }));
+  await st.commit(ops);
+  return {
+    first: info.from,
+    undo: async () => {
+      await st.commit([...added.map((id) => ({ store: 'holes', del: id })), { store: 'rounds', put: before }]);
+    },
+  };
 }
 
 // ---------- พาร์/HC ที่จำไว้ของสนาม ----------
