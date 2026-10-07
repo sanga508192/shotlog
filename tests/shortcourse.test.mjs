@@ -54,7 +54,7 @@ test('สนาม 8 หลุม: ตั้งจำนวนหลุม · �
   let went = null;
   const ctx = { rerender() {}, go(h) { went = h; } };
   let v = newRoundView(['u8'], ctx);
-  assert.match(v.html, /สนามนี้มี <b>8 หลุม<\/b>/);
+  assert.match(v.html, /ขอนแก่น<\/span> · เพิ่มเอง · 8 หลุม/);
   assert.match(v.html, /8 หลุม \(1 รอบสนาม\)/);
   assert.match(v.html, /16 หลุม \(เล่น 2 รอบ\)/);
   v.actions.holes({ dataset: { v: '16' } });

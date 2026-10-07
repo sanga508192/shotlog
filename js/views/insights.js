@@ -125,16 +125,17 @@ export function practiceView(_p, ctx) {
     byTopic.get(s.topic).push(s);
   }
   return {
-    html: `${header('ฝึกซ้อม')}<div class="page">
-      <a class="card coach-link" href="#/coach/plan"><b>📋 แผนซ้อมสัปดาห์นี้</b><span>แบบฝึกที่เลือกจากจุดที่เสียสโตรกมากที่สุด ›</span></a>
-      <a class="card coach-link" href="#/drills"><b>🎬 แบบฝึกและคลิปสอน</b><span>แบบฝึกทั้งหมด ค้นคลิปสอนใน YouTube และเก็บคลิปที่ชอบไว้ดูซ้ำ ›</span></a>
-      <a class="card coach-link" href="#/launch"><b>📈 เครื่องซ้อม (Garmin R10)</b><span>${launch.length ? `${launch.reduce((a, p) => a + sessionShots(p).length, 0)} ช็อตที่นำเข้า · ดูระยะไม้ ทิศทาง และแบบฝึกที่ควรทำ ›` : 'นำเข้าไฟล์จาก Garmin Golf เพื่อวิเคราะห์และเลือกแบบฝึกให้ ›'}</span></a>
-      <h2>เรื่องที่เสนอจากการออกรอบ</h2>
-      ${sm.topics.length ? `<p class="note">จาก ${sm.shotCount} ช็อต ${sm.roundCount} รอบ — คุณเลือกเองว่าจะฝึกเรื่องใด</p>${sm.topics.slice(0, 5).map((t) => topicCard(t, { withSources: false })).join('')}`
-    : '<p class="muted">ยังไม่มีอาการที่จดไว้จากการออกรอบ</p>'}
-      <a class="btn primary block" href="#/practice/new">＋ บันทึกการซ้อม</a>
+    html: `${header('ฝึกซ้อม', { back: null })}<div class="page">
+      <a class="btn primary big block" href="#/practice/new">＋ บันทึกการซ้อม</a>
+      <nav class="card list-menu" aria-label="เมนูซ้อม">
+        <a href="#/coach/plan"><span>📋 แผนซ้อมสัปดาห์นี้</span><small>เลือกจากจุดที่เสียสโตรก</small><span aria-hidden="true">›</span></a>
+        <a href="#/launch"><span>📈 เครื่องซ้อม</span><small>${launch.length ? `${launch.reduce((a, p) => a + sessionShots(p).length, 0)} ช็อต` : 'นำเข้าไฟล์ Garmin'}</small><span aria-hidden="true">›</span></a>
+        <a href="#/drills"><span>🎬 แบบฝึกและคลิปสอน</span><span aria-hidden="true">›</span></a>
+        <a href="#/sim-game"><span>🎮 เกมออกรอบจำลอง</span><span aria-hidden="true">›</span></a>
+      </nav>
+      ${sm.topics.length ? `<h2>เรื่องที่เสนอจากการออกรอบ</h2>
+      <p class="note">จาก ${sm.shotCount} ช็อต ${sm.roundCount} รอบ — คุณเลือกเองว่าจะฝึกเรื่องใด</p>${sm.topics.slice(0, 5).map((t) => topicCard(t, { withSources: false })).join('')}` : ''}
       <h2>บันทึกการซ้อม</h2>
-      <p class="note">ผลซ้อมเก็บแยกจากรอบเล่นจริง ไม่ปนกับสถิติออกรอบ</p>
       ${byTopic.size ? [...byTopic].map(([topic, list]) => `<div class="card">
         <h3>${esc(topic)}</h3>
         ${list.map((s) => `<div class="practice-row">
@@ -143,7 +144,7 @@ export function practiceView(_p, ctx) {
           ${s.note ? `<div class="small quote">“${esc(s.note)}”</div>` : ''}
           <button type="button" class="mini danger" data-act="del" data-id="${s.id}">ลบ</button>
         </div>`).join('')}
-      </div>`).join('') : '<p class="muted">ยังไม่มีบันทึกการซ้อม</p>'}
+      </div>`).join('') : '<div class="empty"><span class="em">🎯</span>ยังไม่มีบันทึกการซ้อม<br><span class="small">กด "บันทึกการซ้อม" ด้านบนหลังซ้อมแต่ละครั้ง ผลซ้อมเก็บแยกจากสถิติออกรอบ</span></div>'}
     </div>`,
     actions: {
       priority: priorityAction(ctx),

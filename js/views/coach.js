@@ -410,7 +410,7 @@ export function coachView([tabArg], ctx) {
   };
 
   return {
-    html: `${header('พัฒนาเกม', { sub: 'คำนวณในเครื่องจากรอบที่คุณจด' })}
+    html: `${header('พัฒนาเกม', { back: null, sub: 'คำนวณในเครื่องจากรอบที่คุณจด' })}
     <div class="page coach">
       <section>
         <div class="lbl">เป้าหมาย${chosen ? '' : ' <span class="muted small">(แนะนำจากสกอร์เฉลี่ย แตะเพื่อเปลี่ยน)</span>'}</div>

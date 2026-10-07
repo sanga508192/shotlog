@@ -46,37 +46,46 @@ export function scorecardView([roundId], ctx) {
     </div>` : '';
   return {
     html: `${header('สกอร์การ์ด', { back: '#/', sub: `${esc(round.course_name_snapshot)} · ${esc(fmtDate(round.played_at))}${round.tee_name ? ` · แท่น ${esc(round.tee_name)}` : ''}` })}
-    <div class="page">
-      ${logShots && playersOf(round).length === 1 ? `<div class="card totals">
-        <div>ตี <b>${total.strokes}</b> + ปรับ <b>${total.penalties}</b> = <b class="big-num">${total.total}</b></div>
-        <div class="small muted">เทียบพาร์ ${fmtToPar(total.toPar)} (นับเฉพาะ ${total.holesForPar} หลุมที่จบและมีพาร์)</div>
-      </div>` : ''}
-      ${round.status !== 'playing' ? `<div><span class="badge ${round.status === 'complete' ? 'good' : 'bad'}">${round.status === 'complete' ? 'จบรอบ' : 'จบรอบ (จดไม่ครบ)'}</span></div>` : ''}
+    <div class="page scorecard-page">
+      <section class="card sc-top">
+        <div class="row between">
+          ${logShots && playersOf(round).length === 1
+    ? `<div><span class="big-num">${total.total}</span> <span class="topar">${total.holesForPar ? fmtToPar(total.toPar) : ''}</span>
+              <div class="small muted">ตี ${total.strokes}${total.penalties ? ` + ปรับ ${total.penalties}` : ''} · นับ ${total.holesForPar} หลุมที่จบและมีพาร์</div></div>`
+    : `<div><b>${esc(round.course_name_snapshot)}</b><div class="small muted">${grid.players.length} คน · ${holes.length} หลุม</div></div>`}
+          <span class="badge ${round.status === 'playing' ? 'none' : round.status === 'complete' ? 'good' : 'bad'}">${round.status === 'playing' ? 'กำลังเล่น' : round.status === 'complete' ? 'จบรอบ' : 'จบรอบ (จดไม่ครบ)'}</span>
+        </div>
+        <div class="sc-actions">
+          ${round.status === 'playing'
+    ? `<a class="btn primary" href="#/round/${roundId}/hole/${round.current_hole || 1}">⛳ จดต่อ หลุม ${round.current_hole || 1}</a>
+             <button type="button" class="btn stack" data-act="finishRound"><span>จบรอบ</span>${incomplete ? `<small>ยังไม่จบ ${incomplete} หลุม</small>` : ''}</button>`
+    : `${logShots ? `<a class="btn primary" href="#/round/${roundId}/recap">📋 สรุปหลังรอบ</a>` : ''}
+             <a class="btn${logShots ? '' : ' primary'}" href="#/round/${roundId}/share">📤 แชร์รูปสกอร์การ์ด</a>`}
+        </div>
+      </section>
       ${openHtml}
       ${grid.players.some((p) => p.id === ME && p.name === 'ฉัน') ? `<form class="card name-card" data-submit="setName">
         <b>ชื่อของคุณในสกอร์การ์ดยังเป็น “ฉัน”</b>
         <div class="row gap"><input class="input" name="myname" maxlength="${NAME_MAX}" required placeholder="ชื่อหรือชื่อเล่น" value="${myName() === 'ฉัน' ? '' : esc(myName())}"><button class="btn primary">บันทึก</button></div>
         <p class="note">ใช้ในรูปที่แชร์และรอบต่อ ๆ ไป รอบเก่าที่ใช้ “ฉัน” เปลี่ยนตามด้วย · แก้ภายหลังได้ที่ ตั้งค่า</p>
       </form>` : ''}
+      ${ext ? `<button type="button" class="btn block extend-btn" data-act="extend"><b>🔁 ${esc(ext.th)}</b><small>${esc(ext.sub)}</small></button>` : ''}
       ${groupTableHtml(round, grid)}
       <p class="note">แตะแถวเพื่อไปหลุมนั้น${noPar ? ` · ยังไม่มีพาร์ ${noPar} หลุม (<a href="#/round/${roundId}/pars">กรอกพาร์/HC</a>)` : ''}</p>
-      ${countsTableHtml(grid)}
-      ${ext ? `<button type="button" class="btn block extend-btn" data-act="extend"><b>🔁 ${esc(ext.th)}</b><small>${esc(ext.sub)}</small></button>` : ''}
-      <div class="action-grid">
-        <a class="btn primary" href="#/round/${roundId}/share">📤 แชร์รูปสกอร์การ์ด</a>
-        ${games.length ? `<a class="btn" href="#/round/${roundId}/games">🎲 ผลเกม (${games.length})</a>` : ''}
-        ${logShots && round.status !== 'playing' ? `<a class="btn" href="#/round/${roundId}/recap">📋 สรุปหลังรอบ</a>` : ''}
-        ${logShots ? `<a class="btn" href="#/round/${roundId}/plan">🧭 แผนเกม</a>` : ''}
-        <a class="btn" href="#/round/${roundId}/setup">👥 ผู้เล่น / เกม</a>
-        <a class="btn" href="#/round/${roundId}/pars">⛳ พาร์ / HC</a>
-        ${logShots ? `<a class="btn" href="#/round/${roundId}/summary">📊 สรุปการเล่นของฉัน</a>` : ''}
-      </div>
+      <details class="card counts-wrap"><summary>นับเบอร์ดี้ พาร์ โบกี้ …</summary>${countsTableHtml(grid)}</details>
+
+      <nav class="card list-menu" aria-label="เมนูรอบนี้">
+        ${round.status === 'playing' ? `<a href="#/round/${roundId}/share"><span>📤 แชร์รูปสกอร์การ์ด</span><span aria-hidden="true">›</span></a>` : ''}
+        ${games.length ? `<a href="#/round/${roundId}/games"><span>🎲 ผลเกม</span><small>${games.length} เกม</small><span aria-hidden="true">›</span></a>` : ''}
+        ${logShots ? `<a href="#/round/${roundId}/plan"><span>🧭 แผนเกม 18 หลุม</span><span aria-hidden="true">›</span></a>` : ''}
+        <a href="#/round/${roundId}/setup"><span>👥 ผู้เล่นและเกม</span><small>${grid.players.length} คน</small><span aria-hidden="true">›</span></a>
+        <a href="#/round/${roundId}/pars"><span>⛳ พาร์ / HC</span>${noPar ? `<small>ยังไม่มี ${noPar} หลุม</small>` : ''}<span aria-hidden="true">›</span></a>
+        ${logShots ? `<a href="#/round/${roundId}/summary"><span>📊 สถิติรายช็อตของฉัน</span><span aria-hidden="true">›</span></a>` : ''}
+        ${round.status !== 'playing' ? '<button type="button" data-act="reopenRound"><span>✏️ กลับไปจดต่อ</span><span aria-hidden="true">›</span></button>' : ''}
+      </nav>
       ${round.status === 'playing' || round.live_token ? liveCardHtml(round) : ''}
       ${myFlags.length ? `<details class="card small"><summary>ข้อมูลรายช็อตของฉันที่ยังไม่ครบ (${myFlags.length})</summary><ul>${myFlags.map((f) => `<li>${esc(f)}</li>`).join('')}</ul></details>` : ''}
-      ${round.status === 'playing' ? `
-        <button type="button" class="btn primary block" data-act="finishRound">จบรอบ${incomplete ? ` (${incomplete} หลุมยังไม่จบ)` : ''}</button>`
-    : '<button type="button" class="btn block" data-act="reopenRound">กลับไปจดต่อ</button>'}
-      <button type="button" class="btn danger block" data-act="deleteRound">ลบรอบนี้</button>
+      <button type="button" class="linklike danger-link" data-act="deleteRound">ลบรอบนี้</button>
     </div>`,
     actions: {
       ...liveActions(ctx, roundId),

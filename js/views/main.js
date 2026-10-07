@@ -107,20 +107,14 @@ export function backupWarn(roundCount, lastExport, now = Date.now()) {
 }
 
 // ปุ่มไปแผนที่หลุม: บอกว่าวางหมุดครบกี่หลุมแล้ว
-function mapSetupLink(courseId, sc) {
+function mapLinkRow(courseId, sc) {
   const holes = courseHoles(courseId);
   const total = sc?.par?.length || 18;
   const ready = Object.values(holes).filter(holeReady).length;
   const est = Object.values(holes).filter((h) => holeReady(h) && isEstimated(h)).length;
   const first = Array.from({ length: total }, (_, i) => i + 1).find((k) => !holeReady(holes[k])) ?? 1;
-  const status = !ready ? 'ยังไม่มี · แตะวางหมุดแท่นทีและกรีน (ทำจากบ้านได้)'
-    : est ? `มีหมุด ${ready}/${total} หลุม · ${est} หลุมเป็นค่าประมาณจากภาพดาวเทียม ตรวจในสนามก่อนเชื่อ`
-      : `วางหมุดแล้ว ${ready}/${total} หลุม${ready < total ? ' · แตะเพื่อวางต่อ' : ' · ดูระยะบนภาพดาวเทียม'}`;
-  return `<a class="card map-card" href="#/map/${encodeURIComponent(courseId)}/${first}${ready < total ? '?edit=1' : ''}">
-    <span class="map-card-ico" aria-hidden="true">🗺</span>
-    <span><b>แผนที่หลุม</b><small>${status}</small></span>
-  </a>
-  ${offlineButton(courseId)}`;
+  const status = !ready ? 'ยังไม่มีหมุด · แตะเพื่อวาง (ทำจากบ้านได้)' : est ? `หมุด ${ready}/${total} · ${est} หลุมเป็นค่าประมาณ` : `หมุด ${ready}/${total} หลุม`;
+  return `<a class="nr-link" href="#/map/${encodeURIComponent(courseId)}/${first}${ready < total ? '?edit=1' : ''}"><span>🗺 แผนที่หลุม</span><small>${status}</small><span aria-hidden="true">›</span></a>`;
 }
 
 // การ์ดสั้น ๆ พาไปหน้าพัฒนาเกม
@@ -361,69 +355,68 @@ export function newRoundView([courseId], ctx) {
   const parOpts = [{ v: '3', th: '3' }, { v: '4', th: '4' }, { v: '5', th: '5' }, { v: '6', th: '6' }];
   const { cues } = coachData();
   return {
-    html: `${header('เริ่มรอบใหม่', { back: '#/courses' })}<div class="page">
-      <div class="card">
-        <div class="small muted">⛳ สนามที่เลือก <a class="mini" style="float:right" href="#/courses">เปลี่ยน</a></div>
-        <div class="course-picked" id="picked-name">${esc(c.display_name_th)}</div>
-        <div><span class="tag" id="picked-province">${esc(c.province)}</span>${c.origin === 'user' ? '<span class="tag user">เพิ่มเอง</span>' : ''}</div>
-        <div class="course-size">สนามนี้มี <b>${size} หลุม</b>${nr.sizeEdit ? '' : ' <button type="button" class="mini" data-act="sizeEdit">แก้จำนวนหลุม</button>'}</div>
+    html: `${header('เริ่มรอบใหม่', { back: '#/courses' })}<div class="page new-round">
+      <section class="card nr-course">
+        <div class="row between">
+          <div class="nr-title"><b class="course-picked" id="picked-name">${esc(c.display_name_th)}</b>
+            <span class="small muted"><span id="picked-province">${esc(c.province)}</span>${c.origin === 'user' ? ' · เพิ่มเอง' : ''} · ${size} หลุม${nr.sizeEdit ? '' : ' <button type="button" class="linklike inline" data-act="sizeEdit">แก้</button>'}</span></div>
+          <a class="mini" href="#/courses">เปลี่ยน</a>
+        </div>
         ${nr.sizeEdit ? `<div class="size-edit">
           <div class="chips">${[8, 9, 18].map((v) => `<button type="button" class="chip${v === size ? ' on' : ''}" data-act="sizePick" data-v="${v}">${v} หลุม</button>`).join('')}</div>
           <div class="row gap"><input class="input" type="number" min="1" max="${SIZE_MAX}" inputmode="numeric" placeholder="จำนวนอื่น เช่น 6, 12, 27" data-change="sizeOther" aria-label="จำนวนหลุมของสนาม">
             <button type="button" class="mini" data-act="sizeEdit">ยกเลิก</button></div>
           <p class="note">จำไว้เป็นของสนามนี้ · สนามเล็กเล่นวน 2 รอบได้ หลุมในรอบที่สองใช้พาร์ HC ระยะ และหมุดของหลุมจริงซ้ำ</p>
         </div>` : ''}
-      </div>
-      ${sc ? `<div class="card">
-        <div class="row between"><b>📋 สกอร์การ์ดของสนามนี้</b><span class="small muted">พาร์ ${sc.par.reduce((a, b) => a + (b || 0), 0)} · ${sc.par.length} หลุม</span></div>
-        <div class="lbl">เลือกแท่นที (เติมระยะรายหลุมให้)</div>
+        ${sc?.tees?.length ? `<div class="lbl">แท่นที <span class="muted">(เติมระยะรายหลุมให้)</span></div>
         <div class="chips tees">${sc.tees.map((t) => `<button type="button" class="chip tee${nr.teeId === t.id ? ' on' : ''}" data-act="pickTee" data-v="${t.id}">
-          <i style="background:${teeColor(t)}"></i>${esc(t.name)}${teeTotal(t) ? ` <small>${teeTotal(t).toLocaleString('th-TH')}</small>` : ''}</button>`).join('')}</div>
-        <details class="small muted"><summary>ที่มาของข้อมูล</summary>
-          <ul>${sc.sources.map((x) => `<li>${esc(x)}</li>`).join('')}<li>ตรวจ ณ ${esc(sc.checked_at)} · หน่วย${sc.unit === 'm' ? 'เมตร' : 'หลา'}</li></ul>
-          ${sc.note ? `<p>${esc(sc.note)}</p>` : ''}
-          ${sc.origin === 'user' ? '' : '<p>ข้อมูลจากฐานข้อมูลออนไลน์ อาจต่างจากสกอร์การ์ดล่าสุดของสนาม แก้พาร์/HC ในรอบได้ แอปจะจำค่าของคุณแทน</p>'}
-        </details>
-        <a class="mini" href="#/scan/${encodeURIComponent(courseId)}">📷 ${sc.origin === 'user' ? 'แก้ / ถ่ายสกอร์การ์ดใหม่' : 'ถ่ายสกอร์การ์ดจริงของสนามมาแทน'}</a>
-      </div>` : `${nr.fromCard ? `<div class="card ok small">✓ ใช้พาร์/HC ที่คุณเคยกรอกไว้ของสนามนี้ (${parsSet} หลุม) แก้ได้ด้านล่าง</div>`
-    : '<div class="card warn small">ยังไม่มีสกอร์การ์ดของสนามนี้</div>'}
-      <a class="btn block" href="#/scan/${encodeURIComponent(courseId)}">📷 ถ่ายรูปสกอร์การ์ดเพื่อเติมพาร์ / HC / ระยะ</a>`}
-      ${needsGeo ? `<button type="button" class="linklike small" data-act="saveGeo">📍 ${c.geo ? 'ตำแหน่งสนามนี้เป็นค่าโดยประมาณ' : 'ยังไม่มีตำแหน่งสนามนี้'} — กดบันทึกตำแหน่งตอนอยู่ที่สนาม</button>` : ''}
+          <i style="background:${teeColor(t)}"></i>${esc(t.name)}${teeTotal(t) ? ` <small>${teeTotal(t).toLocaleString('th-TH')}</small>` : ''}</button>`).join('')}</div>` : ''}
+        <div class="nr-links">
+          ${mapLinkRow(courseId, sc)}
+          <a class="nr-link" href="#/scan/${encodeURIComponent(courseId)}"><span>📋 สกอร์การ์ด</span><small>${sc ? `พาร์ ${sc.par.reduce((a, b) => a + (b || 0), 0)} · ${sc.origin === 'user' ? 'ถ่ายเอง แตะเพื่อแก้' : 'แตะเพื่อถ่ายของจริงมาแทน'}` : nr.fromCard ? `ใช้พาร์/HC ที่เคยกรอก (${parsSet} หลุม)` : 'ยังไม่มี · แตะเพื่อถ่ายรูป'}</small><span aria-hidden="true">›</span></a>
+        </div>
+      </section>
+      ${offlineButton(courseId)}
 
-      ${mapSetupLink(courseId, sc)}
-      ${cues.length ? `<details class="card focus-card" open><summary>🎯 โฟกัสรอบนี้</summary>${focusListHtml(cues)}<a class="mini" href="#/coach">ดูที่มาและแผนซ้อม ›</a></details>` : ''}
+      <h2>จำนวนหลุม</h2>
+      ${chips('holes', 'holes', holeOpts, nr.holes)}
+      ${nr.holes === 'custom' ? `<input class="input" type="number" min="1" max="36" inputmode="numeric" placeholder="จำนวนหลุม" value="${esc(nr.custom)}" data-change="custom">` : ''}
+      ${loop ? `<p class="note">หลุม ${size + 1}–${count} คือหลุม 1–${Math.min(size, count - size)} ของสนามวนอีกรอบ</p>` : ''}
 
       <h2>ใครเล่นด้วย</h2>
       <div class="chips">
         <span class="chip on static">${esc(myName())}${myName() === 'ฉัน' ? '' : ' (ฉัน)'}</span>
         ${nr.mates.map((m, i) => `<button type="button" class="chip on" data-act="mateDel" data-i="${i}" title="แตะเพื่อเอาออก">${esc(m.name)} ✕</button>`).join('')}
       </div>
-      ${nr.mates.length + 1 < MAX_PLAYERS ? `<div class="row gap"><input class="input" placeholder="พิมพ์ชื่อเพื่อน" value="${esc(nr.mateName)}" data-input="mateName" data-enter="mateAdd"><button type="button" class="btn" data-act="mateAdd">เพิ่ม</button></div>
-        ${known.length ? `<div class="chips">${known.map((f) => `<button type="button" class="chip ghost" data-act="mateKnown" data-name="${esc(f.name)}">＋${esc(f.name)}</button>`).join('')}</div>` : ''}` : ''}
-      <p class="note">ตั้งเกม (Skin, Matchplay, ทีม ฯลฯ) และแต้มต่อได้หลังเริ่มรอบ</p>
+      ${nr.mates.length + 1 < MAX_PLAYERS ? `${known.length ? `<div class="chips">${known.map((f) => `<button type="button" class="chip ghost" data-act="mateKnown" data-name="${esc(f.name)}">＋${esc(f.name)}</button>`).join('')}</div>` : ''}
+        <div class="row gap"><input class="input" placeholder="พิมพ์ชื่อเพื่อน" value="${esc(nr.mateName)}" data-input="mateName" data-enter="mateAdd"><button type="button" class="btn" data-act="mateAdd">เพิ่ม</button></div>` : ''}
 
       <h2>วิธีจดของฉัน</h2>
       <div class="mode-pick">
-        <button type="button" class="${nr.shotLogging ? '' : 'on'}" data-act="mode" data-v="quick"><b>⚡ จดเร็ว</b><span>แตะสกอร์ทุกคนหลุมละครั้ง แบบสกอร์การ์ด</span></button>
-        <button type="button" class="${nr.shotLogging ? 'on' : ''}" data-act="mode" data-v="shots"><b>🎯 รายช็อต</b><span>จดไม้และผลทุกช็อต ดูว่าควรซ้อมอะไร</span></button>
+        <button type="button" class="${nr.shotLogging ? '' : 'on'}" data-act="mode" data-v="quick"><b>⚡ จดเร็ว</b><span>สกอร์ทุกคนหลุมละครั้ง</span></button>
+        <button type="button" class="${nr.shotLogging ? 'on' : ''}" data-act="mode" data-v="shots"><b>🎯 รายช็อต</b><span>ไม้และผลทุกช็อต รู้ว่าควรซ้อมอะไร</span></button>
       </div>
-      <h2>รายละเอียดรอบ</h2>
-      <label>วันที่<input class="input" type="date" value="${esc(nr.date)}" data-input="date"></label>
-      <div class="field"><div class="lbl">จำนวนหลุม</div>
-        ${chips('holes', 'holes', holeOpts, nr.holes)}
-        ${loop ? `<p class="note">หลุม ${size + 1}–${count} คือหลุม 1–${Math.min(size, count - size)} ของสนามวนอีกรอบ</p>` : ''}
-        ${nr.holes === 'custom' ? `<input class="input" type="number" min="1" max="36" inputmode="numeric" placeholder="จำนวนหลุม" value="${esc(nr.custom)}" data-change="custom">` : ''}
-      </div>
-      <label>ชุดแท่นที (ถ้าทราบ)<input class="input" value="${esc(nr.tee)}" placeholder="เช่น ขาว, ฟ้า" data-input="tee"></label>
-      <div class="field"><div class="lbl">หน่วยระยะ</div>${chips('unit', 'unit', UNITS, nr.unit)}</div>
-      <details class="card"${nr.fromCard ? '' : ''}><summary>พาร์รายหลุม ${parsSet ? `(${parsSet}/${count})` : '(ไม่บังคับ)'}</summary>
-        <div class="row gap wrap"><span class="lbl inline">ตั้งทุกหลุม:</span>${[3, 4, 5].map((v) => `<button type="button" class="mini" data-act="allpar" data-v="${v}">พาร์ ${v}</button>`).join('')}</div>
-        <div class="par-grid">${Array.from({ length: count }, (_, i) => i + 1).map((n) => `<div class="par-cell"><span>หลุม ${n}${loop && n > size ? ` <small class="muted">(หลุม ${loopHoleNo(n, size)})</small>` : ''}</span>
-          ${chips('par', String(n), parOpts, valOf(nr.pars, n) ? String(valOf(nr.pars, n)) : null, { cls: 'tight' })}</div>`).join('')}
-        </div>
+      ${cues.length ? `<details class="card focus-card"><summary>🎯 โฟกัสรอบนี้ <small class="muted">${cues.length} เรื่อง</small></summary>${focusListHtml(cues)}<a class="mini" href="#/coach">ดูที่มาและแผนซ้อม ›</a></details>` : ''}
+
+      <details class="card nr-more"><summary>รายละเอียดเพิ่มเติม <small class="muted">${nr.date === st.todayLocal() ? 'วันนี้' : esc(fmtDate(nr.date))} · ${nr.unit === 'yd' ? 'หลา' : 'เมตร'} · พาร์ ${parsSet}/${count}</small></summary>
+        <label>วันที่<input class="input" type="date" value="${esc(nr.date)}" data-input="date"></label>
+        <div class="field"><div class="lbl">หน่วยระยะ</div>${chips('unit', 'unit', UNITS, nr.unit)}</div>
+        <label>ชุดแท่นที (ถ้าทราบ)<input class="input" value="${esc(nr.tee)}" placeholder="เช่น ขาว, ฟ้า" data-input="tee"></label>
+        <div class="field"><div class="lbl">พาร์รายหลุม ${parsSet ? `(${parsSet}/${count})` : '(ไม่บังคับ แก้ระหว่างเล่นได้)'}</div>
+          <div class="row gap wrap"><span class="lbl inline">ตั้งทุกหลุม:</span>${[3, 4, 5].map((v) => `<button type="button" class="mini" data-act="allpar" data-v="${v}">พาร์ ${v}</button>`).join('')}</div>
+          <div class="par-grid">${Array.from({ length: count }, (_, i) => i + 1).map((n) => `<div class="par-cell"><span>หลุม ${n}${loop && n > size ? ` <small class="muted">(หลุม ${loopHoleNo(n, size)})</small>` : ''}</span>
+            ${chips('par', String(n), parOpts, valOf(nr.pars, n) ? String(valOf(nr.pars, n)) : null, { cls: 'tight' })}</div>`).join('')}
+          </div></div>
+        <label>หมายเหตุ<textarea class="input" rows="2" data-input="note">${esc(nr.note)}</textarea></label>
+        ${needsGeo ? `<button type="button" class="linklike small" data-act="saveGeo">📍 ${c.geo ? 'ตำแหน่งสนามนี้เป็นค่าโดยประมาณ' : 'ยังไม่มีตำแหน่งสนามนี้'} — กดบันทึกตำแหน่งตอนอยู่ที่สนาม</button>` : ''}
+        ${sc ? `<details class="small muted"><summary>ที่มาของข้อมูลสกอร์การ์ด</summary>
+          <ul>${sc.sources.map((x) => `<li>${esc(x)}</li>`).join('')}<li>ตรวจ ณ ${esc(sc.checked_at)} · หน่วย${sc.unit === 'm' ? 'เมตร' : 'หลา'}</li></ul>
+          ${sc.note ? `<p>${esc(sc.note)}</p>` : ''}
+          ${sc.origin === 'user' ? '' : '<p>ข้อมูลจากฐานข้อมูลออนไลน์ อาจต่างจากสกอร์การ์ดล่าสุดของสนาม แก้พาร์/HC ในรอบได้ แอปจะจำค่าของคุณแทน</p>'}
+        </details>` : ''}
       </details>
-      <label>หมายเหตุ<textarea class="input" rows="2" data-input="note">${esc(nr.note)}</textarea></label>
-      <button type="button" class="btn primary big block" data-act="start" ${count ? '' : 'disabled'}>เริ่มรอบ ${count ? `(${count} หลุม)` : ''}</button>
+      <p class="note">ตั้งเกม (Skin, Matchplay, ทีม ฯลฯ) และแต้มต่อได้หลังเริ่มรอบ</p>
+      <div class="start-bar"><button type="button" class="btn primary big block" data-act="start" ${count ? '' : 'disabled'}>เริ่มรอบ ${count ? `(${count} หลุม)` : ''}</button></div>
     </div>`,
     actions: {
       offlineMap: (el) => saveCourseOffline(el.dataset.course, el),

@@ -38,8 +38,8 @@ export function download(filename, text, type) {
 }
 
 export function header(title, { back = '#/', sub = '' } = {}) {
-  return `<header class="bar">
-    <a class="back" href="${esc(back)}" aria-label="กลับ">‹</a>
+  return `<header class="bar${back ? '' : ' root'}">
+    ${back ? `<a class="back" href="${esc(back)}" aria-label="กลับ">‹</a>` : ''}
     <div class="bar-title"><h1>${esc(title)}</h1>${sub ? `<div class="sub">${sub}</div>` : ''}</div>
     <a href="#/account" class="sync-pill" data-sync hidden></a>
   </header>`;

@@ -66,6 +66,19 @@ async function diagnostics() {
   return lines.join('\n');
 }
 
+// กลุ่มที่เปิดค้างไว้ (หน้าวาดใหม่หลังแก้ค่า ไม่พับกลุ่มที่กำลังแก้)
+const openGroups = new Set();
+function group(id, icon, title, summary, body) {
+  return `<details class="card set-group" data-g="${id}"${openGroups.has(id) ? ' open' : ''}>
+    <summary><span class="sg-icon" aria-hidden="true">${icon}</span><span class="sg-text"><b>${esc(title)}</b><small>${esc(summary)}</small></span><span class="sg-chev" aria-hidden="true">›</span></summary>
+    <div class="sg-body">${body}</div>
+  </details>`;
+}
+function toggle(act, on, title, sub) {
+  return `<label class="switch-row"><span class="sw-text"><b>${esc(title)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</span>
+    <input type="checkbox" class="switch" role="switch" ${on ? 'checked' : ''} data-change="${act}"></label>`;
+}
+
 export function settingsView(_p, ctx) {
   const clubs = st.clubs();
   const used = new Set([...st.S.shots.values()].map((s) => s.club_id));
@@ -76,91 +89,84 @@ export function settingsView(_p, ctx) {
   const saveClub = async (id, patch) => { await st.put('clubs', { ...st.S.clubs.get(id), ...patch }); };
 
   return {
-    html: `${header('ตั้งค่า')}<div class="page">
-      <h2>ข้อมูลของฉัน</h2>
-      <div class="player-row">
-        <input class="input" value="${esc(st.setting('my_name', 'ฉัน'))}" maxlength="30" data-change="myName" aria-label="ชื่อของฉัน" placeholder="ชื่อที่แสดงในสกอร์การ์ด">
-        <input class="input hc" type="number" inputmode="numeric" min="0" max="54" placeholder="HC" value="${st.setting('my_handicap', '') ?? ''}" data-change="myHc" aria-label="แต้มต่อของฉัน">
-      </div>
-      <p class="note">ชื่อใช้ในสกอร์การ์ดและรูปที่แชร์ เปลี่ยนแล้วรอบเก่าที่ใช้ชื่อเดิมเปลี่ยนตามด้วย · แต้มต่อ (HC) เริ่มใช้กับรอบใหม่</p>
+    html: `${header('ตั้งค่า', { back: null })}<div class="page settings">
+      <section class="card set-profile">
+        <div class="lbl">ชื่อในสกอร์การ์ด และแต้มต่อ (HC)</div>
+        <div class="player-row">
+          <input class="input" value="${esc(st.setting('my_name', 'ฉัน'))}" maxlength="30" data-change="myName" aria-label="ชื่อของฉัน" placeholder="ชื่อที่แสดงในสกอร์การ์ด">
+          <input class="input hc" type="number" inputmode="numeric" min="0" max="54" placeholder="HC" value="${st.setting('my_handicap', '') ?? ''}" data-change="myHc" aria-label="แต้มต่อของฉัน">
+        </div>
+        ${cloud.enabled() ? `<a class="set-link" href="#/account"><span>☁️ ${cloud.session() ? 'บัญชีและการซิงก์' : 'เข้าสู่ระบบเพื่อสำรองบนคลาวด์'}</span><span aria-hidden="true">›</span></a>` : ''}
+      </section>
 
-      <h2>เพื่อนในก๊วน</h2>
-      ${friends().length ? `<div class="players-edit">${friends().map((f, i) => `<div class="player-row">
+      ${group('round', '⛳', 'ระหว่างออกรอบ', `หน่วย${st.setting('distance_unit', 'm') === 'yd' ? 'หลา' : 'เมตร'} · จอไม่ดับ ${st.setting('keep_awake', true) === false ? 'ปิด' : 'เปิด'}${st.setting('sun_mode', false) === true ? ' · แดดจ้า' : ''}`, `
+        <div class="field"><div class="lbl">หน่วยระยะเริ่มต้น</div>${chips('unit', 'unit', UNITS, st.setting('distance_unit', 'm'))}</div>
+        ${toggle('keepAwake', st.setting('keep_awake', true) !== false, 'จอไม่ดับเองตอนอยู่หน้าหลุมและแผนที่หลุม', wakeSupported() ? 'กินแบตเพิ่มเล็กน้อย ออกจากหน้าหลุมแล้วจอดับตามปกติ' : 'เบราว์เซอร์นี้ยังไม่รองรับ (iPhone ต้อง iOS 16.4 ขึ้นไป)')}
+        ${toggle('sunMode', st.setting('sun_mode', false) === true, 'โหมดแดดจ้า', 'พื้นขาว ตัวดำ ตัวใหญ่ อ่านกลางแดดง่าย · สลับได้ที่ปุ่ม ☀️ ในหน้าหลุม')}
+        ${toggle('autoHole', st.setting('map_auto_hole', true) !== false, 'เปลี่ยนหลุมให้เองในแผนที่', 'เมื่อเดินถึงแท่นทีหลุมถัดไป (ใช้ GPS และหมุดแท่นที)')}
+        ${toggle('sharePins', st.setting('share_pins', false) === true, 'แชร์หมุดแท่นที/กรีนที่ฉันวางเอง', 'ไม่ระบุตัวตน · เฉพาะสนามในรายชื่อ · ต้องเข้าสู่ระบบ · ปิดแล้วลบหมุดที่เคยแชร์')}
+        <label class="lbl">คำที่ใช้บ่อย (ปุ่มเติมหมายเหตุ หนึ่งบรรทัดต่อหนึ่งคำ)
+          <textarea class="input" rows="4" data-change="phrases" placeholder="หนึ่งบรรทัดต่อหนึ่งคำ">${esc(st.setting('phrases', []).join('\n'))}</textarea></label>`)}
+
+      ${group('bag', '🏌️', 'กระเป๋าไม้', `${clubs.filter((c) => c.in_bag).length} ไม้ในกระเป๋า`, `
+        <p class="note">ไม้ที่ติ๊กจะแสดงตอนจด เรียงตามลำดับนี้ · ไม้ที่มีช็อตแล้วลบไม่ได้ ให้เอาออกจากกระเป๋าแทน</p>
+        <div class="clubs-edit">
+          ${clubs.map((c, i) => `<div class="club-row${c.in_bag ? '' : ' off'}">
+            <input type="checkbox" ${c.in_bag ? 'checked' : ''} data-change="inBag" data-id="${c.id}" aria-label="ในกระเป๋า">
+            <input class="input lbl-in" value="${esc(c.label)}" data-change="clubLabel" data-id="${c.id}" aria-label="ชื่อย่อ">
+            <select class="input" data-change="clubCat" data-id="${c.id}" aria-label="ประเภท">
+              ${CLUB_CATEGORIES.map((o) => `<option value="${o.v}"${o.v === c.category ? ' selected' : ''}>${o.th}</option>`).join('')}</select>
+            <input class="input loft" type="number" inputmode="decimal" placeholder="องศา" value="${c.loft_optional ?? ''}" data-change="clubLoft" data-id="${c.id}" aria-label="องศา">
+            <button type="button" class="mini" data-act="move" data-id="${c.id}" data-dir="-1" ${i ? '' : 'disabled'} aria-label="เลื่อนขึ้น">↑</button>
+            <button type="button" class="mini danger" data-act="delClub" data-id="${c.id}" ${used.has(c.id) ? 'disabled title="มีช็อตที่ใช้ไม้นี้ ให้เอาออกจากกระเป๋าแทน"' : ''} aria-label="ลบ">✕</button>
+          </div>`).join('')}
+        </div>
+        <button type="button" class="btn block" data-act="addClub">＋ เพิ่มไม้</button>`)}
+
+      ${group('friends', '👥', 'เพื่อนในก๊วน', friends().length ? `${friends().length} คน` : 'ยังไม่มี', friends().length ? `<div class="players-edit">${friends().map((f, i) => `<div class="player-row">
           <input class="input" value="${esc(f.name)}" data-change="fName" data-i="${i}" aria-label="ชื่อเพื่อน">
           <input class="input hc" type="number" inputmode="numeric" min="0" max="54" placeholder="HC" value="${f.handicap ?? ''}" data-change="fHc" data-i="${i}" aria-label="แต้มต่อ">
           <button type="button" class="mini danger" data-act="fDel" data-i="${i}" aria-label="ลบ">✕</button></div>`).join('')}</div>`
-    : '<p class="muted small">เพื่อนที่เพิ่มในรอบจะถูกจำไว้ที่นี่ เลือกได้เร็วในรอบถัดไป</p>'}
+    : '<p class="muted small">เพื่อนที่เพิ่มในรอบจะถูกจำไว้ที่นี่ เลือกได้เร็วในรอบถัดไป</p>')}
 
-      <h2>กระเป๋าไม้</h2>
-      <p class="note">ไม้ที่ติ๊ก “ในกระเป๋า” จะแสดงในแถวเลือกไม้ตอนจด เรียงตามลำดับนี้</p>
-      <div class="clubs-edit">
-        ${clubs.map((c, i) => `<div class="club-row${c.in_bag ? '' : ' off'}">
-          <input type="checkbox" ${c.in_bag ? 'checked' : ''} data-change="inBag" data-id="${c.id}" aria-label="ในกระเป๋า">
-          <input class="input lbl-in" value="${esc(c.label)}" data-change="clubLabel" data-id="${c.id}" aria-label="ชื่อย่อ">
-          <select class="input" data-change="clubCat" data-id="${c.id}" aria-label="ประเภท">
-            ${CLUB_CATEGORIES.map((o) => `<option value="${o.v}"${o.v === c.category ? ' selected' : ''}>${o.th}</option>`).join('')}</select>
-          <input class="input loft" type="number" inputmode="decimal" placeholder="องศา" value="${c.loft_optional ?? ''}" data-change="clubLoft" data-id="${c.id}" aria-label="องศา">
-          <button type="button" class="mini" data-act="move" data-id="${c.id}" data-dir="-1" ${i ? '' : 'disabled'} aria-label="เลื่อนขึ้น">↑</button>
-          <button type="button" class="mini danger" data-act="delClub" data-id="${c.id}" ${used.has(c.id) ? 'disabled title="มีช็อตที่ใช้ไม้นี้ ให้เอาออกจากกระเป๋าแทน"' : ''} aria-label="ลบ">✕</button>
-        </div>`).join('')}
-      </div>
-      <button type="button" class="btn block" data-act="addClub">＋ เพิ่มไม้</button>
+      ${group('data', '💾', 'สำรองและกู้คืนข้อมูล', lastExport ? `สำรองล่าสุด ${fmtDate(lastExport)}` : 'ยังไม่เคยส่งออกไฟล์สำรอง', `
+        <div class="small muted">${counts}<br><span id="persist"></span></div>
+        <button type="button" class="btn primary block" data-act="exportJson">ส่งออกไฟล์สำรอง (JSON)</button>
+        <div class="row gap">
+          <button type="button" class="btn" data-act="csvShots">CSV ช็อต</button>
+          <button type="button" class="btn" data-act="csvPen">CSV สโตรกปรับ</button>
+          <button type="button" class="btn" data-act="csvPractice">CSV ซ้อม</button>
+        </div>
+        <label class="btn block file-btn">กู้คืนจากไฟล์ JSON…<input type="file" accept="application/json,.json" data-change="importJson" hidden></label>
+        <p class="note">การกู้คืนจะแทนที่ข้อมูลทั้งหมดในเครื่องนี้ด้วยข้อมูลในไฟล์</p>`)}
 
-      <h2>หน่วยระยะเริ่มต้น</h2>
-      ${chips('unit', 'unit', UNITS, st.setting('distance_unit', 'm'))}
+      ${cloud.enabled() ? group('feedback', '💬', 'ความเห็นและแจ้งปัญหา', reportingOn() ? 'ส่งรายงานข้อผิดพลาดอัตโนมัติ เปิด' : 'บอกเราว่าติดตรงไหน', `
+        <form class="feedback" data-submit="feedback">
+          <label class="lbl">ใช้แล้วติดตรงไหน หรืออยากได้อะไรเพิ่ม เล่าได้เลย
+            <textarea class="input" name="text" rows="3" maxlength="2000" required placeholder="เช่น ปุ่มจบหลุมด้วยพัตใช้ง่าย แต่อยากให้…"></textarea></label>
+          <label class="lbl">ช่องทางให้ติดต่อกลับ (ไม่บังคับ)<input class="input" name="contact" maxlength="120" placeholder="LINE ID หรืออีเมล"></label>
+          <label class="check"><input type="checkbox" name="errs" checked> แนบข้อผิดพลาดล่าสุดในเครื่องนี้ (ไม่มีข้อมูลรอบหรือสกอร์)</label>
+          <button class="btn primary block">ส่งความเห็นถึงผู้พัฒนา</button>
+        </form>
+        ${toggle('reportErrors', reportingOn(), 'ส่งรายงานข้อผิดพลาดให้ผู้พัฒนาอัตโนมัติ', 'เฉพาะข้อความผิดพลาด หน้าที่เกิด รุ่นแอป และรุ่นเบราว์เซอร์ ไม่มีข้อมูลรอบ สกอร์ ตำแหน่ง หรืออีเมล')}`) : ''}
 
-      <h2>ระหว่างออกรอบ</h2>
-      <label class="card row gap toggle-row"><input type="checkbox" ${st.setting('keep_awake', true) === false ? '' : 'checked'} data-change="keepAwake">
-        <span>จอไม่ดับเองตอนอยู่หน้าหลุมและแผนที่หลุม <small class="muted">${wakeSupported() ? '(กินแบตเพิ่มเล็กน้อย · ออกจากหน้าหลุมแล้วจอดับตามปกติ)' : '(เบราว์เซอร์นี้ยังไม่รองรับ · iPhone ต้อง iOS 16.4 ขึ้นไป)'}</small></span></label>
-      <label class="card row gap toggle-row"><input type="checkbox" ${st.setting('sun_mode', false) === true ? 'checked' : ''} data-change="sunMode">
-        <span>โหมดแดดจ้า <small class="muted">(พื้นขาว ตัวดำ ตัวใหญ่ขึ้น อ่านกลางแดดง่าย · สลับได้ที่ปุ่ม ☀️ ในหน้าหลุม)</small></span></label>
+      ${group('fix', '🛠', 'แก้ปัญหาแอป', 'แอปค้างรุ่นเก่า หรือแสดงผลแปลก', `
+        <button type="button" class="btn block" data-act="hardRefresh">🔄 โหลดแอปรุ่นล่าสุดใหม่ (ข้อมูลไม่หาย)</button>
+        <p class="note">ล้างเฉพาะไฟล์ของแอปที่เก็บไว้ ไม่ลบรอบหรือช็อตที่จด</p>
+        <details class="small diag"><summary>ข้อมูลสำหรับแจ้งปัญหา</summary>
+          <pre id="diag-text">กำลังรวบรวม…</pre>
+          <div class="row gap"><button type="button" class="mini" data-act="copyDiag">คัดลอก</button>
+            <button type="button" class="mini" data-act="clearErr">ล้างรายการข้อผิดพลาด</button></div>
+          <p class="note">ไม่มีอีเมลหรือข้อมูลการเล่นในนี้ คัดลอกส่งให้ผู้พัฒนาได้</p>
+        </details>`)}
 
-      <h2>แผนที่หลุม</h2>
-      <label class="card row gap toggle-row"><input type="checkbox" ${st.setting('map_auto_hole', true) === false ? '' : 'checked'} data-change="autoHole">
-        <span>เปลี่ยนหลุมให้เองเมื่อเดินถึงแท่นทีหลุมถัดไป <small class="muted">(ใช้ GPS และหมุดแท่นที)</small></span></label>
-      <label class="card row gap toggle-row"><input type="checkbox" ${st.setting('share_pins', false) === true ? 'checked' : ''} data-change="sharePins">
-        <span>แชร์หมุดแท่นที/กรีนที่ฉันวางเองให้ผู้เล่นคนอื่น <small class="muted">(ไม่ระบุตัวตน · เฉพาะสนามในรายชื่อ · ต้องเข้าสู่ระบบ · ปิดแล้วลบหมุดที่เคยแชร์ทั้งหมด)</small></span></label>
-
-      <h2>คำที่ใช้บ่อย (ปุ่มเติมหมายเหตุ)</h2>
-      <textarea class="input" rows="5" data-change="phrases" placeholder="หนึ่งบรรทัดต่อหนึ่งคำ">${esc(st.setting('phrases', []).join('\n'))}</textarea>
-
-      <h2>สำรองและกู้คืนข้อมูล</h2>
-      ${cloud.enabled() ? `<a class="btn block" href="#/account">☁️ ${cloud.session() ? 'บัญชีและการซิงก์' : 'เข้าสู่ระบบเพื่อสำรองบนคลาวด์'}</a>` : ''}
-      <div class="card small">${counts}<br>${lastExport ? `ส่งออกไฟล์สำรองล่าสุด ${esc(fmtDate(lastExport))}` : 'ยังไม่เคยส่งออกไฟล์สำรอง'}<br><span id="persist" class="muted"></span></div>
-      <button type="button" class="btn primary block" data-act="exportJson">ส่งออกไฟล์สำรอง (JSON)</button>
-      <div class="row gap">
-        <button type="button" class="btn" data-act="csvShots">CSV ช็อต</button>
-        <button type="button" class="btn" data-act="csvPen">CSV สโตรกปรับ</button>
-        <button type="button" class="btn" data-act="csvPractice">CSV ซ้อม</button>
-      </div>
-      <label class="btn block file-btn">กู้คืนจากไฟล์ JSON…<input type="file" accept="application/json,.json" data-change="importJson" hidden></label>
-      <p class="note">การกู้คืนจะแทนที่ข้อมูลทั้งหมดในเครื่องนี้ด้วยข้อมูลในไฟล์</p>
-
-      <h2>แก้ปัญหาแอป</h2>
-      <button type="button" class="btn block" data-act="hardRefresh">🔄 โหลดแอปรุ่นล่าสุดใหม่ (ข้อมูลไม่หาย)</button>
-      <p class="note">ใช้เมื่อแอปค้างอยู่รุ่นเก่าหรือแสดงผลแปลก ๆ จะล้างเฉพาะไฟล์ของแอปที่เก็บไว้ ไม่ลบรอบหรือช็อตที่จด</p>
-      <details class="card small diag"><summary>ข้อมูลสำหรับแจ้งปัญหา</summary>
-        <pre id="diag-text">กำลังรวบรวม…</pre>
-        <div class="row gap"><button type="button" class="mini" data-act="copyDiag">คัดลอก</button>
-          <button type="button" class="mini" data-act="clearErr">ล้างรายการข้อผิดพลาด</button></div>
-        <p class="note">ไม่มีอีเมลหรือข้อมูลการเล่นในนี้ คัดลอกส่งให้ผู้พัฒนาได้</p>
-      </details>
-
-      ${cloud.enabled() ? `<h2 id="feedback">ความเห็นและแจ้งปัญหา</h2>
-      <form class="card feedback" data-submit="feedback">
-        <label class="lbl">ใช้แล้วติดตรงไหน หรืออยากได้อะไรเพิ่ม เล่าได้เลย
-          <textarea class="input" name="text" rows="3" maxlength="2000" required placeholder="เช่น ปุ่มจบหลุมด้วยพัตใช้ง่าย แต่อยากให้…"></textarea></label>
-        <label class="lbl">ช่องทางให้ติดต่อกลับ (ไม่บังคับ)<input class="input" name="contact" maxlength="120" placeholder="LINE ID หรืออีเมล"></label>
-        <label class="check"><input type="checkbox" name="errs" checked> แนบข้อผิดพลาดล่าสุดในเครื่องนี้ (ไม่มีข้อมูลรอบหรือสกอร์)</label>
-        <button class="btn primary block">ส่งความเห็นถึงผู้พัฒนา</button>
-      </form>
-      <label class="check"><input type="checkbox" data-change="reportErrors" ${reportingOn() ? 'checked' : ''}> ส่งรายงานข้อผิดพลาดให้ผู้พัฒนาอัตโนมัติ</label>
-      <p class="note">ส่งเฉพาะข้อความผิดพลาด หน้าที่เกิด รุ่นแอป และรุ่นเบราว์เซอร์ ไม่มีข้อมูลรอบ สกอร์ ตำแหน่ง หรืออีเมล · ปิดได้ทุกเมื่อ</p>` : ''}
-
-      <a class="btn block" href="#/whats-new">✨ มีอะไรใหม่</a>
+      <a class="set-link card" href="#/whats-new"><span>✨ มีอะไรใหม่</span><span aria-hidden="true">›</span></a>
       <p class="note center">ParUp TH รุ่น ${APP_VERSION} (ชื่อเดิม ShotLog) · ข้อมูลเก็บในเครื่องนี้เท่านั้น</p>
     </div>`,
-    mount: () => {
+    mount: (el) => {
+      el?.querySelectorAll('details.set-group').forEach((d) => d.addEventListener('toggle', () => {
+        if (d.open) openGroups.add(d.dataset.g); else openGroups.delete(d.dataset.g);
+      }));
       diagnostics().then((text) => {
         const el = document.getElementById('diag-text');
         if (el) el.textContent = text;
