@@ -1049,3 +1049,11 @@ html[data-sun="1"] .muted, html[data-sun="1"] .note, html[data-sun="1"] .small {
 .cd-refs a { white-space: nowrap; }
 .extend-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; border: 2px dashed var(--brand); color: var(--brand); }
 .extend-btn small { font-size: .78rem; color: var(--muted); font-weight: 500; }
+
+/* ป้ายที่มาของระยะไม้ */
+.src-tag { display: inline-block; font-size: .68rem; font-weight: 700; line-height: 1.5; padding: 0 7px; border-radius: 999px; vertical-align: middle; white-space: nowrap; }
+.src-tag.gps { background: var(--good-soft); color: var(--good); }
+.src-tag.sim { background: var(--gold-soft); color: var(--gold-ink); }
+.map-club .src-tag.gps { background: rgba(92, 201, 143, .25); color: #b9f0d2; }
+.map-club .src-tag.sim { background: rgba(240, 183, 58, .25); color: #ffe39a; }
+.tp-used { font-weight: 600; }

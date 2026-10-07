@@ -42,7 +42,7 @@ export function teePlan({ par, lengthM = null, hazards = [], history = null, clu
     const c = clubFor(lengthM, rows, fmt);
     const aim = missSide ? `กลางกรีน เยื้อง${TH[opposite(missSide)]}เล็กน้อย (ลูกคุณมักไป${TH[missSide]})` : 'กลางกรีน ไม่เล็งธง';
     for (const h of hazards) if (DANGER.has(h.kind) && Math.abs(h.along - lengthM) < 30) notes.push(`${h.kind === 'water' ? 'น้ำ' : 'จุดอันตราย'}ฝั่ง${TH[h.off > 0 ? 'right' : 'left']}ของกรีน — พลาดไปอีกฝั่งดีกว่า`);
-    return { club: c, aim, notes, remain: null, why: c.generic ? `ระยะ ${fmt(lengthM)} · ยังไม่มีระยะจริงของไม้ที่ใกล้เคียง` : `ระยะ ${fmt(lengthM)} · ${c.label} ปกติ ${fmt(c.median)}` };
+    return { club: c, aim, notes, remain: null, used: c.generic ? [] : [c], why: c.generic ? `ระยะ ${fmt(lengthM)} · ยังไม่มีระยะจริงของไม้ที่ใกล้เคียง` : `ระยะ ${fmt(lengthM)} · ${c.label} ปกติ ${fmt(c.median)}` };
   }
 
   const drv = rows.find((r) => r.category === 'driver') ?? null;
@@ -58,7 +58,12 @@ export function teePlan({ par, lengthM = null, hazards = [], history = null, clu
     const safe = rd.length ? rows.find((r) => r !== drv && r.median >= 120 * YD && !risk(r).length) : null;
     if (gap < 10) {
       pick = alt;
-      why = `ไดรเวอร์ไกลกว่า ${alt.label} แค่ ${fmt(Math.max(0, gap))} ใช้ ${alt.label} คุมทิศง่ายกว่า`;
+      // ระยะจากคนละแหล่ง (สนาม = ระยะรวมที่ลูกหยุด · เครื่องซ้อม = ระยะลอย) เทียบกันตรง ๆ ไม่ได้ บอกผู้เล่นด้วย
+      const mixed = (drv.src ?? null) !== (alt.src ?? null);
+      why = gap > 0
+        ? `ไดรเวอร์ไกลกว่า ${alt.label} แค่ ${fmt(gap)} ใช้ ${alt.label} คุมทิศง่ายกว่า`
+        : `${alt.label} ไปได้ ${fmt(alt.median)} ไม่น้อยกว่าไดรเวอร์ (${fmt(drv.median)}) ใช้ ${alt.label} คุมทิศง่ายกว่า`;
+      if (mixed) why += ' · ระยะ 2 ไม้มาจากคนละแหล่ง จดไดรเวอร์ในสนามเพิ่มจะเทียบได้แม่นขึ้น';
     } else if (history && history.n >= 2 && history.pen >= 2 && history.penDriver >= 2) {
       pick = alt;
       why = `ทีออฟหลุมนี้ด้วยไดรเวอร์โดนลูกโทษ ${history.penDriver} จาก ${history.n} ครั้ง`;
@@ -90,7 +95,8 @@ export function teePlan({ par, lengthM = null, hazards = [], history = null, clu
   }
   if (history?.n >= 2 && history.pen) notes.push(`ทีออฟหลุมนี้ที่ผ่านมา ${history.n} ครั้ง โดนลูกโทษ ${history.pen} ครั้ง`);
   const remain = lengthM ? Math.max(0, lengthM - (pick.total ?? pick.median)) : null;
-  return { club: pick, aim, notes, remain, why };
+  const used = [pick, ...(drv && drv !== pick ? [drv] : [])];
+  return { club: pick, aim, notes, remain, why, used };
 }
 
 // อันตรายของหลุมเทียบแนวแท่นที→กรีน (along = ระยะจากแท่นที, off = ออกซ้าย(−)/ขวา(+))

@@ -2,7 +2,7 @@
 import * as st from '../state.js';
 import { esc, header, fmtDate } from '../ui.js';
 import { toUnit, unitTh } from '../holemap.js';
-import { teePlanFor, missSide } from './holeplan.js';
+import { teePlanFor, missSide, srcTag } from './holeplan.js';
 import { clubRows } from './map.js';
 import { goalOf } from '../coach.js';
 
@@ -36,7 +36,7 @@ export function gamePlanView([roundId]) {
     const len = tp?.lengthM ?? (Number(h.distance) > 0 ? Number(h.distance) * (h.distance_unit === 'yd' ? 0.9144 : 1) : null);
     return `<a class="gp-hole${tp?.notes.length ? ' warn' : ''}" href="#/round/${encodeURIComponent(roundId)}/hole/${h.number}">
       <span class="gp-n"><b>${h.number}</b><small>พาร์ ${h.par ?? '–'}</small>${len ? `<small>${esc(fmt(len))}</small>` : ''}</span>
-      <span class="gp-body">${tp ? `<b>${esc(tp.club.label)}</b>
+      <span class="gp-body">${tp ? `<b>${esc(tp.club.label)} ${srcTag(tp.club)}</b>
         <small>🎯 ${esc(tp.aim)}</small>
         ${tp.why && tp.why !== 'ไม้ทีออฟปกติ' && tp.why !== commonWhy ? `<small class="muted">${esc(tp.why)}</small>` : ''}
         ${tp.notes.map((n) => `<small class="gp-note">⚠️ ${esc(n)}</small>`).join('')}`
@@ -55,7 +55,7 @@ export function gamePlanView([roundId]) {
         <div class="tp-row"><span>เป้า</span><b>${esc(goal.th)}: ลูกโทษ${budget('pen')} · 3-พัต${budget('putt')} สโตรก</b><small>หลุมยาก เล่นเพื่อโบกี้ เจอปัญหาออกทางที่ปลอดภัยก่อน</small></div>
       </section>` : `<div class="card warn small">ยังไม่มีระยะไม้ของคุณ จึงยังวางแผนไม้ไม่ได้ · จดช็อตพร้อม GPS ในสนาม หรือ<a href="#/launch">นำเข้าไฟล์จากเครื่องซ้อม</a> แล้วกลับมาดูใหม่</div>`}
       <div class="gp-list">${plans.map(row).join('')}</div>
-      <p class="note">แตะหลุมเพื่อไปหน้าจดของหลุมนั้น · ในหน้าหลุม แอปเลือกไม้ตามแผนไว้ให้แล้ว · แผนเปลี่ยนตามระยะไม้ ลูกที่พลาดบ่อย และหมุดจุดอันตรายที่ปักในแผนที่</p>
+      <p class="note">ป้าย <b>สนาม</b> = ระยะจริงจาก GPS ตอนออกรอบ · <b>เครื่องซ้อม</b> = ระยะลอยจากการซ้อม (ใช้กับไม้ที่ยังจดในสนามไม่ถึง 3 ช็อต) · แตะหลุมเพื่อไปหน้าจดของหลุมนั้น · ในหน้าหลุม แอปเลือกไม้ตามแผนไว้ให้แล้ว · แผนเปลี่ยนตามระยะไม้ ลูกที่พลาดบ่อย และหมุดจุดอันตรายที่ปักในแผนที่</p>
     </div>`,
   };
 }

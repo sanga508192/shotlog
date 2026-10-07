@@ -17,7 +17,7 @@ import { launchCarryRows } from '../launch.js';
 import { shotPath, offLine } from '../shotgeo.js';
 import { courseTiles, downloadTiles, dropMissingZooms } from '../tiles.js';
 import { maxZoomAt } from '../map.js';
-import { teePlanFor } from './holeplan.js';
+import { teePlanFor, srcTag } from './holeplan.js';
 import { keepAwake } from '../display.js';
 
 // สถานะที่อยู่ข้ามการเปลี่ยนหลุม (ของสนามที่เปิดอยู่)
@@ -287,7 +287,7 @@ export function mapView([courseId, numStr, query], ctx) {
   function planLine() {
     if (start().me) return '';
     const tp = teePlanFor(round ?? { id: null, course_id: courseId }, { number: n, par, distance: null }, unit());
-    return tp ? `<p class="map-club">🧭 <b>${esc(tp.club.label)}</b> · ${esc(tp.aim)}</p>` : '';
+    return tp ? `<p class="map-club">🧭 <b>${esc(tp.club.label)}</b> ${srcTag(tp.club)} · ${esc(tp.aim)}</p>` : '';
   }
 
   function historyNote() {
@@ -312,7 +312,7 @@ export function mapView([courseId, numStr, query], ctx) {
     const c = suggestClub(d, rows);
     if (!c) return '';
     const u = unit();
-    return `<p class="map-club">🏌️ ${t ? 'ถึงจุดเป้า' : 'ถึงกลางกรีน'} ${fmtDist(d, u)} ${unitTh(u)} → <b>${esc(c.label)}</b> <small>${c.src === 'sim' ? 'ระยะลอยจากเครื่องซ้อม' : 'ระยะกลางของคุณ'} ${fmtDist(c.median, u)}</small></p>`;
+    return `<p class="map-club">🏌️ ${t ? 'ถึงจุดเป้า' : 'ถึงกลางกรีน'} ${fmtDist(d, u)} ${unitTh(u)} → <b>${esc(c.label)}</b> <small>ระยะกลาง ${fmtDist(c.median, u)}</small> ${srcTag(c)}</p>`;
   }
 
   // หมุดจากผู้เล่นคนอื่น (ค่ากลาง) · หมุดเริ่มต้นที่ยังไม่มีใครตรวจ: เตือนทุกครั้ง

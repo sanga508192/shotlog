@@ -10,7 +10,7 @@ import { GPS_MAX_ACC, suggestClub } from '../coach.js';
 import { clubRows } from './map.js';
 import { shotPath, landOf } from '../shotgeo.js';
 import { openLandPicker, landInfo, landText, sideTh } from './landpick.js';
-import { teePlanFor, teePlanHtml, planClubId } from './holeplan.js';
+import { teePlanFor, teePlanHtml, planClubId, srcOf, SRC_TH } from './holeplan.js';
 import { d, blankShot, resetDraft, reliefOf, rehitAfter, usualClub } from './shotdraft.js';
 import { shotCard, shotForm, penaltySection, puttCard, quickPad, holeDoneHtml, LAND_REASONS } from './shotform.js';
 import { keepAwake, sunOn, toggleSun } from '../display.js';
@@ -92,7 +92,8 @@ export function holeView([roundId, numStr], ctx) {
   function clubSuggestion(pos) {
     const fmtD = (m) => `${Math.round(toUnit(m, unit))} ${unitTh(unit)}`;
     const planned = planClubId(tp);
-    if (d.F.sequence === 1 && planned && bag.some((c) => c.id === planned)) return { club: planned, type: 'tee', why: 'ตามแผนทีออฟหลุมนี้' };
+    const fromSrc = (row) => (srcOf(row) ? ` · ระยะไม้จาก${SRC_TH[srcOf(row)]}` : '');
+    if (d.F.sequence === 1 && planned && bag.some((c) => c.id === planned)) return { club: planned, type: 'tee', why: `ตามแผนทีออฟหลุมนี้${fromSrc(tp.club)}` };
     if (d.F.sequence === 1 && hole.par >= 4) {
       const id = usualClub((s, h) => s.sequence === 1 && (h.par ?? 0) >= 4);
       return id ? { club: id, type: 'tee', why: 'ไม้ทีออฟที่คุณใช้บ่อย' } : null;
@@ -110,7 +111,7 @@ export function holeView([roundId, numStr], ctx) {
     if (dist <= 40) return { club: usualClub((s) => s.shot_type === 'chip' || s.shot_type === 'pitch'), type: 'chip', why: `ห่างกลางกรีน ${fmtD(dist)}` };
     const c = suggestClub(dist, clubRows());
     const id = c?.club_id ?? c?.clubId ?? null;
-    return id && bag.some((x) => x.id === id) ? { club: id, type: d.F.sequence === 1 ? 'tee' : 'approach', why: `ระยะถึงกรีน ${fmtD(dist)}` } : null;
+    return id && bag.some((x) => x.id === id) ? { club: id, type: d.F.sequence === 1 ? 'tee' : 'approach', why: `ระยะถึงกรีน ${fmtD(dist)}${fromSrc(c)}` } : null;
   }
   const pristine = () => !d.clubTouched && !d.typeTouched && d.F.end_lie == null && d.F.assessment == null && !d.F.note;
   const freshPos = () => { const p = lastPosition(20000); return p && p.accuracy <= GPS_MAX_ACC ? p : null; };

@@ -951,7 +951,7 @@ export function clubDistances({ rounds, holesOf, shotsOf, penaltiesOf, clubOf, t
     const median = quant(ds, 0.5);
     const suspect = ds.length >= 3 && clubSuspect(club.category, median);
     return {
-      club_id: club.id, label: club.label, category: club.category, order: club.order ?? 0, n: ds.length, median, p25: quant(ds, 0.25), p75: quant(ds, 0.75), max: ds.at(-1),
+      club_id: club.id, label: club.label, category: club.category, order: club.order ?? 0, n: ds.length, median, p25: quant(ds, 0.25), p75: quant(ds, 0.75), max: ds.at(-1), src: 'gps',
       suspect, ...(suspect ? { refs: refs.sort((a, b) => String(b.date).localeCompare(String(a.date)) || a.hole - b.hole) } : {}),
     };
   }).sort((a, b) => a.order - b.order);

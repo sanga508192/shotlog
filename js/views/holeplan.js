@@ -56,12 +56,23 @@ export function teePlanFor(round, hole, unit = 'yd', pre = {}) {
 
 export const planClubId = (tp) => tp?.club?.club_id ?? tp?.club?.clubId ?? null;
 
+// ที่มาของระยะไม้: GPS ในสนาม (ระยะรวมที่ลูกไปหยุด) หรือเครื่องซ้อม (ระยะลอย) · ไม่มีข้อมูลจริง = ไม่มีป้าย
+export const srcOf = (row) => (!row || row.generic ? null : row.src === 'sim' ? 'sim' : 'gps');
+export const SRC_TH = { gps: 'สนาม', sim: 'เครื่องซ้อม' };
+export const SRC_HINT = { gps: 'ระยะจริงจาก GPS ตอนออกรอบ', sim: 'ระยะลอยจากเครื่องซ้อม' };
+export function srcTag(row) {
+  const s = srcOf(row);
+  return s ? `<span class="src-tag ${s}" title="${SRC_HINT[s]}">${SRC_TH[s]}</span>` : '';
+}
+
 export function teePlanHtml(tp, unit = 'yd', roundId = null) {
   if (!tp) return '';
   const fmt = (m) => `${Math.round(toUnit(m, unit))} ${unitTh(unit)}`;
   return `<section class="card tee-plan">
     <b>🧭 แผนทีออฟหลุมนี้</b>
-    <div class="tp-row"><span>ไม้</span><b>${esc(tp.club.label)}</b>${tp.why ? `<small>${esc(tp.why)}</small>` : ''}</div>
+    <div class="tp-row"><span>ไม้</span><b>${esc(tp.club.label)} ${srcTag(tp.club)}</b>${tp.why ? `<small>${esc(tp.why)}</small>` : ''}</div>
+    ${tp.used?.length ? `<div class="tp-row"><span>ระยะ</span><b class="tp-used">${tp.used.map((r) => `${esc(r.label)} ${esc(fmt(r.median))} ${srcTag(r)}`).join(' · ')}</b>
+      <small>สนาม = ระยะจริงจาก GPS ตอนออกรอบ · เครื่องซ้อม = ระยะลอยจากการซ้อม (ไม้ที่ยังจดในสนามไม่ถึง 3 ช็อต)</small></div>` : ''}
     <div class="tp-row"><span>เล็ง</span><b>${esc(tp.aim)}</b></div>
     ${tp.remain != null ? `<div class="tp-row"><span>ต่อไป</span><b>เหลือถึงกรีนราว ${esc(fmt(tp.remain))}</b></div>` : ''}
     ${tp.notes.length ? `<ul class="find">${tp.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}

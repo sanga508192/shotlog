@@ -67,3 +67,22 @@ test('ฝั่งที่พลาด = ฝั่งที่ลูกไป�
   assert.match(tp.aim, /เผื่อลูกที่มักไปจบทางซ้าย/);
   assert.ok(!/โค้ง/.test(tp.aim));
 });
+
+test('แผนทีออฟบอกระยะที่ใช้ตัดสินใจ: ไม้ที่เลือกและไดรเวอร์ที่เทียบ พร้อมที่มา', async () => {
+  const { srcOf } = await import('../js/views/holeplan.js');
+  const gps = (label, category, yd) => ({ ...row(label, category, yd), src: 'gps' });
+  const sim = (label, category, yd) => ({ ...row(label, category, yd), src: 'sim' });
+  const tp = teePlan({ par: 4, lengthM: 380 * YD, clubs: [sim('D', 'driver', 192), gps('3W', 'wood', 189), sim('I7', 'iron', 140)] });
+  assert.equal(tp.club.label, '3W');
+  assert.deepEqual(tp.used.map((r) => [r.label, srcOf(r)]), [['3W', 'gps'], ['D', 'sim']]);
+  assert.match(tp.why, /^ไดรเวอร์ไกลกว่า 3W แค่ 3 หลา/);
+  assert.match(tp.why, /คนละแหล่ง/, 'สนามกับเครื่องซ้อมเทียบตรง ๆ ไม่ได้');
+  const longer = teePlan({ par: 4, lengthM: 380 * YD, clubs: [sim('D', 'driver', 192), gps('3W', 'wood', 205)] });
+  assert.match(longer.why, /^3W ไปได้ 205 หลา ไม่น้อยกว่าไดรเวอร์ \(192 หลา\)/);
+  const p3 = teePlan({ par: 3, lengthM: 140 * YD, clubs: [sim('I7', 'iron', 140)] });
+  assert.deepEqual(p3.used.map((r) => r.label), ['I7']);
+  const none = teePlan({ par: 3, lengthM: 60 * YD, clubs: [sim('I7', 'iron', 140)] });
+  assert.equal(none.club.generic, true);
+  assert.deepEqual(none.used, []);
+  assert.equal(srcOf(none.club), null, 'ไม่มีระยะจริง ไม่มีป้าย');
+});
