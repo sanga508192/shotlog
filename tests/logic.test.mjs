@@ -122,7 +122,7 @@ test('“2 คันธง” คงเดิมหลังส่งออก�
 });
 
 test('กู้คืนปฏิเสธไฟล์ที่ไม่ใช่ของ ShotLog', () => {
-  assert.throws(() => parseImport('{"app":"other","data":{}}'), /ShotLog/);
+  assert.throws(() => parseImport('{"app":"other","data":{}}'), /ParUp TH/);
   assert.throws(() => parseImport('not json'), /JSON/);
   assert.throws(() => parseImport('{"app":"ShotLog","schema_version":1,"data":{"shots":[{}]}}'), /id/);
 });

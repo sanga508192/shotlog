@@ -29,4 +29,4 @@ http.createServer(async (req, res) => {
   } catch {
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }).end('not found');
   }
-}).listen(PORT, () => console.log(`ShotLog: http://localhost:${PORT}/`));
+}).listen(PORT, () => console.log(`ParUp TH: http://localhost:${PORT}/`));

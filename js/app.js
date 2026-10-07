@@ -236,7 +236,7 @@ async function start() {
   // ลงทะเบียนตัวอัปเดตก่อน: ถ้ารุ่นนี้มีปัญหาตอนเปิด ก็ยังรับรุ่นแก้ไขได้
   watchUpdates();
   db.events.blocked = () => {
-    root.innerHTML = '<div class="page"><div class="card warn">กำลังอัปเดตแอป — ShotLog รุ่นเก่ายังเปิดอยู่ในแท็บหรือหน้าต่างอื่น ปิดหน้านั้นแล้วแอปจะเปิดต่อเอง ข้อมูลไม่หาย</div></div>';
+    root.innerHTML = '<div class="page"><div class="card warn">กำลังอัปเดตแอป — ParUp TH รุ่นเก่ายังเปิดอยู่ในแท็บหรือหน้าต่างอื่น ปิดหน้านั้นแล้วแอปจะเปิดต่อเอง ข้อมูลไม่หาย</div></div>';
   };
   try {
     await st.load();

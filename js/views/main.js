@@ -150,7 +150,7 @@ export function homeView(_p, ctx) {
   return {
     html: `<div class="page">
       <header class="home-top">
-        <div><div class="eyebrow">${hello}${name !== 'ฉัน' ? ` ${esc(name)}` : ''} 👋</div><h1>ShotLog</h1></div>
+        <div><div class="eyebrow">${hello}${name !== 'ฉัน' ? ` ${esc(name)}` : ''} 👋</div><h1>ParUp TH</h1></div>
         <a href="#/account" class="sync-pill" data-sync hidden></a>
       </header>
       ${playing.map(liveCard).join('')}

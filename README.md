@@ -1,4 +1,6 @@
-# ShotLog
+# ParUp TH
+
+> ชื่อเดิม ShotLog · ชื่อภายใน (ฐานข้อมูล `shotlog`, แคช, รูปแบบไฟล์สำรอง `app: "ShotLog"`, repo) คงเดิม
 
 แอปจดกอล์ฟรายช็อตเพื่อวางแผนฝึกซ้อม รุ่น Phase A ตามร่างโครงการ 1.1 เป็น PWA ใช้งานส่วนตัวในอุปกรณ์เดียว ข้อมูลเก็บใน IndexedDB และเปิดใช้ได้เมื่อไม่มีสัญญาณ
 
@@ -78,7 +80,7 @@ Service Worker ต้องใช้ HTTPS หรือ localhost การเ�
 2. ไปที่ **SQL Editor** วางไฟล์ `supabase/schema.sql` ทั้งไฟล์แล้วกด Run (รันซ้ำได้)
 3. ไปที่ **Authentication → Sign In / Providers → Email** แล้วเปิด Email
 4. ไปที่ **Authentication → Emails** แล้วแก้เนื้อหาอีเมลทั้ง **Magic Link** และ **Confirm signup** ให้มีรหัส `{{ .Token }}` (ผู้ใช้ใหม่อาจได้รับอีเมลแบบ Confirm signup) เช่น
-   `<h2>รหัสเข้าสู่ระบบ ShotLog</h2><p>กรอกรหัสนี้ในแอป: <strong>{{ .Token }}</strong></p><p>ถ้าคุณไม่ได้ขอรหัสนี้ ไม่ต้องทำอะไร</p>`
+   `<h2>รหัสเข้าสู่ระบบ ParUp TH</h2><p>กรอกรหัสนี้ในแอป: <strong>{{ .Token }}</strong></p><p>ถ้าคุณไม่ได้ขอรหัสนี้ ไม่ต้องทำอะไร</p>`
    แอปใช้การกรอกรหัสแทนการกดลิงก์ เพราะบน iPhone ลิงก์จะเปิดใน Safari ไม่ใช่ในแอปที่ติดตั้งไว้
 5. ไปที่ **Authentication → URL Configuration** แล้วตั้ง Site URL เป็น `https://sanga508192.github.io/shotlog/`
 6. นำ **Project URL** และ **anon / publishable key** จาก Project Settings → API มาใส่ใน `js/config.js` **ห้ามใช้ service_role key**
@@ -101,7 +103,7 @@ Service Worker ต้องใช้ HTTPS หรือ localhost การเ�
 ขั้นตอนตั้งค่า:
 
 1. รัน `supabase/schema.sql` ใน SQL Editor อีกครั้ง (รันซ้ำได้)
-2. ใน Stripe (Test mode) สร้าง Product "ShotLog Plus" แล้วเพิ่มราคาแบบ Recurring 2 ราคา คือ 59 THB/เดือน และ 590 THB/ปี
+2. ใน Stripe (Test mode) สร้าง Product "ParUp TH Plus" แล้วเพิ่มราคาแบบ Recurring 2 ราคา คือ 59 THB/เดือน และ 590 THB/ปี
 3. เปิด PromptPay ที่ Settings → Payment methods
 4. เปิด Customer portal ที่ Settings → Billing → Customer portal โดยให้ยกเลิกได้ เปลี่ยนบัตรได้ และดูใบเสร็จได้
 5. ตั้ง Secrets ใน Supabase ที่ Edge Functions → Secrets:

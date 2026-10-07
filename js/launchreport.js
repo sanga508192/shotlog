@@ -419,7 +419,7 @@ export function fixPlan(report, { hand = 'right', practice = [], clubOf = () => 
 // ---------- สรุปเป็นข้อความ (คัดลอกไปดูตอนซ้อม) ----------
 export function planText(report, plan, { fmt = (m) => `${Math.round(m / YD)} หลา`, drillName = (id) => id, date = '' } = {}) {
   const L = [];
-  L.push(`ShotLog · สรุปจากเครื่องซ้อม${date ? ` ${date}` : ''}`);
+  L.push(`ParUp TH · สรุปจากเครื่องซ้อม${date ? ` ${date}` : ''}`);
   if (report.headline.length) {
     L.push('', '📊 สรุป');
     for (const h of report.headline) L.push(`• ${h.text}`);

@@ -42,10 +42,10 @@ export function boardView(b, now = Date.now()) {
       ${arr(g.items).slice(0, 12).map(obj).map((it) => `<div class="row between"><span>${esc(text(it.name, 40))}</span><b>${esc(text(it.value, 20))}</b></div>`).join('')}</div>`).join('');
   return {
     sub: [course, d.tee ? `แท่น${text(d.tee, 20)}` : '', text(d.date, 20)].filter(Boolean).join(' · '),
-    title: `สกอร์สด · ${course || 'ShotLog'}`,
+    title: `สกอร์สด · ${course || 'ParUp TH'}`,
     html: `<div class="card lv-board">${leader || '<p class="muted">ยังไม่มีสกอร์</p>'}</div>
     ${table}${games}
     <p class="note">อัปเดตล่าสุด ${esc(ago(obj(b).updated_at, now))} · หน้านี้โหลดใหม่เองทุก 20 วินาที</p>
-    <p class="note">จดด้วย <a href="./">ShotLog</a> — แอปจดกอล์ฟรายช็อตและสกอร์ก๊วน</p>`,
+    <p class="note">จดด้วย <a href="./">ParUp TH</a> — สกอร์การ์ด แคดดี้ และโค้ชกอล์ฟ</p>`,
   };
 }

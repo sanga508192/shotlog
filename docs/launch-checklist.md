@@ -51,7 +51,7 @@
 3. สร้าง API key ของ Resend
 4. Supabase → Authentication → Emails → SMTP Settings:
    - Host `smtp.resend.com` · Port `465` · Username `resend` · Password = API key ของ Resend
-   - Sender email เช่น `noreply@โดเมนของคุณ` · Sender name `ShotLog`
+   - Sender email เช่น `noreply@โดเมนของคุณ` · Sender name `ParUp TH`
 5. ทดสอบเข้าสู่ระบบด้วยอีเมลใหม่ 1 ครั้ง แล้วลบ app password ของ Gmail เดิมทิ้ง
 
 ## 4. นโยบายความเป็นส่วนตัวและข้อตกลง — คุณ แล้ว Claude

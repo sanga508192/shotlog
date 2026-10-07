@@ -269,13 +269,14 @@ export const sameData = (a, b) => stableStringify(a) === stableStringify(b);
 export function buildExport(data, now = new Date().toISOString()) {
   const out = {};
   for (const s of DATA_STORES) out[s] = data[s] ? [...data[s]] : [];
+  // 'ShotLog' = รหัสรูปแบบไฟล์สำรอง (ชื่อเดิมของแอป) ไม่เปลี่ยนตามชื่อแอป
   return { app: 'ShotLog', schema_version: SCHEMA_VERSION, exported_at: now, data: out };
 }
 
 export function parseImport(text) {
   let obj;
   try { obj = JSON.parse(text); } catch { throw new Error('ไฟล์ไม่ใช่ JSON ที่อ่านได้'); }
-  if (!obj || obj.app !== 'ShotLog' || typeof obj.data !== 'object') throw new Error('ไม่ใช่ไฟล์สำรองของ ShotLog');
+  if (!obj || obj.app !== 'ShotLog' || typeof obj.data !== 'object') throw new Error('ไม่ใช่ไฟล์สำรองของ ParUp TH (ชื่อเดิม ShotLog)');
   if (!(obj.schema_version <= SCHEMA_VERSION)) throw new Error(`ไฟล์รุ่นข้อมูล ${obj.schema_version} ใหม่กว่าแอปนี้`);
   const data = {};
   for (const s of DATA_STORES) {

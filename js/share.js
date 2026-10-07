@@ -188,7 +188,7 @@ function headerBand(p, W, h, { round, grid }, { compact = false } = {}) {
 
 function footer(p, W, y, pad, note = '') {
   const stamp = new Date().toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' });
-  p.text('ShotLog', pad, y, { size: 15, weight: 700, color: C.brand, align: 'left' });
+  p.text('ParUp TH', pad, y, { size: 15, weight: 700, color: C.brand, align: 'left' });
   if (note) p.text(note, pad + 90, y, { size: 13, weight: 600, color: C.red, align: 'left', maxW: W - pad * 2 - 90 - 190 });
   p.text(stamp, W - pad, y, { size: 12, color: C.muted, align: 'right' });
 }

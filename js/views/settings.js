@@ -53,7 +53,7 @@ async function diagnostics() {
   const mb = (n) => (n == null ? '?' : `${(n / 1048576).toFixed(1)} MB`);
   const s = sync.status();
   const lines = [
-    `ShotLog ${APP_VERSION} · ${new Date().toISOString()}`,
+    `ParUp TH ${APP_VERSION} · ${new Date().toISOString()}`,
     `เครื่อง: ${navigator.userAgent}`,
     `หน้าจอ: ${screen.width}x${screen.height} @${devicePixelRatio} · ${matchMedia('(display-mode: standalone)').matches ? 'ติดตั้งเป็นแอป' : 'เปิดในเบราว์เซอร์'} · ${navigator.onLine ? 'ออนไลน์' : 'ออฟไลน์'}`,
     `ไฟล์แอป: ${navigator.serviceWorker?.controller ? 'ใช้แคช' : 'ไม่มีแคช'} · พื้นที่ ${mb(est?.usage)} / ${mb(est?.quota)} · เก็บถาวร ${persisted ? 'ใช่' : 'ไม่'}`,
@@ -158,7 +158,7 @@ export function settingsView(_p, ctx) {
       <p class="note">ส่งเฉพาะข้อความผิดพลาด หน้าที่เกิด รุ่นแอป และรุ่นเบราว์เซอร์ ไม่มีข้อมูลรอบ สกอร์ ตำแหน่ง หรืออีเมล · ปิดได้ทุกเมื่อ</p>` : ''}
 
       <a class="btn block" href="#/whats-new">✨ มีอะไรใหม่</a>
-      <p class="note center">ShotLog รุ่น ${APP_VERSION} · ข้อมูลเก็บในเครื่องนี้เท่านั้น</p>
+      <p class="note center">ParUp TH รุ่น ${APP_VERSION} (ชื่อเดิม ShotLog) · ข้อมูลเก็บในเครื่องนี้เท่านั้น</p>
     </div>`,
     mount: () => {
       diagnostics().then((text) => {
@@ -290,13 +290,13 @@ export function settingsView(_p, ctx) {
       },
       exportJson: async () => {
         const data = buildExport(st.dumpAll());
-        download(`shotlog-backup-${stamp()}.json`, JSON.stringify(data, null, 1), 'application/json');
+        download(`parupth-backup-${stamp()}.json`, JSON.stringify(data, null, 1), 'application/json');
         await st.setSetting('last_export_at', st.nowIso());
         ctx.rerender();
       },
-      csvShots: () => download(`shotlog-shots-${stamp()}.csv`, bom + shotsCsv(), 'text/csv;charset=utf-8'),
-      csvPen: () => download(`shotlog-penalties-${stamp()}.csv`, bom + penaltiesCsv(), 'text/csv;charset=utf-8'),
-      csvPractice: () => download(`shotlog-practice-${stamp()}.csv`, bom + practiceCsv(), 'text/csv;charset=utf-8'),
+      csvShots: () => download(`parupth-shots-${stamp()}.csv`, bom + shotsCsv(), 'text/csv;charset=utf-8'),
+      csvPen: () => download(`parupth-penalties-${stamp()}.csv`, bom + penaltiesCsv(), 'text/csv;charset=utf-8'),
+      csvPractice: () => download(`parupth-practice-${stamp()}.csv`, bom + practiceCsv(), 'text/csv;charset=utf-8'),
       importJson: async (el) => {
         const file = el.files?.[0];
         el.value = '';

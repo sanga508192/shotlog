@@ -78,7 +78,7 @@ function conflictCard(c) {
   </div>`;
 }
 
-// ---------- สมาชิก ShotLog Plus ----------
+// ---------- สมาชิก ParUp TH Plus ----------
 
 const plan = { userId: null, ent: undefined, loadedAt: 0, loading: false, confirming: false, buying: false };
 const thDate = (ms) => new Date(ms).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -98,7 +98,7 @@ async function loadPlan() {
 }
 
 function planHtml() {
-  if (plan.ent === undefined) return '<h2>ShotLog Plus</h2><div class="card small muted">กำลังโหลดสถานะสมาชิก…</div>';
+  if (plan.ent === undefined) return '<h2>ParUp TH Plus</h2><div class="card small muted">กำลังโหลดสถานะสมาชิก…</div>';
   const s = accessSummary(plan.ent);
   let status;
   let buy = true;
@@ -129,7 +129,7 @@ function planHtml() {
     ? '<p class="note">สมัครตอนนี้ไม่เสียวันที่เหลือ: แบบบัตรเริ่มตัดเงินเมื่อสิทธิ์ปัจจุบันหมด ส่วน PromptPay นับปีต่อจากวันที่หมด</p>' : '';
   const btn = (p, title, sub) => `<button type="button" class="plan-btn" data-act="buy" data-plan="${p}" ${plan.buying ? 'disabled' : ''}>
       <b>${title}</b><span>${sub}</span></button>`;
-  return `<h2>ShotLog Plus</h2>
+  return `<h2>ParUp TH Plus</h2>
     <div class="card">${plan.confirming ? '⟳ กำลังยืนยันการชำระเงิน…' : status}</div>
     ${buy ? `<div class="plans">
       ${btn('yearly', `รายปี ${esc(PRICE_TEXT.yearly)}`, 'บัตร · ต่ออายุอัตโนมัติ · คุ้มกว่า')}
@@ -164,7 +164,7 @@ function signedOutHtml() {
     <form class="card" data-submit="sendCode">
       <label>อีเมล<input class="input" type="email" name="email" autocomplete="email" required value="${esc(form.email)}"></label>
       <label class="check consent"><input type="checkbox" name="consent" ${form.consent ? 'checked' : ''} required>
-        <span>ยินยอมให้ ShotLog เก็บข้อมูลรอบ ช็อต และบันทึกซ้อมของฉันบนเซิร์ฟเวอร์ (Supabase) เพื่อสำรองและซิงก์ ข้อมูลใช้เพื่อให้บริการนี้เท่านั้น และลบบัญชีพร้อมข้อมูลได้ทุกเมื่อจากหน้านี้</span></label>
+        <span>ยินยอมให้ ParUp TH เก็บข้อมูลรอบ ช็อต และบันทึกซ้อมของฉันบนเซิร์ฟเวอร์ (Supabase) เพื่อสำรองและซิงก์ ข้อมูลใช้เพื่อให้บริการนี้เท่านั้น และลบบัญชีพร้อมข้อมูลได้ทุกเมื่อจากหน้านี้</span></label>
       <button class="btn primary big block" ${form.busy ? 'disabled' : ''}>ส่งรหัสเข้าอีเมล</button>
     </form>
     <p class="note">ไม่ต้องตั้งรหัสผ่าน ระบบส่งรหัสใช้ครั้งเดียวทางอีเมลทุกครั้งที่เข้าสู่ระบบ</p>`;
@@ -337,7 +337,7 @@ async function confirmPayment(ctx) {
     if (!ok) await new Promise((r) => setTimeout(r, 2000));
   }
   plan.confirming = false;
-  toast(ok ? 'ชำระเงินสำเร็จ ขอบคุณที่สมัคร ShotLog Plus' : 'ยังไม่ได้รับการยืนยันการชำระเงิน ถ้าชำระแล้ว สถานะจะอัปเดตภายในไม่กี่นาที');
+  toast(ok ? 'ชำระเงินสำเร็จ ขอบคุณที่สมัคร ParUp TH Plus' : 'ยังไม่ได้รับการยืนยันการชำระเงิน ถ้าชำระแล้ว สถานะจะอัปเดตภายในไม่กี่นาที');
   if (ok) sync.syncNow().catch(() => {});
   if (location.hash.startsWith('#/account')) ctx.rerender();
 }
