@@ -41,8 +41,9 @@ export function teePlan({ par, lengthM = null, hazards = [], history = null, clu
     if (!lengthM) return null;
     const c = clubFor(lengthM, rows, fmt);
     const aim = missSide ? `กลางกรีน เยื้อง${TH[opposite(missSide)]}เล็กน้อย (ลูกคุณมักไป${TH[missSide]})` : 'กลางกรีน ไม่เล็งธง';
+    const aimShort = missSide ? `กลางกรีน เยื้อง${TH[opposite(missSide)]}` : 'กลางกรีน';
     for (const h of hazards) if (DANGER.has(h.kind) && Math.abs(h.along - lengthM) < 30) notes.push(`${h.kind === 'water' ? 'น้ำ' : 'จุดอันตราย'}ฝั่ง${TH[h.off > 0 ? 'right' : 'left']}ของกรีน — พลาดไปอีกฝั่งดีกว่า`);
-    return { club: c, aim, notes, remain: null, used: c.generic ? [] : [c], why: c.generic ? `ระยะ ${fmt(lengthM)} · ยังไม่มีระยะจริงของไม้ที่ใกล้เคียง` : `ระยะ ${fmt(lengthM)} · ${c.label} ปกติ ${fmt(c.median)}` };
+    return { club: c, aim, aimShort, notes, remain: null, used: c.generic ? [] : [c], why: c.generic ? `ระยะ ${fmt(lengthM)} · ยังไม่มีระยะจริงของไม้ที่ใกล้เคียง` : `ระยะ ${fmt(lengthM)} · ${c.label} ปกติ ${fmt(c.median)}` };
   }
 
   const drv = rows.find((r) => r.category === 'driver') ?? null;
@@ -86,17 +87,19 @@ export function teePlan({ par, lengthM = null, hazards = [], history = null, clu
   }
   // จุดเล็ง: เผื่อฝั่งที่พลาดบ่อย ถ้าอีกฝั่งมีอันตรายในช่วงระยะ ให้เล็งกลาง
   let aim = 'กลางแฟร์เวย์';
+  let aimShort = 'กลางแฟร์เวย์';
   if (missSide) {
     const other = opposite(missSide);
     const otherDanger = danger.some((h) => (h.off > 0 ? 'right' : 'left') === other && Math.abs(h.off) >= 15 && hazardRisk({ ...h, off: 0 }, pick, null));
     aim = otherDanger
       ? `กลางแฟร์เวย์ (ฝั่ง${TH[other]}มีอันตราย อย่าเล็งเผื่อมากเกิน)`
       : `ตั้งทีฝั่ง${TH[missSide]}ของแท่น เล็งขอบ${TH[other]}ของแฟร์เวย์ เผื่อลูกที่มักไปจบทาง${TH[missSide]}`;
+    aimShort = otherDanger ? 'กลางแฟร์เวย์' : `ตั้งที${TH[missSide]} เล็งขอบ${TH[other]}`;
   }
   if (history?.n >= 2 && history.pen) notes.push(`ทีออฟหลุมนี้ที่ผ่านมา ${history.n} ครั้ง โดนลูกโทษ ${history.pen} ครั้ง`);
   const remain = lengthM ? Math.max(0, lengthM - (pick.total ?? pick.median)) : null;
   const used = [pick, ...(drv && drv !== pick ? [drv] : [])];
-  return { club: pick, aim, notes, remain, why, used };
+  return { club: pick, aim, aimShort, notes, remain, why, used };
 }
 
 // อันตรายของหลุมเทียบแนวแท่นที→กรีน (along = ระยะจากแท่นที, off = ออกซ้าย(−)/ขวา(+))

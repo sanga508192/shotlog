@@ -92,7 +92,7 @@ export function recapView([roundId]) {
         ${r.practice ? `<b>${esc(r.practice.th)}</b>
           ${drills.map((d) => `<a class="recap-drill" href="#/practice/new?d=${encodeURIComponent(d.id)}"><span><b>${esc(d.name)}</b><small>${esc(d.why)}</small></span><small>${d.minutes} นาที ›</small></a>`).join('')}`
     : '<b>รอบนี้ไม่มีเรื่องไหนเสียเกินงบของเป้า</b><small>ซ้อมตามแผนสัปดาห์เดิมต่อไป</small>'}
-        <a class="btn block" href="#/coach">ดูแผนซ้อมทั้งสัปดาห์ (หน้าพัฒนา)</a>
+        <a class="btn block" href="#/coach/plan">ดูแผนซ้อมทั้งสัปดาห์ (หน้าพัฒนา)</a>
       </div>
 
       <div class="action-grid">

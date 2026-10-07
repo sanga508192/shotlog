@@ -64,7 +64,7 @@ export function progressView(_p, ctx) {
     label: `แต้มต่อโดยประมาณ ${hcp.length} ครั้ง`,
   })}
     <p class="note">ล่าสุด <b>${hcp.at(-1).index.toFixed(1)}</b>${hcp.length >= 2 ? ` (เริ่มช่วงนี้ ${hcp[0].index.toFixed(1)})` : ''} · คำนวณตามสูตร WHS จากรอบ 18 หลุมที่มี Course Rating/Slope · ไม่ใช่แฮนดิแคปทางการ</p>`
-    : `<div class="card small">ต้องมีรอบ 18 หลุมที่ใส่ Course Rating และ Slope อย่างน้อย 3–4 รอบ กราฟแต้มต่อจึงขึ้น · <a href="#/coach">ใส่ค่าสนามที่หน้าพัฒนา ›</a></div>`;
+    : `<div class="card small">ต้องมีรอบ 18 หลุมที่ใส่ Course Rating และ Slope อย่างน้อย 3–4 รอบ กราฟแต้มต่อจึงขึ้น · <a href="#/coach/stats">ใส่ค่าสนามที่หน้าพัฒนา ›</a></div>`;
 
   const monthRows = months.map((m) => `<tr>
     <td>${esc(monthTh(m.month))}</td><td>${m.rounds}</td><td><b>${f1(m.avg)}</b></td><td>${f1(m.best)}</td>

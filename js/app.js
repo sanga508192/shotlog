@@ -42,7 +42,7 @@ const routes = [
   [/^#\/round\/([^/]+)\/plan$/, gamePlanView],
   [/^#\/round\/([^/]+)\/recap$/, recapView],
   [/^#\/summary$/, summaryView],
-  [/^#\/coach$/, coachView],
+  [/^#\/coach(?:\/(\w+))?$/, coachView],
   [/^#\/progress$/, progressView],
   [/^#\/whats-new$/, whatsNewView],
   [/^#\/map\/([^/?]+)\/(\d+)(?:\?(.*))?$/, mapView],

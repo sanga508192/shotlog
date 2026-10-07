@@ -160,21 +160,18 @@ export function holeView([roundId, numStr], ctx) {
     sub: `<span id="round-course">${esc(round.course_name_snapshot)}</span> · <span id="round-province">${esc(round.province_snapshot)}</span>`,
   })}
   <div class="page">
-    <div class="card hole-head">
-      <div class="hole-num"><span>หลุม</span><b>${num}</b><small>/ ${holes.length}</small></div>
-      <div class="hole-meta">
-        ${pinNo !== num ? `<div class="small muted">รอบที่สองของสนาม · หลุม ${pinNo} ของสนาม</div>` : ''}
+    <div class="hole-strip">
+      <div class="hs-row">
         <div class="par-pick"><span class="lbl inline">พาร์</span>${chips('par', 'par', parOpts, hole.par, { cls: 'tight inline' })}</div>
-        <div class="row gap wrap hole-tools">
-          ${round.course_id ? `<a class="mini map-link" href="#/map/${encodeURIComponent(round.course_id)}/${num}?r=${encodeURIComponent(roundId)}">🗺 แผนที่หลุม</a>` : ''}
-          <button type="button" class="mini sun-btn" data-act="sun" aria-pressed="${sunOn()}">${sunOn() ? '🌙 จอปกติ' : '☀️ แดดจ้า'}</button>
+        <div class="hs-tools">
+          ${round.course_id ? `<a class="icon-btn" href="#/map/${encodeURIComponent(round.course_id)}/${num}?r=${encodeURIComponent(roundId)}" aria-label="แผนที่หลุม" title="แผนที่หลุม">🗺</a>` : ''}
+          <button type="button" class="icon-btn sun-btn" data-act="sun" aria-pressed="${sunOn()}" aria-label="${sunOn() ? 'จอปกติ' : 'โหมดแดดจ้า'}" title="${sunOn() ? 'จอปกติ' : 'โหมดแดดจ้า'}">${sunOn() ? '🌙' : '☀️'}</button>
         </div>
-        ${hole.hc_index || hole.distance ? `<div class="small muted">${[hole.distance ? `${hole.distance} ${hole.distance_unit === 'yd' ? 'หลา' : 'ม.'}${round.tee_name ? ` · แท่น${esc(round.tee_name)}` : ''}` : '', hole.hc_index ? `HC ${hole.hc_index}` : ''].filter(Boolean).join(' · ')}</div>` : ''}
-        ${logShots ? `<div class="score-line">ตี <b>${sc.strokes}</b> + ปรับ <b>${sc.penalties}</b> = <b>${sc.total}</b>
-          ${sc.par != null && hole.status === 'done' ? `<span class="topar">(${fmtToPar(sc.toPar)})</span>` : ''}
-          ${sc.notCounted ? `<span class="muted small">· ไม่นับ ${sc.notCounted} ช็อต</span>` : ''}
-          <span class="badge ${hole.status === 'done' ? 'good' : hole.status === 'incomplete' ? 'bad' : 'none'}">${esc(label(HOLE_STATUS, hole.status))}${hole.finish ? ` · ${esc(label(HOLE_FINISH, hole.finish))}` : ''}</span>
-        </div>` : ''}
+      </div>
+      <div class="hs-info">
+        ${[pinNo !== num ? `รอบสอง · หลุม ${pinNo} ของสนาม` : '', hole.distance ? `${hole.distance} ${hole.distance_unit === 'yd' ? 'หลา' : 'ม.'}${round.tee_name ? ` แท่น${round.tee_name}` : ''}` : '', hole.hc_index ? `HC ${hole.hc_index}` : ''].filter(Boolean).map(esc).join(' · ')}
+        ${logShots && (shots.length || sc.penalties || hole.status !== 'playing') ? `<span class="hs-score">ตี <b>${sc.strokes}</b>${sc.penalties ? ` + ปรับ <b>${sc.penalties}</b>` : ''} = <b>${sc.total}</b>${sc.par != null && hole.status === 'done' ? ` <span class="topar">(${fmtToPar(sc.toPar)})</span>` : ''}${sc.notCounted ? ` <span class="muted">· ไม่นับ ${sc.notCounted}</span>` : ''}</span>` : ''}
+        ${hole.status !== 'playing' ? `<span class="badge ${hole.status === 'done' ? 'good' : 'bad'}">${esc(label(HOLE_STATUS, hole.status))}${hole.finish ? ` · ${esc(label(HOLE_FINISH, hole.finish))}` : ''}</span>` : ''}
       </div>
     </div>
 

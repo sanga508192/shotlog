@@ -77,17 +77,16 @@ function liveCard(r) {
   const holes = st.holesOf(r.id);
   const t = myTotals(r);
   const players = playersOf(r).length;
-  return `<div class="live-card">
-    <a class="live-main" href="${resumeHref(r)}">
-      <div class="live-badge">● กำลังเล่น · ${esc(fmtDate(r.played_at))}</div>
-      <div class="live-course">${esc(r.course_name_snapshot)}</div>
-      <div class="live-meta">หลุม ${r.current_hole || 1}/${holes.length}${players > 1 ? ` · ${players} คน` : ''}${t ? ` · ${t.strokes} (${fmtOver(t.over)})` : ''}</div>
-    </a>
-    <div class="live-side">
-      <a class="live-go" href="${resumeHref(r)}">จดต่อ ›</a>
-      <button type="button" class="mini danger" data-act="delRound" data-id="${r.id}" aria-label="ลบรอบนี้">ลบ</button>
+  const done = holes.filter((h) => h.status === 'done').length;
+  return `<a class="live-card" href="${resumeHref(r)}">
+    <div class="live-top">
+      <span class="live-badge">● กำลังเล่น · ${esc(fmtDate(r.played_at))}</span>
+      <span class="live-course">${esc(r.course_name_snapshot)}</span>
+      <span class="live-meta">จบแล้ว ${done}/${holes.length} หลุม${players > 1 ? ` · ${players} คน` : ''}</span>
     </div>
-  </div>`;
+    ${t ? `<div class="live-score"><b>${t.strokes}</b><small>${fmtOver(t.over)}</small></div>` : ''}
+    <span class="live-go">จดต่อ หลุม ${r.current_hole || 1} ›</span>
+  </a>`;
 }
 
 export function resumeHref(r) {
@@ -125,8 +124,7 @@ function mapSetupLink(courseId, sc) {
 }
 
 // การ์ดสั้น ๆ พาไปหน้าพัฒนาเกม
-function coachTeaser() {
-  const a = coachData();
+function coachTeaser(a = coachData()) {
   const top = a.focus[0];
   if (top) {
     return `<a class="card coach-link" href="#/coach"><b>🎯 จุดที่ควรแก้ก่อน: ${esc(top.th)}</b>
@@ -146,6 +144,7 @@ export function homeView(_p, ctx) {
   const hour = new Date().getHours();
   const hello = hour < 11 ? 'อรุณสวัสดิ์' : hour < 17 ? 'สวัสดี' : 'สวัสดีตอนเย็น';
   const totals = past.map(myTotals).filter((t) => t && t.count >= 9);
+  const coach = coachData();
   const best = totals.length ? Math.min(...totals.map((t) => t.over ?? Infinity)) : null;
   return {
     html: `<div class="page">
@@ -154,17 +153,21 @@ export function homeView(_p, ctx) {
         <a href="#/account" class="sync-pill" data-sync hidden></a>
       </header>
       ${playing.map(liveCard).join('')}
-      <a class="hero-cta" href="#/courses">
+      ${playing.length ? '<a class="btn block new-round-btn" href="#/courses">＋ เริ่มรอบใหม่</a>' : `<a class="hero-cta" href="#/courses">
         <div><b>เริ่มรอบใหม่</b><span>เลือกสนาม ชวนก๊วน แล้วจดได้เลย</span></div>
         <span class="hero-icon" aria-hidden="true">⛳</span>
-      </a>
-      ${all.length ? `<div class="stat-strip">
+      </a>`}
+      ${coach.scoreRounds.length ? `<a class="stat-strip linked" href="#/progress" aria-label="ดูกราฟพัฒนาการ">
+        <div><b>${coach.scoreRounds.length}</b><span>รอบที่นับ</span></div>
+        <div><b>${coach.avgScore != null ? coach.avgScore.toFixed(1) : '–'}</b><span>สกอร์เฉลี่ย</span></div>
+        <div><b>${coach.best != null ? coach.best.toFixed(0) : '–'}</b><span>ดีสุด</span></div>
+      </a>` : all.length ? `<div class="stat-strip">
         <div><b>${all.length}</b><span>รอบทั้งหมด</span></div>
         <div><b>${best != null && Number.isFinite(best) ? fmtOver(best) : '–'}</b><span>ดีสุด (9 หลุมขึ้นไป)</span></div>
         <div><b>${st.S.shots.size}</b><span>ช็อตที่จด</span></div>
       </div>` : ''}
       ${whatsNewCard()}
-      ${coachTeaser()}
+      ${coachTeaser(coach)}
       <div class="row between"><h2>รอบล่าสุด</h2>${all.length ? '<a class="mini" href="#/history">ดูทั้งหมด / ลบ</a>' : ''}</div>
       ${past.length ? past.slice(0, 5).map((r) => roundRow(r, `#/round/${r.id}/card`)).join('')
     : '<div class="empty"><span class="em">🏌️</span>ยังไม่มีรอบที่จบ<br><span class="small">กด "เริ่มรอบใหม่" ด้านบนเพื่อเริ่มจดรอบแรก</span></div>'}

@@ -1057,3 +1057,57 @@ html[data-sun="1"] .muted, html[data-sun="1"] .note, html[data-sun="1"] .small {
 .map-club .src-tag.gps { background: rgba(92, 201, 143, .25); color: #b9f0d2; }
 .map-club .src-tag.sim { background: rgba(240, 183, 58, .25); color: #ffe39a; }
 .tp-used { font-weight: 600; }
+
+/* ---------- หน้าหลุม: แถบหัวหลุมแบบกะทัดรัด ---------- */
+.hole-strip { display: flex; flex-direction: column; gap: 4px; padding: 2px 2px 0; }
+.hs-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.hs-tools { display: flex; gap: 6px; flex: none; }
+.icon-btn {
+  display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 42px; border-radius: 12px;
+  background: var(--surface); border: 1px solid var(--line); font-size: 1.15rem; text-decoration: none; cursor: pointer; color: var(--text);
+}
+.icon-btn[aria-pressed="true"] { background: var(--text); border-color: var(--text); }
+.hs-info { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: .84rem; color: var(--muted); min-height: 1.2em; }
+.hs-score { color: var(--text); }
+.hs-info .badge { margin-left: 0; }
+
+/* แผนทีออฟ: บรรทัดสรุปเห็นทันที กดดูเหตุผล */
+details.tee-plan { padding-top: 10px; padding-bottom: 10px; }
+.tp-sum { list-style: none; display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; cursor: pointer; }
+.tp-sum::-webkit-details-marker { display: none; }
+.tp-line { font-size: .95rem; line-height: 1.45; }
+.tp-line b { font-size: 1.05rem; }
+.tp-aim { color: var(--text); }
+.tp-more { flex: none; font-size: .78rem; color: var(--brand); font-weight: 700; padding-top: 2px; }
+details.tee-plan[open] .tp-more { visibility: hidden; }
+.tp-warn { margin: 6px 0 0; }
+.tp-warn li { color: var(--gold-ink); font-size: .86rem; }
+.tp-detail { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
+
+/* ---------- หน้าแรก: รอบที่กำลังเล่น ---------- */
+a.live-card {
+  display: grid; grid-template-columns: 1fr auto; grid-template-areas: "top score" "go go"; gap: 10px 12px;
+  padding: 14px 16px; border-left-width: 5px; text-decoration: none; color: var(--text);
+}
+.live-card .live-top { grid-area: top; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.live-card .live-score { grid-area: score; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; line-height: 1.1; }
+.live-card .live-score b { font-size: 1.6rem; }
+.live-card .live-score small { color: var(--muted); font-weight: 700; }
+a.live-card .live-go {
+  grid-area: go; display: block; text-align: center; padding: 12px; border-radius: 14px; font-size: 1.05rem;
+  background: linear-gradient(145deg, var(--brand-2), var(--brand)); color: var(--brand-ink);
+}
+.new-round-btn { border-style: dashed; color: var(--brand); font-weight: 700; }
+a.stat-strip.linked { text-decoration: none; color: var(--text); }
+
+/* ---------- หน้าพัฒนา: แท็บ และรายการปลดล็อก ---------- */
+.seg.coach-tabs { grid-template-columns: repeat(4, 1fr); position: sticky; top: 64px; z-index: 5; margin: 4px 0 6px; box-shadow: var(--shadow); }
+.coach-tabs .seg-btn { text-decoration: none; min-height: 40px; font-size: .92rem; }
+.unlock { display: flex; flex-direction: column; gap: 6px; }
+.unlock-row { display: grid; grid-template-columns: 1.6em 1fr auto; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); color: var(--text); text-decoration: none; }
+.unlock-row.ok { opacity: .55; }
+.unlock-mark { font-weight: 700; color: var(--brand); text-align: center; }
+.unlock-text { display: flex; flex-direction: column; min-width: 0; }
+.unlock-text small { color: var(--muted); font-size: .8rem; }
+.unlock-prog { font-weight: 700; font-size: .85rem; color: var(--muted); }
+.coach .focus details summary { cursor: pointer; color: var(--brand); font-weight: 600; margin-top: 4px; }

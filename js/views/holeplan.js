@@ -68,14 +68,19 @@ export function srcTag(row) {
 export function teePlanHtml(tp, unit = 'yd', roundId = null) {
   if (!tp) return '';
   const fmt = (m) => `${Math.round(toUnit(m, unit))} ${unitTh(unit)}`;
-  return `<section class="card tee-plan">
-    <b>🧭 แผนทีออฟหลุมนี้</b>
+  return `<details class="card tee-plan">
+    <summary class="tp-sum">
+      <span class="tp-line">🧭 <b>${esc(tp.club.label)}</b> ${srcTag(tp.club)} <span class="tp-aim">· ${esc(tp.aimShort ?? tp.aim)}${tp.remain != null ? ` · เหลือ ~${esc(fmt(tp.remain))}` : ''}</span></span>
+      <span class="tp-more" aria-hidden="true">ทำไม ▾</span>
+    </summary>
+    ${tp.notes.length ? `<ul class="find tp-warn">${tp.notes.map((n) => `<li>⚠️ ${esc(n)}</li>`).join('')}</ul>` : ''}
+    <div class="tp-detail">
     <div class="tp-row"><span>ไม้</span><b>${esc(tp.club.label)} ${srcTag(tp.club)}</b>${tp.why ? `<small>${esc(tp.why)}</small>` : ''}</div>
     ${tp.used?.length ? `<div class="tp-row"><span>ระยะ</span><b class="tp-used">${tp.used.map((r) => `${esc(r.label)} ${esc(fmt(r.median))} ${srcTag(r)}`).join(' · ')}</b>
       <small>สนาม = ระยะจริงจาก GPS ตอนออกรอบ · เครื่องซ้อม = ระยะลอยจากการซ้อม (ไม้ที่ยังจดในสนามไม่ถึง 3 ช็อต)</small></div>` : ''}
     <div class="tp-row"><span>เล็ง</span><b>${esc(tp.aim)}</b></div>
     ${tp.remain != null ? `<div class="tp-row"><span>ต่อไป</span><b>เหลือถึงกรีนราว ${esc(fmt(tp.remain))}</b></div>` : ''}
-    ${tp.notes.length ? `<ul class="find">${tp.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
     <p class="note">คิดจากระยะไม้จริง ลูกที่คุณพลาดบ่อย จุดอันตรายที่ปักในแผนที่ และประวัติหลุมนี้ · เลือกไม้ตามแผนให้แล้วในช่องจดด้านล่าง${roundId ? ` · <a href="#/round/${encodeURIComponent(roundId)}/plan">ดูแผนทั้งรอบ ›</a>` : ''}</p>
-  </section>`;
+    </div>
+  </details>`;
 }

@@ -307,7 +307,9 @@ export function focusListHtml(cues) {
   return `<ol class="cues">${cues.map((c) => `<li${c.src === 'sim' ? ' class="sim"' : ''}><b>${esc(c.text)}</b><span>${esc(c.why)}</span></li>`).join('')}</ol>`;
 }
 
-export function coachView(_p, ctx) {
+const TABS = [{ v: 'sum', th: 'สรุป' }, { v: 'plan', th: 'ซ้อม' }, { v: 'tee', th: 'ทีออฟ' }, { v: 'stats', th: 'สถิติ' }];
+
+export function coachView([tabArg], ctx) {
   const chosen = st.setting('coach_goal', null);
   const a = coachData(chosen);
   // แบ่งเวลาซ้อมตามสโตรกที่เสีย (Strokes Gained ถ้ามีข้อมูลครบพอ)
@@ -324,71 +326,55 @@ export function coachView(_p, ctx) {
   const shotOk = a.shot.holes >= 9;
   const need = a.avgScore != null ? a.avgScore - g.score : null;
   const [confTxt, confCls] = CONF[a.shot.confidence];
-  return {
-    html: `${header('พัฒนาเกม', { sub: 'วิเคราะห์จากรอบที่คุณจด · คำนวณในเครื่อง' })}
-    <div class="page coach">
-      <section>
-        <div class="lbl">เป้าหมายของคุณ${chosen ? '' : ' <span class="muted small">(แนะนำจากสกอร์เฉลี่ย แตะเพื่อเปลี่ยน)</span>'}</div>
-        <div class="chips goal-pick">${GOALS.map((x) => `<button type="button" class="chip${x.v === g.v ? ' on' : ''}" data-act="goal" data-v="${x.v}" aria-pressed="${x.v === g.v}">${esc(x.th)}</button>`).join('')}</div>
-      </section>
+  // แท็บ: สรุป · ซ้อม · ทีออฟ · สถิติ (หน้ายาวเกิน แบ่งให้หาเจอเร็ว · ลิงก์ตรงไปแท็บได้ เช่น #/coach/plan)
+  const tab = TABS.some((t) => t.v === tabArg) ? tabArg : 'sum';
+  const tabsHtml = `<nav class="seg coach-tabs" aria-label="หมวด">${TABS.map((t) => `<a class="seg-btn${t.v === tab ? ' on' : ''}" href="#/coach${t.v === 'sum' ? '' : `/${t.v}`}" aria-current="${t.v === tab ? 'page' : 'false'}">${t.th}</a>`).join('')}</nav>`;
 
-      <section class="card coach-hero">
+  // ยังมีข้อมูลน้อย: รวมเป็นรายการเดียวว่าต้องทำอะไรเพื่อปลดล็อกการวิเคราะห์ แทนการ์ด "ข้อมูลยังไม่พอ" หลายใบ
+  const unlock = [
+    { ok: hasScores, th: 'จบรอบอย่างน้อย 1 รอบ', sub: '9 หลุมที่มีพาร์ขึ้นไป หรือครบทุกหลุมของสนามเล็ก', prog: hasScores ? '✓' : '0/1' },
+    { ok: shotOk, th: 'จดแบบ 🎯 รายช็อตจนจบหลุม 9 หลุม', sub: 'แอปจะบอกว่าเสียสโตรกจากตรงไหน และควรซ้อมอะไร', prog: `${Math.min(a.shot.holes, 9)}/9` },
+    { ok: !!a.tee.enough, th: `ทีออฟพาร์ 4–5 ที่ระบุผลและทิศ ${TEE_MIN} หลุม`, sub: 'วิเคราะห์ไดรเวอร์และแผนทีออฟ', prog: `${Math.min(a.tee.n ?? 0, TEE_MIN)}/${TEE_MIN}` },
+    { ok: !!a.sim, th: 'นำเข้าไฟล์เครื่องซ้อม (ไม่บังคับ)', sub: 'Garmin R10 ฯลฯ ได้ระยะไม้และแผนแก้วงสวิง', prog: a.sim ? '✓' : '', href: '#/launch' },
+  ];
+  const unlockHtml = unlock.every((x) => x.ok) ? '' : `<section class="card unlock">
+      <b>🔓 ปลดล็อกการวิเคราะห์</b>
+      ${unlock.map((x) => `<${x.href && !x.ok ? `a href="${x.href}"` : 'div'} class="unlock-row${x.ok ? ' ok' : ''}"><span class="unlock-mark">${x.ok ? '✓' : '○'}</span><span class="unlock-text"><b>${esc(x.th)}</b><small>${esc(x.sub)}</small></span><span class="unlock-prog">${x.ok ? '' : esc(x.prog)}</span></${x.href && !x.ok ? 'a' : 'div'}>`).join('')}
+    </section>`;
+
+  const heroHtml = !hasScores ? '' : `<section class="card coach-hero">
         ${hasScores ? `<div class="hero-nums">
           <div><span>สกอร์เฉลี่ย</span><b>${f1(a.avgScore)}</b><small>${a.recentCount} รอบล่าสุด</small></div>
           <div><span>ดีที่สุด</span><b>${f1(a.best)}</b><small>เทียบ 18 หลุม</small></div>
-          <div><span>แนวโน้ม</span><b class="${a.trend == null ? '' : a.trend < 0 ? 'good' : a.trend > 0 ? 'bad' : ''}">${a.trend == null ? '–' : `${a.trend < 0 ? '↓' : a.trend > 0 ? '↑' : '→'} ${f1(Math.abs(a.trend))}`}</b><small>${a.trend == null ? 'ต้องมี 6 รอบขึ้นไป' : 'เทียบ 5 รอบก่อน'}</small></div>
+          <div><span>แนวโน้ม</span><b class="${a.trend == null ? '' : a.trend < 0 ? 'good' : a.trend > 0 ? 'bad' : ''}">${a.trend == null ? '–' : `${a.trend < 0 ? '↓' : a.trend > 0 ? '↑' : '→'} ${f1(Math.abs(a.trend))}`}</b><small>${a.trend == null ? 'ต้องมี 6 รอบ' : 'เทียบ 5 รอบก่อน'}</small></div>
         </div>
         <div class="goal-gap ${need <= 0 ? 'ok' : ''}">${need <= 0
     ? `✓ เฉลี่ยถึงเป้า${esc(g.th)}แล้ว ลองตั้งเป้าถัดไป`
     : `เป้า${esc(g.th)} ต้องลดอีก <b>${f1(need)}</b> สโตรกต่อรอบ`}</div>
         ${trendChart(a.scoreRounds, g.score)}
-        <a class="mini" href="#/progress">📈 ดูกราฟพัฒนาการทั้งหมด (รายเดือน · แต้มต่อ) ›</a>
-        <div class="par-types">${a.byPar.filter((p) => p.n).map((p) => `<span>พาร์ ${p.par} <b>${fmtSigned(p.avgOver)}</b></span>`).join('')}</div>
-        <p class="note">สกอร์เทียบ 18 หลุม พาร์ 72 · รวมรอบจดเร็วและรอบก๊วน (ใช้สกอร์ของคุณ)</p>`
-    : `<p><b>ยังไม่มีรอบที่จบ</b></p><p class="small">เล่นให้จบอย่างน้อย 9 หลุมที่มีพาร์ (สนามเล็กเล่นครบทุกหลุมของรอบ) แล้วกลับมาดูหน้านี้ ระหว่างนี้ดูแผนซ้อมเริ่มต้นด้านล่างได้</p>`}
-      </section>
+        <a class="mini" href="#/progress">📈 กราฟพัฒนาการ รายเดือน และแต้มต่อ ›</a>`
+    : '<p><b>ยังไม่มีรอบที่จบ</b></p><p class="small muted">เล่นให้จบรอบแล้วกลับมาดู สกอร์เฉลี่ยและแนวโน้มจะขึ้นตรงนี้</p>'}
+      </section>`;
 
-      <h2>สโตรกหายไปไหน <span class="badge ${confCls}">${confTxt}</span></h2>
-      ${shotOk ? `<p class="note">เฉลี่ยต่อ 18 หลุม จาก ${a.shot.holes} หลุมที่จดรายช็อต (${a.shot.rounds} รอบล่าสุด) · ขีดดำ = งบของเป้า${esc(g.th)}</p>
-      <div class="card leaks">${leakRows(a)}
-        <div class="leak-total">รวมเกินพาร์ <b>${fmtSigned(a.shot.overShots)}</b> <small>งบ ${fmtSigned(budgetOver(g))}</small></div>
-      </div>`
-    : `<div class="card warn small">ต้องมีหลุมที่จดแบบ <b>🎯 รายช็อต</b> จนจบหลุมอย่างน้อย 9 หลุม (ตอนนี้ ${a.shot.holes} หลุม)
-        แอปจะแยกให้เห็นว่าเสียสโตรกจากลูกโทษ ช็อตยาว พลาดกรีน ลูกสั้น หรือพัต<br>
-        เคล็ดลับ: ระบุ <b>ประเภทช็อต</b> และ <b>จุดจบ</b> (แฟร์เวย์/รัฟ/บนกรีน) ทุกช็อต ใช้เวลาไม่กี่วินาที</div>`}
-
-      ${shotOk ? `<h2>จุดที่ควรแก้ก่อน</h2>
+  const focusHtml = shotOk ? `<h2>จุดที่ควรแก้ก่อน</h2>
       ${a.focus.length ? a.focus.map((f, i) => `<div class="card focus ${i === 0 ? 'first' : ''}">
         <div class="row between"><div><span class="rank">${i + 1}</span> <b>${f.icon} ${esc(f.th)}</b></div>
           <span class="gain">ได้คืน ~${f1(f.gap)}/รอบ</span></div>
         <div class="small muted">${f.line ? esc(f.line) : `คุณ ${f.k === 'save' ? 'ได้คืน' : 'เสีย'} ${f1(f.yours)} สโตรก/รอบ · งบของเป้า ${f1(f.target)}`}</div>
-        ${f.find.length ? `<ul class="find">${f.find.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+        ${f.find.length ? `<details class="small"><summary>ที่มา</summary><ul class="find">${f.find.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></details>` : ''}
       </div>`).join('')
-    : `<div class="card ok small">ทุกหมวดอยู่ในงบของเป้า${esc(g.th)}แล้ว ลองเลือกเป้าที่ยากขึ้นด้านบน</div>`}` : ''}
+    : `<div class="card ok small">ทุกหมวดอยู่ในงบของเป้า${esc(g.th)}แล้ว ลองเลือกเป้าที่ยากขึ้นด้านบน</div>`}` : '';
 
-      <h2 id="tee">ทีออฟ / ไดรเวอร์ ${a.tee.problem ? '<span class="badge bad">ควรแก้</span>' : a.tee.enough || a.tee.driver ? '<span class="badge ok">พอใช้</span>' : ''}</h2>
-      ${teeHtml(a.tee, g, a.sim)}
+  const weekTeaser = `<a class="card coach-link" href="#/coach/plan"><b>📋 ซ้อมสัปดาห์นี้</b><span>${sessions.map((x) => esc(x.th.replace(/^ครั้งที่ \d · /, ''))).join(' · ')} ›</span></a>`;
 
-      ${simHtml(a.sim)}
+  const sections = {
+    sum: `${heroHtml}
+      ${unlockHtml}
       ${testDue}
-
-      ${a.cues.length ? `<h2>โฟกัสรอบหน้า</h2>
-      <div class="card">${focusListHtml(a.cues)}<p class="note">แสดงในหน้าเริ่มรอบใหม่ด้วย</p></div>` : ''}
-
-      ${shotOk || a.stats.some((s) => s.yours != null) ? `<h2>สถิติหลักเทียบเป้า</h2>
-      <div class="stat-grid">${statTiles(a)}</div>` : ''}
-
-      <h2>Strokes Gained <span class="badge ok">รายหมวด</span></h2>
-      ${sgHtml(g)}
-
-      <h2>แฮนดิแคปโดยประมาณ <span class="badge ok">WHS</span></h2>
-      ${handicapHtml()}
-
-      <h2>ระยะไม้จริงของคุณ <span class="badge ok">GPS</span></h2>
-      ${clubDistanceHtml()}
-
-      <h2 id="plan">แผนซ้อมสัปดาห์นี้</h2>
-      <div class="card week-split">
+      ${a.cues.length ? `<h2>โฟกัสรอบหน้า</h2><div class="card">${focusListHtml(a.cues)}<p class="note">แสดงในหน้าเริ่มรอบใหม่ด้วย</p></div>` : ''}
+      ${focusHtml}
+      ${weekTeaser}`,
+    plan: `<div class="card week-split">
         <b>แบ่งเวลาซ้อม ~${WEEK_MINUTES} นาทีต่อสัปดาห์</b>
         ${split.rows.map((r) => `<div class="ws-row"><span>${r.icon} ${esc(r.th)}</span><div class="ws-bar" aria-hidden="true"><i style="width:${r.pct}%"></i></div><b>${r.pct}%</b><small>${r.minutes} นาที</small></div>`).join('')}
         <p class="note">${split.basis === 'sg' ? 'แบ่งตาม Strokes Gained ที่เสียเกินระดับเป้า' : split.basis === 'leaks' ? 'แบ่งตามที่มาของสโตรกที่เสียเกินงบของเป้า' : split.basis === 'sim' ? 'แบ่งตามผลจากเครื่องซ้อม (ยังไม่มีข้อมูลออกรอบพอ)' : 'แผนเริ่มต้น (ยังไม่มีข้อมูลพอ)'} · ทุกหมวดอย่างน้อย 15% เพื่อรักษาฝีมือ</p>
@@ -396,14 +382,42 @@ export function coachView(_p, ctx) {
       <div class="card week-sessions"><b>ซ้อม 3 ครั้งในสัปดาห์</b>
         <ol class="find">${sessions.map((x) => `<li><b>${esc(x.th)}</b> <small class="muted">${esc(x.where)}</small><br>${x.link ? `<a href="${x.link}">${esc(x.text)} ›</a>` : esc(x.text)} <small class="muted">· ${esc(x.how)}</small></li>`).join('')}</ol>
       </div>
-      <details class="card small"><summary><b>หลักการซ้อมให้ได้ผล</b></summary><ul class="find">${PRACTICE_PRINCIPLES.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></details>
-      <p class="note">${a.plan.basis.length ? `แบบฝึกสัปดาห์นี้เน้น: ${esc(a.plan.basis.join(' และ '))} · ` : 'แบบฝึกเริ่มต้นตามเป้า · '}บันทึกผลทุกครั้งเพื่อดูพัฒนาการ</p>
+      ${testDue}
+      <h2>แบบฝึกสัปดาห์นี้</h2>
+      <p class="note">${a.plan.basis.length ? `เน้น: ${esc(a.plan.basis.join(' และ '))} · ` : 'แบบฝึกเริ่มต้นตามเป้า · '}บันทึกผลทุกครั้งเพื่อดูพัฒนาการ</p>
       <div class="drills">${a.plan.items.map((d) => drillCard(d, { history: d.history, badge: d.fromSim ? 'จากเครื่องซ้อม' : '' })).join('')}</div>
+      <details class="card small"><summary><b>หลักการซ้อมให้ได้ผล</b></summary><ul class="find">${PRACTICE_PRINCIPLES.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></details>
+      <div class="row gap wrap"><a class="mini" href="#/drills">แบบฝึกทั้งหมด + คลิปสอน ›</a><a class="mini" href="#/practice">ประวัติการซ้อม ›</a><a class="mini" href="#/sim-game">เกมออกรอบจำลอง ›</a></div>`,
+    tee: `<h2 id="tee">ทีออฟ / ไดรเวอร์ ${a.tee.problem ? '<span class="badge bad">ควรแก้</span>' : a.tee.enough || a.tee.driver ? '<span class="badge ok">พอใช้</span>' : ''}</h2>
+      ${teeHtml(a.tee, g, a.sim)}
+      ${simHtml(a.sim)}
+      ${testDue}`,
+    stats: `<h2>สโตรกหายไปไหน <span class="badge ${confCls}">${confTxt}</span></h2>
+      ${shotOk ? `<p class="note">เฉลี่ยต่อ 18 หลุม จาก ${a.shot.holes} หลุมที่จดรายช็อต (${a.shot.rounds} รอบล่าสุด) · ขีดดำ = งบของเป้า${esc(g.th)}</p>
+      <div class="card leaks">${leakRows(a)}
+        <div class="leak-total">รวมเกินพาร์ <b>${fmtSigned(a.shot.overShots)}</b> <small>งบ ${fmtSigned(budgetOver(g))}</small></div>
+      </div>` : `<div class="card small muted">ต้องมีหลุมที่จดแบบ 🎯 รายช็อตจนจบหลุมอย่างน้อย 9 หลุม (ตอนนี้ ${a.shot.holes} หลุม)</div>`}
+      ${shotOk || a.stats.some((s) => s.yours != null) ? `<h2>สถิติหลักเทียบเป้า</h2><div class="stat-grid">${statTiles(a)}</div>` : ''}
+      ${hasScores ? `<div class="par-types">${a.byPar.filter((p) => p.n).map((p) => `<span>พาร์ ${p.par} <b>${fmtSigned(p.avgOver)}</b></span>`).join('')}</div>` : ''}
+      <h2>Strokes Gained <span class="badge ok">รายหมวด</span></h2>
+      ${sgHtml(g)}
+      <h2>แฮนดิแคปโดยประมาณ <span class="badge ok">WHS</span></h2>
+      ${handicapHtml()}
+      <h2>ระยะไม้จริงของคุณ <span class="badge ok">GPS</span></h2>
+      ${clubDistanceHtml()}
+      <div class="row gap wrap"><a class="mini" href="#/summary">สถิติรายช็อตละเอียด ›</a><a class="mini" href="#/progress">กราฟพัฒนาการ ›</a></div>
+      <p class="note">งบสโตรกและเป้าสถิติเป็นค่าประมาณเพื่อวางแผนสำหรับนักกอล์ฟสมัครเล่น ไม่ใช่มาตรฐานตายตัว · ยิ่งจดรายช็อตครบ ผลยิ่งแม่น</p>`,
+  };
 
-      <div class="card small coach-foot">
-        <p>งบสโตรกและเป้าสถิติเป็นค่าประมาณเพื่อวางแผนสำหรับนักกอล์ฟสมัครเล่น ไม่ใช่มาตรฐานตายตัว · ยิ่งจดรายช็อตครบ ผลยิ่งแม่น</p>
-        <div class="row gap"><a class="mini" href="#/drills">แบบฝึกทั้งหมด + คลิปสอน ›</a><a class="mini" href="#/summary">สถิติรายช็อตละเอียด ›</a><a class="mini" href="#/practice">ประวัติการซ้อม ›</a></div>
-      </div>
+  return {
+    html: `${header('พัฒนาเกม', { sub: 'คำนวณในเครื่องจากรอบที่คุณจด' })}
+    <div class="page coach">
+      <section>
+        <div class="lbl">เป้าหมาย${chosen ? '' : ' <span class="muted small">(แนะนำจากสกอร์เฉลี่ย แตะเพื่อเปลี่ยน)</span>'}</div>
+        <div class="chips goal-pick">${GOALS.map((x) => `<button type="button" class="chip${x.v === g.v ? ' on' : ''}" data-act="goal" data-v="${x.v}" aria-pressed="${x.v === g.v}">${esc(x.th)}</button>`).join('')}</div>
+      </section>
+      ${tabsHtml}
+      ${sections[tab]}
     </div>`,
     actions: {
       ...clipActions(),
