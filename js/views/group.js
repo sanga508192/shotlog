@@ -2,7 +2,7 @@
 import * as st from '../state.js';
 import { esc, header, chips, toast } from '../ui.js';
 import {
-  ME, MAX_PLAYERS, SCORE_KINDS, GAME_TYPES, playersOf, scoreGrid, computeGame, pointsSummary, fmtOver, halfLabels, prorate,
+  ME, MAX_PLAYERS, SCORE_KINDS, GAME_TYPES, playersOf, scoreGrid, computeGame, pointsSummary, fmtOver, halfLabels, prorate, openHoles,
 } from '../group.js';
 import { holeFacts } from '../coach.js';
 import { courseHoleNo, loopHoleNo } from '../holemap.js';
@@ -28,6 +28,24 @@ export async function renameMe(name, alsoRound = null) {
   ops.push({ store: 'settings', put: { key: 'my_name', value: v } });
   await st.commit(ops);
   return true;
+}
+
+// ---------- หลุมที่ยังไม่นับในสกอร์รวม ----------
+// ระหว่างเล่น: ไม่นับหลุมที่กำลังเล่นอยู่ และไม่เตือนหลุมที่ยังไม่ได้เล่น · จบรอบแล้ว: บอกหลุมที่ไม่มีสกอร์ด้วย
+export function openList(round, grid) {
+  const playing = round.status === 'playing';
+  return grid.players.map((p) => {
+    const o = openHoles(grid, p.id);
+    return { p, pending: o.pending.filter((h) => !playing || h.n !== round.current_hole), missing: playing ? [] : o.missing };
+  }).filter((x) => x.pending.length || x.missing.length);
+}
+// จบหลุมที่จดไว้แต่ยังไม่กดจบ ด้วยสกอร์ที่จดไว้ · คืนจำนวนหลุมที่จบ
+export async function finishHoles(roundId, nums) {
+  const want = new Set(nums);
+  const ops = st.holesOf(roundId).filter((h) => want.has(h.number) && h.status === 'playing')
+    .map((h) => st.patchOp('holes', h.id, { status: 'done', finish: 'holed' }));
+  if (ops.length) await st.commit(ops);
+  return ops.length;
 }
 
 // ---------- จำนวนหลุมของสนาม ----------
@@ -203,8 +221,12 @@ export function groupTableHtml(round, grid) {
     return c.final ? `<td class="${KIND_CLASS[c.kind] || ''}"><span class="sc">${c.strokes}</span></td>`
       : `<td class="k-pending" title="ยังไม่จบหลุม ไม่นับในรวม"><span class="sc">${c.strokes}</span></td>`;
   };
-  const star = (part, p) => (part === grid.total && part.byPlayer[p.id].count < grid.rows.length ? '<sup>*</sup>' : '');
-  const sub = (label, part, cls) => `<tr class="${cls}"><td>${label}</td><td>${part.par || ''}</td>${hasHc ? '<td></td>' : ''}${ps.map((p) => `<td>${part.byPlayer[p.id].strokes}${star(part, p)}</td>`).join('')}</tr>
+  // ยอดที่ยังไม่ครบทุกหลุมของช่วงนั้นมี * · ยังไม่มีสกอร์ในช่วงนั้นเลย = –
+  const subCell = (part, p) => {
+    const b = part.byPlayer[p.id];
+    return !b.count ? '–' : `${b.strokes}${b.count < (part.holes ?? grid.rows.length) ? '<sup>*</sup>' : ''}`;
+  };
+  const sub = (label, part, cls) => `<tr class="${cls}"><td>${label}</td><td>${part.par || ''}</td>${hasHc ? '<td></td>' : ''}${ps.map((p) => `<td>${subCell(part, p)}</td>`).join('')}</tr>
     <tr class="${cls} over"><td>เกิน</td><td></td>${hasHc ? '<td></td>' : ''}${ps.map((p) => `<td>${fmtOver(part.byPlayer[p.id].over)}</td>`).join('')}</tr>`;
   const body = [];
   for (const r of grid.rows) {

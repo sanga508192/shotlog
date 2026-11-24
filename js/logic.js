@@ -8,6 +8,16 @@ export function isCounted(shot) {
 }
 
 // สกอร์หลุม = สโตรกที่ตีซึ่งนับ + สโตรกปรับ แสดงสองส่วนแยกกัน
+// เริ่มจดหลุม num: หลุมก่อนหน้าที่จดช็อตไว้แต่ยังไม่จบ ให้จบด้วยสกอร์ที่จดไว้
+// = ทุกหลุมเลขน้อยกว่า และหลุมสุดท้ายของรอบเมื่อเป็นหลุมที่เพิ่งเล่น (เริ่มกลางสนาม: เล่นหลุม 18 แล้ววนมาหลุม 1)
+// จดย้อนหลังหลุมที่ข้ามไป (หลุมเลขน้อยกว่าหลุมที่กำลังเล่น) ไม่ไปจบหลุมที่กำลังเล่นอยู่
+export function holesToAutoFinish(holes, num, currentHole, hasShots) {
+  const last = Math.max(0, ...holes.map((h) => h.number));
+  return holes.filter((h) => h.number !== num && h.status === 'playing' && hasShots(h)
+    && (h.number < num || (h.number === currentHole && currentHole === last)))
+    .sort((a, b) => a.number - b.number);
+}
+
 export function holeScore(hole, shots, penalties) {
   const strokes = shots.filter(isCounted).length;
   const pen = penalties.reduce((a, p) => a + (Number(p.strokes) || 0), 0);

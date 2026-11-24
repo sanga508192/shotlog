@@ -194,7 +194,8 @@ function footer(p, W, y, pad, note = '') {
 }
 
 // สกอร์รวมที่ยังไม่ครบทุกหลุม ติด * (อธิบายท้ายรูป)
-const totalText = (grid, b, pid, part) => (!b.count ? '–' : part === grid.total && grid.total.byPlayer[pid].count < grid.rows.length ? `${b.strokes}*` : b.strokes);
+// ยอดรวม/ครึ่งรอบที่ยังไม่ครบทุกหลุมของช่วงนั้น มี * (หลุมที่ยังไม่จบหรือไม่มีสกอร์ไม่นับ)
+const totalText = (grid, b, _pid, part) => (!b.count ? '–' : b.count < (part.holes ?? grid.rows.length) ? `${b.strokes}*` : b.strokes);
 
 // ---------- เกม (ชิปผลของแต่ละคน ตัดขึ้นบรรทัดใหม่ตามความกว้าง) ----------
 

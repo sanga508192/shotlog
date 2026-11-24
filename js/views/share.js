@@ -2,8 +2,8 @@
 import * as st from '../state.js';
 import { esc, header, toast } from '../ui.js';
 import { LAYOUTS, renderScorecard, shareBlob, saveBlob } from '../share.js';
-import { scorecardData, myName, renameMe, NAME_MAX } from './group.js';
-import { playersOf, ME } from '../group.js';
+import { scorecardData, myName, renameMe, NAME_MAX, gridOf, openList, finishHoles } from './group.js';
+import { playersOf, ME, fmtRanges } from '../group.js';
 import { openCropper } from './cropper.js';
 import { liveCardHtml, liveActions } from './live.js';
 
@@ -45,6 +45,19 @@ export function shareView([roundId], ctx) {
   if (!LAYOUTS.some((o) => o.v === layout)) layout = 'landscape';
   const ph = photos.get(roundId) ?? null;
   const players = playersOf(round, myName());
+  // ก่อนแชร์: สกอร์ที่ยังไม่นับในยอดรวม (หลุมที่จดไว้แต่ยังไม่กดจบ / หลุมที่ไม่มีสกอร์หลังจบรอบ)
+  const open = openList(round, gridOf(round));
+  const myPending = open.find((x) => x.p.id === ME)?.pending ?? [];
+  const openHtml = open.length ? `<div class="card warn share-open">
+      <b>⚠️ สกอร์รวมในรูปยังไม่ครบ</b>
+      ${open.map((x) => `<div class="small">${esc(x.p.name)}: ${[
+    x.pending.length ? `หลุม ${x.pending.map((h) => `${h.n} (จดไว้ ${h.strokes})`).join(', ')} ยังไม่จบ` : '',
+    x.missing.length ? `ไม่มีสกอร์หลุม ${fmtRanges(x.missing)}` : '',
+  ].filter(Boolean).join(' · ')}</div>`).join('')}
+      <p class="note">หลุมเหล่านี้ไม่นับในยอดรวม ยอดในรูปจะมี * และคนนั้นไม่ได้จัดอันดับ</p>
+      ${myPending.length ? `<button type="button" class="btn primary block" data-act="finishPending">✓ ใช้สกอร์ที่จดไว้ จบหลุม ${fmtRanges(myPending.map((h) => h.n))}</button>` : ''}
+      <a class="btn block" href="#/round/${roundId}/card">${myPending.length ? 'แก้ที่สกอร์การ์ด (เช่น ลืมจดพัต)' : 'ไปกรอกที่สกอร์การ์ด'} ›</a>
+    </div>` : '';
   const hasMe = players.some((p) => p.id === ME);
   const showIds = () => {
     const s = shown.get(roundId);
@@ -129,6 +142,7 @@ export function shareView([roundId], ctx) {
         ${LAYOUTS.map((o) => `<button type="button" class="seg-btn${o.v === layout ? ' on' : ''}" role="radio" aria-checked="${o.v === layout}"
           data-act="layout" data-v="${o.v}">${ori(o.v)}${o.th}</button>`).join('')}
       </div>
+      ${openHtml}
       ${whoHtml}
       ${nameHtml}
       ${ph ? `<div class="card photo-pick">
@@ -178,6 +192,14 @@ export function shareView([roundId], ctx) {
         ctx.rerender();
       },
       photoCrop: () => openCrop(),
+      finishPending: async (el) => {
+        if (el.disabled) return;
+        el.disabled = true;
+        const nums = myPending.map((h) => h.n);
+        await finishHoles(roundId, nums);
+        toast(`จบหลุม ${fmtRanges(nums)} ด้วยสกอร์ที่จดไว้แล้ว · สร้างรูปใหม่ให้แล้ว`);
+        ctx.rerender();
+      },
       whoAll: () => { shown.delete(roundId); ctx.rerender(); },
       whoMe: () => { shown.set(roundId, [ME]); ctx.rerender(); },
       whoToggle: (el) => {

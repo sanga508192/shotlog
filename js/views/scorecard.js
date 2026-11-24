@@ -2,8 +2,8 @@
 import * as st from '../state.js';
 import { esc, header, toast, fmtDate } from '../ui.js';
 import { roundScore, fmtToPar, holeScore } from '../logic.js';
-import { groupTableHtml, countsTableHtml, gridOf, shotLogging, myName, renameMe, NAME_MAX, extendInfo, extendRound } from './group.js';
-import { playersOf, openHoles, fmtRanges, ME } from '../group.js';
+import { groupTableHtml, countsTableHtml, gridOf, shotLogging, myName, renameMe, NAME_MAX, extendInfo, extendRound, openList, finishHoles } from './group.js';
+import { playersOf, fmtRanges, ME } from '../group.js';
 import { deleteRound } from './main.js';
 import { liveCardHtml, liveActions } from './live.js';
 
@@ -29,11 +29,7 @@ export function scorecardView([roundId], ctx) {
   // เล่นต่อ: เสนอเมื่อหลุมสุดท้ายจบแล้ว (หรือจบรอบแล้ว) กันกดเพิ่มหลุมโดยไม่ตั้งใจ
   const ext = holes.at(-1)?.status === 'done' || round.status !== 'playing' ? extendInfo(round) : null;
   // ระหว่างเล่น: บอกเฉพาะหลุมที่จดแล้วแต่ยังไม่จบ (ไม่นับหลุมที่กำลังเล่น) · จบรอบแล้ว: บอกหลุมที่ยังไม่มีสกอร์ด้วย
-  const playing = round.status === 'playing';
-  const open = grid.players.map((p) => {
-    const o = openHoles(grid, p.id);
-    return { p, pending: o.pending.filter((h) => !playing || h.n !== round.current_hole), missing: playing ? [] : o.missing };
-  }).filter((x) => x.pending.length || x.missing.length);
+  const open = openList(round, grid);
   const myPending = open.find((x) => x.p.id === ME)?.pending ?? [];
   const openHtml = open.length ? `<div class="card warn open-holes">
       <b>⚠️ สกอร์รวมยังไม่ครบทุกหลุม</b>
@@ -103,11 +99,9 @@ export function scorecardView([roundId], ctx) {
         ctx.rerender();
       },
       confirmPending: async () => {
-        const ids = new Set(myPending.map((h) => h.n));
-        const ops = st.holesOf(roundId).filter((h) => ids.has(h.number) && h.status === 'playing')
-          .map((h) => st.patchOp('holes', h.id, { status: 'done', finish: 'holed' }));
-        if (ops.length) await st.commit(ops);
-        toast(`จบหลุม ${fmtRanges([...ids])} ด้วยสกอร์ที่จดไว้แล้ว`);
+        const ids = myPending.map((h) => h.n);
+        await finishHoles(roundId, ids);
+        toast(`จบหลุม ${fmtRanges(ids)} ด้วยสกอร์ที่จดไว้แล้ว`);
         ctx.rerender();
       },
       finishRound: async () => {

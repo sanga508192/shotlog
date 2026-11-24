@@ -2,7 +2,7 @@
 import * as st from '../state.js';
 import { esc, header, chips, toast } from '../ui.js';
 import { LIES, HOLE_FINISH, HOLE_STATUS, label, PENALTY_ENDS, RELIEFS } from '../constants.js';
-import { holeScore, fmtToPar, suggestShotType, shiftForInsert, resequence } from '../logic.js';
+import { holeScore, fmtToPar, suggestShotType, shiftForInsert, resequence, holesToAutoFinish } from '../logic.js';
 import { groupEntryHtml, setGroupScore, isGroupRound, shotLogging, rememberCourseCard, extendInfo, extendRound } from './group.js';
 import { watchPosition, lastPosition } from '../geo.js';
 import { courseHoles, distM, toUnit, unitTh, confirmedPoint, holeReady, setHolePoint, courseHoleNo } from '../holemap.js';
@@ -253,16 +253,20 @@ export function holeView([roundId, numStr], ctx) {
           gpsNote = pos ? ` · GPS ยังไม่แม่น (±${Math.round(pos.accuracy)} ม.) ไม่ได้เก็บตำแหน่ง` : ' · ยังไม่ได้ตำแหน่ง GPS';
         }
       }
-      let autoDone = null;
+      let autoDone = null;   // { nums, text } หลุมก่อนหน้าที่จบให้อัตโนมัติ
       const holeBefore = { ...st.S.holes.get(hole.id) };
-      let prevBefore = null;
+      const prevBefore = [];
       if (d.mode === 'new' && !current.length) {
-        const prevNum = st.S.rounds.get(roundId)?.current_hole;
-        const ph = prevNum && prevNum !== num ? st.holesOf(roundId).find((h) => h.number === prevNum) : null;
-        if (ph && ph.status === 'playing' && st.shotsOf(ph.id).length) {
-          prevBefore = { ...ph };
+        const list = holesToAutoFinish(st.holesOf(roundId), num, st.S.rounds.get(roundId)?.current_hole, (h) => st.shotsOf(h.id).length > 0);
+        for (const ph of list) {
+          prevBefore.push({ ...ph });
           ops.push(st.patchOp('holes', ph.id, { status: 'done', finish: 'holed' }));
-          autoDone = { n: ph.number, total: holeScore(ph, st.shotsOf(ph.id), st.penaltiesOf(ph.id)).total };
+        }
+        if (list.length) {
+          autoDone = {
+            first: list[0].number,
+            text: `หลุม ${list.map((h) => `${h.number} (${holeScore(h, st.shotsOf(h.id), st.penaltiesOf(h.id)).total})`).join(', ')}`,
+          };
         }
       }
       ops.push({ store: 'shots', put: shot });
@@ -293,13 +297,13 @@ export function holeView([roundId, numStr], ctx) {
         const bits = [`ช็อต ${shot.sequence}${club ? ` ${club}` : ''} → ${label(LIES, shot.end_lie)}`];
         if (auto.added) bits.push(`+${auto.added.strokes} สโตรกปรับ (${RELIEFS.find((r) => r.v === auto.added.relief)?.th ?? ''})`);
         if (holedMsg) bits.push(`จบหลุม สกอร์ ${holeScore(st.S.holes.get(hole.id), st.shotsOf(hole.id), st.penaltiesOf(hole.id)).total}`);
-        if (autoDone) bits.push(`หลุม ${autoDone.n} จบให้อัตโนมัติ (${autoDone.total})`);
+        if (autoDone) bits.push(`${autoDone.text} จบให้อัตโนมัติ`);
         const newPens = auto.ops.filter((o) => o.put).map((o) => o.put.id);   // ช็อตใหม่ = สโตรกปรับที่เพิ่งสร้างทั้งหมด
         toast(`${bits.join(' · ')}${gpsNote}`, {
           label: 'เลิกทำ',
           run: async () => {
             await st.commit([{ store: 'shots', del: shot.id }, ...newPens.map((id) => ({ store: 'penalties', del: id })),
-              { store: 'holes', put: holeBefore }, ...(prevBefore ? [{ store: 'holes', put: prevBefore }] : [])]);
+              { store: 'holes', put: holeBefore }, ...prevBefore.map((h) => ({ store: 'holes', put: h }))]);
             resetDraft(round, holeBefore);
             ctx.go(`#/round/${roundId}/hole/${num}`);
           },
@@ -308,12 +312,12 @@ export function holeView([roundId, numStr], ctx) {
       }
       if (holedMsg && nextN) toast('ลงหลุม — บันทึกในเครื่องแล้ว', { label: `ไปหลุม ${nextN}`, run: () => ctx.go(`#/round/${roundId}/hole/${nextN}`) });
       else if (auto.added) {
-        const msg = `บันทึกแล้ว · ${label(LIES, shot.end_lie)} +${auto.added.strokes} สโตรกปรับ${autoDone ? ` · หลุม ${autoDone.n} จบให้อัตโนมัติ (${autoDone.total})` : ''}${gpsNote}`;
+        const msg = `บันทึกแล้ว · ${label(LIES, shot.end_lie)} +${auto.added.strokes} สโตรกปรับ${autoDone ? ` · ${autoDone.text} จบให้อัตโนมัติ` : ''}${gpsNote}`;
         // ลูกที่เดินไปไม่ถึง ชวนปักจุดบนแผนที่ (ปุ่มเดียวกับแถวสโตรกปรับ)
         if (canLand && !landOf(shot)) toast(msg, { label: '📍 ปักจุด', run: () => document.querySelector(`[data-act="penLand"][data-shot="${shot.id}"]`)?.click() });
         else toast(msg);
       } else if (autoDone) {
-        toast(`บันทึกแล้ว · หลุม ${autoDone.n} ที่จดไว้จบให้อัตโนมัติ (${autoDone.total})${gpsNote}`, { label: `ดูหลุม ${autoDone.n}`, run: () => ctx.go(`#/round/${roundId}/hole/${autoDone.n}`) });
+        toast(`บันทึกแล้ว · ${autoDone.text} ที่จดไว้จบให้อัตโนมัติ${gpsNote}`, { label: `ดูหลุม ${autoDone.first}`, run: () => ctx.go(`#/round/${roundId}/hole/${autoDone.first}`) });
       } else toast(wasEdit ? 'แก้ไขแล้ว — บันทึกในเครื่องแล้ว' : `บันทึกในเครื่องแล้ว${gpsNote}`);
     } finally {
       d.saving = false;
