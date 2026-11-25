@@ -10,6 +10,7 @@ import { sendFeedback, reportingOn } from '../reports.js';
 import * as sync from '../sync.js';
 import { stopSharing } from '../community.js';
 import { wakeSupported, applySun } from '../display.js';
+import { aionConfig } from './aion.js';
 
 const stamp = () => st.todayLocal();
 
@@ -160,6 +161,7 @@ export function settingsView(_p, ctx) {
           <p class="note">ไม่มีอีเมลหรือข้อมูลการเล่นในนี้ คัดลอกส่งให้ผู้พัฒนาได้</p>
         </details>`)}
 
+      <a class="set-link card" href="#/aion"><span>🎙 จดสกอร์ด้วยเสียงผ่าน AION${aionConfig() ? ' · เชื่อมแล้ว' : ''}</span><span aria-hidden="true">›</span></a>
       <a class="set-link card" href="#/whats-new"><span>✨ มีอะไรใหม่</span><span aria-hidden="true">›</span></a>
       <p class="note center">ParUp TH รุ่น ${APP_VERSION} (ชื่อเดิม ShotLog) · ข้อมูลเก็บในเครื่องนี้เท่านั้น</p>
     </div>`,

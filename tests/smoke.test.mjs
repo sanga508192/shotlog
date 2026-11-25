@@ -21,6 +21,7 @@ import { gamePlanView } from '../js/views/gameplan.js';
 import { recapView } from '../js/views/recap.js';
 import { progressView } from '../js/views/progress.js';
 import { whatsNewView, whatsNewCard } from '../js/views/whatsnew.js';
+import { aionView } from '../js/views/aion.js';
 
 const ctx = { rerender() {}, go() {} };
 
@@ -137,6 +138,7 @@ function routesFor(ids) {
     ['practice new drill', () => practiceNewView(['d=putt-circle'], ctx)],
     ['practice new bad', () => practiceNewView(['t=a|b|c&d=zzz'], ctx)],
     ['settings', () => settingsView([], ctx)],
+    ['aion', () => aionView([], ctx)],
     ['account', () => accountView([''], ctx)],
     ['scan new', () => scanView([undefined], ctx)],
     ['scan curated', () => scanView(['kirimaya'], ctx)],

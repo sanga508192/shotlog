@@ -21,6 +21,7 @@ import { gamePlanView } from './views/gameplan.js';
 import { recapView } from './views/recap.js';
 import { progressView } from './views/progress.js';
 import { whatsNewView } from './views/whatsnew.js';
+import { aionView } from './views/aion.js';
 import { LATEST } from './whatsnew.js';
 import { resumeHref } from './views/main.js';
 import * as sync from './sync.js';
@@ -45,6 +46,7 @@ const routes = [
   [/^#\/coach(?:\/(\w+))?$/, coachView],
   [/^#\/progress$/, progressView],
   [/^#\/whats-new$/, whatsNewView],
+  [/^#\/aion$/, aionView],
   [/^#\/map\/([^/?]+)\/(\d+)(?:\?(.*))?$/, mapView],
   [/^#\/practice$/, practiceView],
   [/^#\/drills$/, drillsView],

@@ -11,6 +11,7 @@ import { coachData, focusListHtml } from './coach.js';
 import { courseHoles, holeReady, isEstimated, loopHoleNo } from '../holemap.js';
 import { offlineButton, saveCourseOffline } from './map.js';
 import { whatsNewCard, markNewsSeen } from './whatsnew.js';
+import { aionHomeSlot, fillAionSlot } from './aion.js';
 
 // ---------- หน้าแรก ----------
 
@@ -147,6 +148,7 @@ export function homeView(_p, ctx) {
         <a href="#/account" class="sync-pill" data-sync hidden></a>
       </header>
       ${playing.map(liveCard).join('')}
+      ${aionHomeSlot()}
       ${playing.length ? '<a class="btn block new-round-btn" href="#/courses">＋ เริ่มรอบใหม่</a>' : `<a class="hero-cta" href="#/courses">
         <div><b>เริ่มรอบใหม่</b><span>เลือกสนาม ชวนก๊วน แล้วจดได้เลย</span></div>
         <span class="hero-icon" aria-hidden="true">⛳</span>
@@ -169,6 +171,7 @@ export function homeView(_p, ctx) {
       ${cloudSession() ? '' : `<p class="note center">ข้อมูลเก็บในเครื่องนี้ ${lastExport ? `· สำรองล่าสุด ${esc(fmtDate(lastExport))}` : ''} ·
         ${cloudEnabled() ? '<a href="#/account">สำรองบนคลาวด์</a>' : '<a href="#/settings">ส่งออกไฟล์สำรอง</a>'}</p>`}
     </div>`,
+    mount: (el) => fillAionSlot(el),
     actions: {
       delRound: (el) => deleteRound(el.dataset.id, { after: () => ctx.rerender() }),
       newsSeen: async () => { await markNewsSeen(); ctx.rerender(); },

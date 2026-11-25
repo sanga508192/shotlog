@@ -582,6 +582,12 @@ h2 .badge { font-size: .72rem; vertical-align: middle; margin-left: 6px; }
 .coach-foot p { margin: 0 0 8px; color: var(--muted); }
 a.coach-link { display: flex; flex-direction: column; gap: 2px; text-decoration: none; color: var(--text); border-left: 5px solid var(--gold); }
 a.coach-link span { font-size: .84rem; color: var(--muted); }
+/* ช็อตจาก AION (ผู้ช่วยเสียง) */
+a.aion-card { display: flex; flex-direction: column; gap: 2px; text-decoration: none; color: var(--text); border-left: 5px solid var(--accent, var(--gold)); }
+a.aion-card span { font-size: .84rem; color: var(--muted); }
+.aion-list { margin: 8px 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 4px; }
+.aion-list li { line-height: 1.4; }
+form.stack { display: flex; flex-direction: column; gap: 10px; }
 .photo-pick { display: flex; align-items: center; gap: 10px; padding: 10px 12px; }
 .photo-pick .grow { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .photo-thumb { width: 64px; height: 48px; object-fit: cover; border-radius: 8px; flex: none; }
