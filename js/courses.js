@@ -30,6 +30,7 @@ export const PROVINCE_ALIASES = {
   'อุบลราชธานี': ['อุบล', 'Ubon Ratchathani', 'Ubon'],
   'นครนายก': ['Nakhon Nayok'],
   'ปราจีนบุรี': ['ปราจีน', 'Prachinburi', 'Prachin Buri'],
+  'นครปฐม': ['Nakhon Pathom', 'Nakornpathom'],
 };
 
 const CHECKED_AT = '2026-09-25';
@@ -112,6 +113,10 @@ export const CURATED_COURSES = [
     ['สกอร์การ์ดของสนาม (อ.ชุมแพ จ.ขอนแก่น)', 'https://www.golfdd.com/course/189'], '2026-09-28'),
   curated('toscana-valley', 'ทอสคาน่า วัลเลย์ คันทรีคลับ', 'Toscana Valley Country Club', 'นครราชสีมา',
     ['ทอสคาน่า', 'Toskana', 'โป่งตาลอง'], ['https://www.golflux.com/destination/nakhon-ratchasima-golf-courses/'], '2026-09-27'),
+  // ---- ผู้ใช้ขอเพิ่ม 25 พ.ย. 2569 (ชื่อจากเว็บไซต์และ Google Maps ของสนาม · เว็บไซต์ไม่มีสกอร์การ์ด จึงยังไม่มีพาร์/HC/ระยะรายหลุม) ----
+  curated('pomelo-golf', 'สนามกอล์ฟ โพเมโลกอล์ฟคลับ', 'The Pomelo Golf Club Old Course', 'นครปฐม',
+    ['โพเมโล', 'Pomelo', 'The Pomelo', 'Old Course', 'นครชัยศรี', 'Nakornchaisri', 'Nakhon Chai Si'],
+    ['https://www.thepomelogolf.com/ (18 หลุม พาร์ 72 ยาว 6,999 หลา · Nakornchaisri, Nakornpathom)', 'Google Maps (ลิงก์จากผู้ใช้)'], '2026-11-25'),
 ];
 
 export function normalizeText(s) {
@@ -175,6 +180,7 @@ export const COURSE_GEO = {
   'khao-yai-country-club': { lat: 14.55144, lon: 101.34355, source: 'หมุด Google Maps ของสนาม (จากหน้าสนามบน GOVIGO) ตรวจกับภาพดาวเทียมแล้ว' },
   'khao-cha-ngok': { lat: 14.2863, lon: 101.1543, source: 'คลับเฮาส์บนภาพดาวเทียม ตีนเขาทางตะวันตกเฉียงใต้ของ รร.จปร.' },
   'mahasak-phonsep': { lat: 16.60544, lon: 101.99212, source: 'Longdo Map ตรวจกับภาพดาวเทียม (แฟร์เวย์ติดถนนมะลิวัลย์ ตรงกับแผนผังบนการ์ด)' },
+  'pomelo-golf': { lat: 13.78034, lon: 100.18817, source: 'Google Maps (ลิงก์จากผู้ใช้) ตรวจกับภาพดาวเทียมแล้ว หมุดอยู่กลางสนาม ใกล้แม่น้ำท่าจีน อ.นครชัยศรี' },
 };
 for (const c of CURATED_COURSES) c.geo = COURSE_GEO[c.id] ?? null;
 
