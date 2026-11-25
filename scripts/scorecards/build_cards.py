@@ -4,8 +4,8 @@ import json, sys, os
 sys.path.insert(0, os.path.dirname(__file__))
 from cards_raw import RAW
 
-TEE_TH = {'Men': 'ชาย (M)', 'Ladies': 'หญิง (L)', 'BlueWhite': 'น้ำเงิน/ขาว', 'Kato': 'Kato', 'Black': 'ดำ', 'Gold': 'ทอง', 'Blue': 'น้ำเงิน', 'White': 'ขาว', 'Red': 'แดง', 'Yellow': 'เหลือง'}
-TEE_COLOR = {'Men': '#1e3a8a', 'Ladies': '#3b82f6', 'BlueWhite': '#1d4ed8', 'Kato': '#8e24aa', 'Black': '#1b1b1b', 'Gold': '#c9a227', 'Blue': '#1d4ed8', 'White': '#ffffff', 'Red': '#d7263d', 'Yellow': '#f2c200'}
+TEE_TH = {'DarkGreen': 'เขียวเข้ม', 'Olive': 'เขียวมะกอก', 'Men': 'ชาย (M)', 'Ladies': 'หญิง (L)', 'BlueWhite': 'น้ำเงิน/ขาว', 'Kato': 'Kato', 'Black': 'ดำ', 'Gold': 'ทอง', 'Blue': 'น้ำเงิน', 'White': 'ขาว', 'Red': 'แดง', 'Yellow': 'เหลือง'}
+TEE_COLOR = {'DarkGreen': '#1f4a33', 'Olive': '#a8a65a', 'Men': '#1e3a8a', 'Ladies': '#3b82f6', 'BlueWhite': '#1d4ed8', 'Kato': '#8e24aa', 'Black': '#1b1b1b', 'Gold': '#c9a227', 'Blue': '#1d4ed8', 'White': '#ffffff', 'Red': '#d7263d', 'Yellow': '#f2c200'}
 
 HC = {
     'kirimaya': [9, 13, 1, 17, 7, 3, 15, 5, 11, 10, 14, 16, 12, 4, 18, 6, 8, 2],
@@ -15,6 +15,7 @@ HC = {
     'dancoon': [13, 17, 12, 18, 14, 16, 8, 3, 9, 5, 2, 7, 11, 6, 1, 4, 10, 15],   # HS จากสกอร์การ์ดของสนาม
     'ubonrat-dam': [10, 2, 14, 17, 11, 8, 4, 6, 15, 7, 1, 18, 5, 16, 12, 9, 13, 3],
     'kabinburi-sport-club': [6, 2, 8, 14, 16, 12, 4, 18, 10, 9, 11, 7, 5, 13, 3, 17, 15, 1],
+    'pomelo-golf': [11, 15, 7, 3, 17, 5, 1, 9, 13, 6, 2, 14, 16, 4, 8, 18, 12, 10],   # Handicap จากการ์ดรายหลุมบนเว็บไซต์สนาม
     # การ์ดให้ HCP 1–9 ต่อ 9 หลุม (หลุม 1–9: 7,9,2,4,6,1,3,6,5 — หลุม 5 และ 8 พิมพ์ 6 ซ้ำกัน ไม่มี 8) แปลงเป็น 1–18 ตามหลักทั่วไป
     # ของสนาม 9 หลุมที่เล่น 2 รอบ: 9 แรกเป็นเลขคี่ (2r−1) 9 หลังเป็นเลขคู่ (2r) · หลุม 5/8/14/17 เว้นว่างเพราะการ์ดพิมพ์ซ้ำ
     'tiger-golf': [13, 17, 3, 7, None, 1, 5, None, 9, 14, 18, 4, 8, None, 2, 6, None, 10],
@@ -38,6 +39,7 @@ SOURCES = {
     'dancoon': ['สกอร์การ์ดของสนาม (รูปถ่ายจากผู้ใช้ 28 ก.ย. 2569) ยอด OUT/IN ตรงทุกแท่น (ยอดรวมแท่นเหลืองบนการ์ดพิมพ์ผิดเป็น 6,467 ค่ารายหลุมรวมได้ 6,473)', 'ระยะตรงกับ mScorecard ยกเว้นแท่นขาวหลุม 16 (การ์ด 382)'],
     'ubonrat-dam': ['ระยะและพาร์: mScorecard', 'HC: Hole19 (พาร์ตรงกันทุกหลุม)'],
     'kabinburi-sport-club': ['สกอร์การ์ดของสนาม (รูปถ่ายจากผู้ใช้ 28 ก.ย. 2569) ยอดรวม OUT/IN/TOTAL ตรงทุกแท่น'],
+    'pomelo-golf': ['การ์ดรายหลุมบนเว็บไซต์สนาม thepomelogolf.com (พาร์ Handicap ระยะ 4 แท่น) อ่าน 25 พ.ย. 2569', 'ยอดรวมแท่นเขียวเข้ม 6,999 หลา ตรงกับที่เว็บไซต์ระบุ · เว็บไม่ระบุชื่อแท่น จึงเรียกตามสีจุดบนการ์ด'],
     'chulabhorn-dam': ['สกอร์การ์ดของสนาม (รูปถ่ายจากผู้ใช้ 28 ก.ย. 2569) ยอด OUT/IN แท่นชายตรง 3,352', 'HC บนการ์ดเป็น 1–9 แปลงเป็น 1–18: 9 แรกเลขคี่ 9 หลังเลขคู่'],
     'tiger-golf': ['สกอร์การ์ดของสนาม (รูปถ่ายจากผู้ใช้ 28 ก.ย. 2569) ยอด OUT/IN/TOTAL ตรงทุกแท่น', 'Course/Slope Rating 9 หลุมจากการ์ด (น้ำเงินชาย 36.1/135, ขาวชาย 35/125, แดงหญิง 35.8/122) รวมเป็น 18 หลุมตามหลัก WHS: Rating บวกกัน Slope เฉลี่ย'],
 }
@@ -66,7 +68,7 @@ def check(cid, par, hc, tees):
         assert len(t['yards']) == 18, (cid, t['name'])
 
 cards = {}
-for cid in ['kirimaya', 'singha-park-khon-kaen', 'rancho-charnvee', 'panorama', 'dancoon', 'ubonrat-dam', 'kabinburi-sport-club', 'tiger-golf', 'chulabhorn-dam', 'khao-yai-country-club', 'khao-cha-ngok', 'mahasak-phonsep']:
+for cid in ['kirimaya', 'singha-park-khon-kaen', 'rancho-charnvee', 'panorama', 'dancoon', 'ubonrat-dam', 'kabinburi-sport-club', 'tiger-golf', 'chulabhorn-dam', 'khao-yai-country-club', 'khao-cha-ngok', 'mahasak-phonsep', 'pomelo-golf']:
     raw = RAW[cid]
     tees = []
     for name, (_tot, yards) in raw['tees'].items():

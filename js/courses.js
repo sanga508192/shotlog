@@ -113,10 +113,10 @@ export const CURATED_COURSES = [
     ['สกอร์การ์ดของสนาม (อ.ชุมแพ จ.ขอนแก่น)', 'https://www.golfdd.com/course/189'], '2026-09-28'),
   curated('toscana-valley', 'ทอสคาน่า วัลเลย์ คันทรีคลับ', 'Toscana Valley Country Club', 'นครราชสีมา',
     ['ทอสคาน่า', 'Toskana', 'โป่งตาลอง'], ['https://www.golflux.com/destination/nakhon-ratchasima-golf-courses/'], '2026-09-27'),
-  // ---- ผู้ใช้ขอเพิ่ม 25 พ.ย. 2569 (ชื่อจากเว็บไซต์และ Google Maps ของสนาม · เว็บไซต์ไม่มีสกอร์การ์ด จึงยังไม่มีพาร์/HC/ระยะรายหลุม) ----
+  // ---- ผู้ใช้ขอเพิ่ม 25 พ.ย. 2569 (ชื่อจากเว็บไซต์และ Google Maps ของสนาม · สกอร์การ์ดจากการ์ดรายหลุมบนเว็บไซต์ ดู scripts/scorecards) ----
   curated('pomelo-golf', 'สนามกอล์ฟ โพเมโลกอล์ฟคลับ', 'The Pomelo Golf Club Old Course', 'นครปฐม',
     ['โพเมโล', 'Pomelo', 'The Pomelo', 'Old Course', 'นครชัยศรี', 'Nakornchaisri', 'Nakhon Chai Si'],
-    ['https://www.thepomelogolf.com/ (18 หลุม พาร์ 72 ยาว 6,999 หลา · Nakornchaisri, Nakornpathom)', 'Google Maps (ลิงก์จากผู้ใช้)'], '2026-11-25'),
+    ['https://www.thepomelogolf.com/ (18 หลุม พาร์ 72 ยาว 6,999 หลา · การ์ดรายหลุมบนเว็บไซต์ · Nakornchaisri, Nakornpathom)', 'Google Maps (ลิงก์จากผู้ใช้)'], '2026-11-25'),
 ];
 
 export function normalizeText(s) {
