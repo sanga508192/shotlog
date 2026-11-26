@@ -396,7 +396,7 @@ export function newRoundView([courseId], ctx) {
 
       <h2>วิธีจดของฉัน</h2>
       <div class="mode-pick">
-        <button type="button" class="${nr.shotLogging ? '' : 'on'}" data-act="mode" data-v="quick"><b>⚡ จดเร็ว</b><span>สกอร์ทุกคนหลุมละครั้ง</span></button>
+        <button type="button" class="${nr.shotLogging ? '' : 'on'}" data-act="mode" data-v="quick"><b>⚡ สกอร์ด่วน</b><span>แตะเลขสกอร์หลุมละครั้ง ไปหลุมถัดไปเอง</span></button>
         <button type="button" class="${nr.shotLogging ? 'on' : ''}" data-act="mode" data-v="shots"><b>🎯 รายช็อต</b><span>ไม้และผลทุกช็อต รู้ว่าควรซ้อมอะไร</span></button>
       </div>
       ${cues.length ? `<details class="card focus-card"><summary>🎯 โฟกัสรอบนี้ <small class="muted">${cues.length} เรื่อง</small></summary>${focusListHtml(cues)}<a class="mini" href="#/coach">ดูที่มาและแผนซ้อม ›</a></details>` : ''}

@@ -44,6 +44,21 @@ export function playerHoleScore(hole, pid, shots = [], penalties = []) {
   return Number.isInteger(v) && v > 0 ? { strokes: v, final: true, source: 'quick' } : null;
 }
 
+// ปุ่มสกอร์ด่วน: ปุ่มใหญ่ 5 ค่า (เบอร์ดี้ถึง +3 · ไม่รู้พาร์ = 3–7) ปุ่มเล็กสำหรับค่าที่เจอน้อย
+export function scorePadValues(par) {
+  const base = Number.isInteger(par) && par >= 3 && par <= 6 ? par : 4;
+  const big = Array.from({ length: 5 }, (_, i) => base - 1 + i);
+  const small = [];
+  for (let v = Math.max(1, base - 3); v <= base - 2; v++) small.push(v);
+  small.push(base + 4, base + 5);
+  return { big, small };
+}
+
+// ทุกคนในรอบมีสกอร์สุดท้ายของหลุมนี้แล้วหรือยัง
+export function holeAllScored(round, hole, shots = [], penalties = [], myName) {
+  return playersOf(round, myName).every((p) => playerHoleScore(hole, p.id, shots, penalties)?.final);
+}
+
 export function classify(strokes, par) {
   if (!Number.isInteger(strokes) || !Number.isInteger(par)) return null;
   if (strokes === 1) return 'hio';

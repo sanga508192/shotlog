@@ -185,3 +185,19 @@ test('แต้มต่อสนามเล็กเล่นวน (8 หล�
   const got = m.log.filter((x) => x.winner == null).map((x) => x.number).sort((x, y) => x - y);
   assert.deepEqual(got, [1, 3, 4, 5, 7, 9, 11, 13, 15], 'หลุมที่ B ได้สโตรกจึงเสมอ (5−1 = 4)');
 });
+
+test('สกอร์ด่วน: ปุ่มใหญ่ 3 4 5 6 7 สำหรับพาร์ 4 (ไม่รู้พาร์ก็ 3–7) · หลุมครบทุกคนเมื่อทุกคนมีสกอร์สุดท้าย', async () => {
+  const { scorePadValues, holeAllScored } = await import('../js/group.js');
+  assert.deepEqual(scorePadValues(4), { big: [3, 4, 5, 6, 7], small: [1, 2, 8, 9] });
+  assert.deepEqual(scorePadValues(null).big, [3, 4, 5, 6, 7]);
+  assert.deepEqual(scorePadValues(3), { big: [2, 3, 4, 5, 6], small: [1, 7, 8] });
+  assert.deepEqual(scorePadValues(5), { big: [4, 5, 6, 7, 8], small: [2, 3, 9, 10] });
+  const round = { id: 'r', shot_logging: false, players: [{ id: 'me', name: 'ฉัน' }, { id: 'p1', name: 'A' }] };
+  const h = { id: 'h', number: 1, par: 4, status: 'playing', group_scores: { me: 5 } };
+  assert.equal(holeAllScored(round, h), false, 'เพื่อนยังไม่มีสกอร์');
+  assert.equal(holeAllScored(round, { ...h, group_scores: { me: 5, p1: 4 } }), true);
+  // รอบรายช็อต: ฉันใส่แค่สกอร์ (ไม่มีช็อต) นับเป็นสกอร์สุดท้าย · มีช็อตแต่ยังไม่จบหลุม = ยังไม่ครบ
+  const solo = { id: 'r2', players: [{ id: 'me', name: 'ฉัน' }] };
+  assert.equal(holeAllScored(solo, { ...h, group_scores: { me: 6 } }), true);
+  assert.equal(holeAllScored(solo, { ...h, group_scores: {} }, [{ id: 's1', sequence: 1, counted: true }]), false);
+});

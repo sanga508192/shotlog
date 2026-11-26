@@ -161,8 +161,9 @@ export async function rememberFriends(players) {
 
 // ---------- กรอกสกอร์ก๊วนในหน้าหลุม ----------
 
-export function groupEntryHtml(round, hole) {
-  const players = playersOf(round, myName());
+export function groupEntryHtml(round, hole, { skipMe = false } = {}) {
+  const players = playersOf(round, myName()).filter((p) => !(skipMe && p.id === ME));
+  if (!players.length) return '';
   const grid = gridOf(round);
   const shots = st.shotsOf(hole.id);
   const pens = st.penaltiesOf(hole.id);

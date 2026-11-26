@@ -1,9 +1,9 @@
 // สกอร์การ์ดของรอบ: ตารางก๊วน หลุมที่ยังไม่จบ จบรอบ ลบรอบ
 import * as st from '../state.js';
 import { esc, header, toast, fmtDate } from '../ui.js';
-import { roundScore, fmtToPar, holeScore } from '../logic.js';
+import { roundScore, holeScore } from '../logic.js';
 import { groupTableHtml, countsTableHtml, gridOf, shotLogging, myName, renameMe, NAME_MAX, extendInfo, extendRound, openList, finishHoles } from './group.js';
-import { playersOf, fmtRanges, ME } from '../group.js';
+import { playersOf, fmtRanges, ME, fmtOver } from '../group.js';
 import { deleteRound } from './main.js';
 import { liveCardHtml, liveActions } from './live.js';
 
@@ -45,14 +45,21 @@ export function scorecardView([roundId], ctx) {
     <div class="page scorecard-page">
       <section class="card sc-top">
         <div class="row between">
-          ${logShots && playersOf(round).length === 1
-    ? `<div><span class="big-num">${total.total}</span> <span class="topar">${total.holesForPar ? fmtToPar(total.toPar) : ''}</span>
-              <div class="small muted">ตี ${total.strokes}${total.penalties ? ` + ปรับ ${total.penalties}` : ''} · นับ ${total.holesForPar} หลุมที่จบและมีพาร์</div></div>`
+          ${playersOf(round).length === 1
+    ? (() => {
+      // ยอดของฉันจากตาราง: รวมหลุมที่จดรายช็อตและหลุมที่ใส่แค่สกอร์
+      const b = grid.total.byPlayer[ME];
+      return `<div><span class="big-num">${b.count ? b.strokes : '–'}</span> <span class="topar">${b.count ? fmtOver(b.over) : ''}</span>
+              <div class="small muted">นับ ${b.count}/${holes.length} หลุมที่จบแล้ว${total.penalties ? ` · ลูกโทษ ${total.penalties}` : ''}</div></div>`;
+    })()
     : `<div><b>${esc(round.course_name_snapshot)}</b><div class="small muted">${grid.players.length} คน · ${holes.length} หลุม</div></div>`}
           <span class="badge ${round.status === 'playing' ? 'none' : round.status === 'complete' ? 'good' : 'bad'}">${round.status === 'playing' ? 'กำลังเล่น' : round.status === 'complete' ? 'จบรอบ' : 'จบรอบ (จดไม่ครบ)'}</span>
         </div>
         <div class="sc-actions">
-          ${round.status === 'playing'
+          ${round.status === 'playing' && !incomplete
+    ? `<button type="button" class="btn primary" data-act="finishRound">✓ จบรอบ</button>
+             <a class="btn" href="#/round/${roundId}/hole/${round.current_hole || 1}">⛳ กลับหลุม ${round.current_hole || 1}</a>`
+    : round.status === 'playing'
     ? `<a class="btn primary" href="#/round/${roundId}/hole/${round.current_hole || 1}">⛳ จดต่อ หลุม ${round.current_hole || 1}</a>
              <button type="button" class="btn stack" data-act="finishRound"><span>จบรอบ</span>${incomplete ? `<small>ยังไม่จบ ${incomplete} หลุม</small>` : ''}</button>`
     : `${logShots ? `<a class="btn primary" href="#/round/${roundId}/recap">📋 สรุปหลังรอบ</a>` : ''}

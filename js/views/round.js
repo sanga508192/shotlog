@@ -3,7 +3,8 @@ import * as st from '../state.js';
 import { esc, header, chips, toast } from '../ui.js';
 import { LIES, HOLE_FINISH, HOLE_STATUS, label, PENALTY_ENDS, RELIEFS } from '../constants.js';
 import { holeScore, fmtToPar, suggestShotType, shiftForInsert, resequence, holesToAutoFinish } from '../logic.js';
-import { groupEntryHtml, setGroupScore, isGroupRound, shotLogging, rememberCourseCard, extendInfo, extendRound } from './group.js';
+import { groupEntryHtml, setGroupScore, isGroupRound, shotLogging, rememberCourseCard, extendInfo, extendRound, gridOf, myName } from './group.js';
+import { ME, playersOf, playerHoleScore, holeAllScored, fmtOver, classify, SCORE_KINDS } from '../group.js';
 import { watchPosition, lastPosition } from '../geo.js';
 import { courseHoles, distM, toUnit, unitTh, confirmedPoint, holeReady, setHolePoint, courseHoleNo } from '../holemap.js';
 import { GPS_MAX_ACC, suggestClub } from '../coach.js';
@@ -12,7 +13,7 @@ import { shotPath, landOf } from '../shotgeo.js';
 import { openLandPicker, landInfo, landText, sideTh } from './landpick.js';
 import { teePlanFor, teePlanHtml, planClubId, srcOf, SRC_TH } from './holeplan.js';
 import { d, blankShot, resetDraft, reliefOf, rehitAfter, usualClub } from './shotdraft.js';
-import { shotCard, shotForm, penaltySection, puttCard, quickPad, holeDoneHtml, LAND_REASONS } from './shotform.js';
+import { shotCard, shotForm, penaltySection, puttCard, quickPad, holeDoneHtml, scorePadHtml, LAND_REASONS } from './shotform.js';
 import { keepAwake, sunOn, toggleSun } from '../display.js';
 
 export { scorecardView } from './scorecard.js';
@@ -147,8 +148,16 @@ export function holeView([roundId, numStr], ctx) {
   const lastShot = shots.at(-1);
   const onGreen = !!lastShot && !lastShot.holed && (lastShot.shot_type === 'putt' || ['green', 'fringe'].includes(lastShot.end_lie));
   const next = nextN ? { href: `#/round/${roundId}/hole/${nextN}`, th: `ไปหลุม ${nextN}` } : { href: `#/round/${roundId}/card`, th: 'ดูสกอร์การ์ด' };
+  // สกอร์ด่วน: รอบจดเร็วใช้เสมอ · รอบรายช็อตใช้เมื่อเลือกไว้ (หรือหลุมนี้ใส่สกอร์ไว้แล้ว) และหลุมยังไม่มีช็อต
+  const myCell = playerHoleScore(hole, ME, shots, penalties);
+  const myQuick = Number.isInteger(hole.group_scores?.[ME]) && !shots.length && !penalties.length;
+  const pad = !logShots || (d.mode === 'new' && !shots.length && !penalties.length && (st.setting('shot_form', 'quick') === 'score' || myQuick));
+  const myTot = (() => { const b = gridOf(round).total.byPlayer[ME]; return b?.count ? { strokes: b.strokes, over: fmtOver(b.over) } : null; })();
+  const padHtml = pad ? scorePadHtml(hole, myQuick || !logShots ? hole.group_scores?.[ME] ?? null : null, { total: myTot, canShots: logShots, group: playersOf(round).length > 1 }) : '';
   let entryHtml = '';
-  if (quick) {
+  if (pad) {
+    entryHtml = padHtml;
+  } else if (quick) {
     entryHtml = hole.status === 'done' ? holeDoneHtml(num, sc, next, nextN ? null : extendInfo(round))
       : `${onGreen ? puttCard(unit) : ''}${quickPad(bag, shots, gpsOn)}`;
   } else if (logShots) {
@@ -170,7 +179,8 @@ export function holeView([roundId, numStr], ctx) {
       </div>
       <div class="hs-info">
         ${[pinNo !== num ? `รอบสอง · หลุม ${pinNo} ของสนาม` : '', hole.distance ? `${hole.distance} ${hole.distance_unit === 'yd' ? 'หลา' : 'ม.'}${round.tee_name ? ` แท่น${round.tee_name}` : ''}` : '', hole.hc_index ? `HC ${hole.hc_index}` : ''].filter(Boolean).map(esc).join(' · ')}
-        ${logShots && (shots.length || sc.penalties || hole.status !== 'playing') ? `<span class="hs-score">ตี <b>${sc.strokes}</b>${sc.penalties ? ` + ปรับ <b>${sc.penalties}</b>` : ''} = <b>${sc.total}</b>${sc.par != null && hole.status === 'done' ? ` <span class="topar">(${fmtToPar(sc.toPar)})</span>` : ''}${sc.notCounted ? ` <span class="muted">· ไม่นับ ${sc.notCounted}</span>` : ''}</span>` : ''}
+        ${(myQuick || !logShots) && myCell ? `<span class="hs-score">สกอร์ <b>${myCell.strokes}</b>${Number.isInteger(hole.par) ? ` <span class="topar">(${fmtToPar(myCell.strokes - hole.par)})</span>` : ''}</span>` : ''}
+        ${logShots && !myQuick && (shots.length || sc.penalties || hole.status !== 'playing') ? `<span class="hs-score">ตี <b>${sc.strokes}</b>${sc.penalties ? ` + ปรับ <b>${sc.penalties}</b>` : ''} = <b>${sc.total}</b>${sc.par != null && hole.status === 'done' ? ` <span class="topar">(${fmtToPar(sc.toPar)})</span>` : ''}${sc.notCounted ? ` <span class="muted">· ไม่นับ ${sc.notCounted}</span>` : ''}</span>` : ''}
         ${hole.status !== 'playing' ? `<span class="badge ${hole.status === 'done' ? 'good' : 'bad'}">${esc(label(HOLE_STATUS, hole.status))}${hole.finish ? ` · ${esc(label(HOLE_FINISH, hole.finish))}` : ''}</span>` : ''}
       </div>
     </div>
@@ -184,15 +194,16 @@ export function holeView([roundId, numStr], ctx) {
       </div>
     </div>` : ''}
 
+    ${!logShots ? padHtml : ''}
     ${teePlanHtml(tp, unit, roundId)}
 
-    ${group && !logShots ? groupEntryHtml(round, hole) : ''}
+    ${group && !logShots ? groupEntryHtml(round, hole, { skipMe: true }) : ''}
 
     ${logShots ? `${entryHtml}
     ${shots.length ? '<div class="lbl">ช็อตในหลุมนี้ <span class="muted small">แตะเพื่อแก้</span></div>' : ''}
     <div class="shots">${shots.map((s) => shotCard(s, d.mode === 'edit' ? d.F.id : null, gpsDist.get(s.id) ?? null, unit)).join('')}</div>
     ${penaltySection(hole, shots, canLand)}
-    ${group ? groupEntryHtml(round, hole) : ''}
+    ${group ? groupEntryHtml(round, hole, { skipMe: pad }) : ''}
 
     <section class="card">
       <h3>จบหลุม</h3>
@@ -322,6 +333,13 @@ export function holeView([roundId, numStr], ctx) {
     } finally {
       d.saving = false;
     }
+  }
+
+  // หลุมครบทุกคนแล้ว: ไปหลุมถัดไปทันที · หลุมสุดท้าย = สกอร์การ์ด · เลิกทำ = คืนค่าหลุมนี้แล้วกลับมา
+  function advanceAfter(before, msg) {
+    const undo = { label: 'เลิกทำ', run: async () => { await st.commit([{ store: 'holes', put: before }]); ctx.go(`#/round/${roundId}/hole/${num}`); } };
+    ctx.go(nextN ? `#/round/${roundId}/hole/${nextN}` : `#/round/${roundId}/card`);
+    toast(`${msg}${nextN ? ` → หลุม ${nextN}` : ' · หลุมสุดท้ายแล้ว'}`, undo);
   }
 
   let stopGps = null;
@@ -581,9 +599,36 @@ export function holeView([roundId, numStr], ctx) {
         refresh();
       },
       gscore: async (el) => {
-        await setGroupScore(round, st.S.holes.get(hole.id), el.dataset.pid, Number(el.dataset.v));
+        const before = { ...st.S.holes.get(hole.id) };
+        const was = holeAllScored(round, before, st.shotsOf(hole.id), st.penaltiesOf(hole.id), myName());
+        const h = await setGroupScore(round, before, el.dataset.pid, Number(el.dataset.v));
+        // รอบจดเร็ว: คนสุดท้ายของหลุมได้สกอร์ → ไปหลุมถัดไปเอง
+        if (!logShots && !was && holeAllScored(round, h, st.shotsOf(hole.id), st.penaltiesOf(hole.id), myName())) return advanceAfter(before, `หลุม ${num} ครบทุกคนแล้ว`);
         refresh();
       },
+      // สกอร์ด่วนของฉัน: บันทึกทันที · ทุกคนครบแล้วไปหลุมถัดไป · เลิกทำได้
+      myScore: async (el) => {
+        let n = Number(el.dataset.v);
+        if (el.dataset.v === 'other') {
+          const raw = prompt('ตีกี่ที (1–20)');
+          n = Math.round(Number(raw));
+          if (!raw || !Number.isInteger(n) || n < 1 || n > 20) return;
+        }
+        const before = { ...st.S.holes.get(hole.id) };
+        const was = holeAllScored(round, before, st.shotsOf(hole.id), st.penaltiesOf(hole.id), myName());
+        let h = await setGroupScore(round, before, ME, n);
+        if (h.group_scores?.[ME] !== n) h = await setGroupScore(round, h, ME, n);   // แตะค่าเดิมซ้ำ = ยืนยัน ไม่ใช่ลบ
+        if (logShots && h.status !== 'done') {
+          await st.commit([st.patchOp('holes', h.id, { status: 'done', finish: 'holed' })]);
+          h = st.S.holes.get(h.id);
+        }
+        const kind = Number.isInteger(h.par) ? SCORE_KINDS.find((k) => k.v === classify(n, h.par))?.th : '';
+        const msg = `หลุม ${num}: ${n}${kind ? ` (${kind})` : ''}`;
+        if (!was && holeAllScored(round, h, st.shotsOf(hole.id), st.penaltiesOf(hole.id), myName())) return advanceAfter(before, msg);
+        refresh();
+        toast(`${msg}${was ? ' · แก้แล้ว' : ' · รอเพื่อนในก๊วน'}`, { label: 'เลิกทำ', run: async () => { await st.commit([{ store: 'holes', put: before }]); ctx.go(`#/round/${roundId}/hole/${num}`); } });
+      },
+      scoreForm: async () => { await st.setSetting('shot_form', 'score'); refresh(); },
       gmore: async (el) => {
         const raw = prompt('จำนวนสโตรก');
         const n = Math.round(Number(raw));

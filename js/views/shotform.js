@@ -9,6 +9,7 @@ import {
 import { toUnit, unitTh } from '../holemap.js';
 import { landOf } from '../shotgeo.js';
 import { d } from './shotdraft.js';
+import { SCORE_KINDS, classify, scorePadValues } from '../group.js';
 
 function shotSummary(s) {
   const bits = [];
@@ -167,12 +168,31 @@ export function quickPad(bag, shots, gpsOn = false) {
     <div class="qp-out">${opts.map((o) => `<button type="button" class="qp-btn${PENALTY_ENDS[o.v] ? ' pen' : ''}${o.v === 'holed' ? ' holed' : ''}${o.v === 'fairway' || o.v === 'green' ? ' good' : ''}" data-act="qout" data-v="${o.v}">${esc(o.th)}${PENALTY_ENDS[o.v] ? ' <small>+1</small>' : ''}</button>`).join('')}</div>
     <div class="row between qp-foot">
       <label class="check small"><input type="checkbox" data-change="gpsShots" ${gpsOn ? 'checked' : ''}> 📍 GPS <span class="muted" id="gps-state"></span></label>
-      <button type="button" class="linklike" data-act="fullForm">จดแบบละเอียด ›</button>
+      <span class="row gap">${shots.length ? '' : '<button type="button" class="linklike" data-act="scoreForm">⚡ ใส่แค่สกอร์</button>'}
+        <button type="button" class="linklike" data-act="fullForm">จดแบบละเอียด ›</button></span>
     </div>
   </section>`;
 }
 
 // หลุมจบแล้ว (แบบจดเร็ว): สกอร์ + ปุ่มไปหลุมถัดไป
+// สกอร์ด่วน: แตะจำนวนสโตรกของหลุมนี้ครั้งเดียว = บันทึก และไปหลุมถัดไป (เมื่อทุกคนมีสกอร์แล้ว)
+const KIND_TH = Object.fromEntries(SCORE_KINDS.map((k) => [k.v, k.th]));
+export function scorePadHtml(hole, cur, { total = null, canShots = false, group = false } = {}) {
+  const { big, small } = scorePadValues(hole.par);
+  const kind = (v) => (Number.isInteger(hole.par) ? KIND_TH[classify(v, hole.par)] ?? '' : '');
+  const btn = (v, cls) => `<button type="button" class="${cls}${cur === v ? ' on' : ''}" data-act="myScore" data-v="${v}" aria-pressed="${cur === v}">
+      <b>${v}</b>${cls === 'sp-big' ? `<small>${esc(kind(v))}</small>` : ''}</button>`;
+  return `<section class="card score-pad" id="entry">
+    <div class="row between"><b>⚡ หลุม ${hole.number}${Number.isInteger(hole.par) ? ` · พาร์ ${hole.par}` : ''} — ตีกี่ที</b>
+      ${total ? `<span class="small muted">รวม <b>${total.strokes}</b> ${total.over}</span>` : ''}</div>
+    <div class="sp-big-row">${big.map((v) => btn(v, 'sp-big')).join('')}</div>
+    <div class="sp-small-row">${small.map((v) => btn(v, 'sp-small')).join('')}
+      <button type="button" class="sp-small${Number.isInteger(cur) && !big.includes(cur) && !small.includes(cur) ? ' on' : ''}" data-act="myScore" data-v="other">${Number.isInteger(cur) && !big.includes(cur) && !small.includes(cur) ? cur : 'อื่น'}</button></div>
+    <p class="note">${Number.isInteger(hole.par) ? '' : 'ยังไม่รู้พาร์ ตั้งพาร์ด้านบนได้ · '}แตะแล้วบันทึกทันที${group ? ' · ทุกคนมีสกอร์ครบแล้วไปหลุมถัดไปเอง' : ' แล้วไปหลุมถัดไป'} · แตะผิดกด "เลิกทำ"</p>
+    ${canShots ? '<button type="button" class="linklike" data-act="quickForm">🎯 จดรายช็อตแทน ›</button>' : ''}
+  </section>`;
+}
+
 export function holeDoneHtml(num, sc, next, ext = null) {
   const toPar = sc.par != null && sc.toPar != null ? ` (${sc.toPar === 0 ? 'พาร์' : `${sc.toPar > 0 ? '+' : ''}${sc.toPar}`})` : '';
   return `<section class="card hole-done">

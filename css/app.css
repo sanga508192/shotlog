@@ -1200,3 +1200,23 @@ details.small > summary::after {
 details[open].card:not(.set-group):not(.tee-plan) > summary::after,
 details[open].small > summary::after { transform: rotate(90deg); }
 details.card[open] > summary { margin-bottom: 8px; }
+
+/* ---------- สกอร์ด่วน ---------- */
+.score-pad { display: flex; flex-direction: column; gap: 10px; border: 2px solid var(--brand-soft); scroll-margin-top: 70px; }
+.sp-big-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.sp-big {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 76px;
+  border-radius: 16px; border: 2px solid var(--line); background: var(--surface-2); color: var(--text); cursor: pointer; font: inherit;
+}
+.sp-big b { font-size: 1.9rem; line-height: 1; }
+.sp-big small { font-size: .68rem; color: var(--muted); font-weight: 600; white-space: nowrap; }
+.sp-big:active, .sp-small:active { transform: scale(.96); }
+.sp-big.on { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+.sp-big.on small { color: var(--brand-ink); opacity: .85; }
+.sp-small-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.sp-small {
+  flex: 1; min-width: 48px; min-height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface);
+  color: var(--text); font: inherit; font-weight: 700; cursor: pointer;
+}
+.sp-small b { font-weight: 700; }
+.sp-small.on { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
