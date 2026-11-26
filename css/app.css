@@ -1220,3 +1220,16 @@ details.card[open] > summary { margin-bottom: 8px; }
 }
 .sp-small b { font-weight: 700; }
 .sp-small.on { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+
+/* ---------- พิมพ์สกอร์ทั้งรอบ ---------- */
+.ts-input { font-size: 1.4rem; font-weight: 700; letter-spacing: .08em; font-variant-numeric: tabular-nums; }
+.ts-start select.input { width: auto; flex: none; min-height: 40px; padding: 4px 10px; }
+.ts-grid { display: grid; grid-template-columns: repeat(9, 1fr); gap: 4px; }
+.ts-cell { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 4px 0; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); }
+.ts-cell small { font-size: .66rem; color: var(--muted); }
+.ts-cell.skip { opacity: .5; border-style: dashed; }
+.ts-v { font-size: 1.1rem; font-weight: 700; min-height: 1.5em; display: grid; place-items: center; }
+.ts-par, .ts-old { font-size: .64rem; color: var(--muted); }
+.ts-old { color: var(--bad); }
+.ts-sum { margin: 6px 2px 0; font-size: .9rem; }
+.bad-txt { color: var(--bad); font-weight: 700; }

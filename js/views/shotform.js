@@ -177,7 +177,7 @@ export function quickPad(bag, shots, gpsOn = false) {
 // หลุมจบแล้ว (แบบจดเร็ว): สกอร์ + ปุ่มไปหลุมถัดไป
 // สกอร์ด่วน: แตะจำนวนสโตรกของหลุมนี้ครั้งเดียว = บันทึก และไปหลุมถัดไป (เมื่อทุกคนมีสกอร์แล้ว)
 const KIND_TH = Object.fromEntries(SCORE_KINDS.map((k) => [k.v, k.th]));
-export function scorePadHtml(hole, cur, { total = null, canShots = false, group = false } = {}) {
+export function scorePadHtml(hole, cur, { total = null, canShots = false, group = false, roundId = null } = {}) {
   const { big, small } = scorePadValues(hole.par);
   const kind = (v) => (Number.isInteger(hole.par) ? KIND_TH[classify(v, hole.par)] ?? '' : '');
   const btn = (v, cls) => `<button type="button" class="${cls}${cur === v ? ' on' : ''}" data-act="myScore" data-v="${v}" aria-pressed="${cur === v}">
@@ -189,7 +189,10 @@ export function scorePadHtml(hole, cur, { total = null, canShots = false, group 
     <div class="sp-small-row">${small.map((v) => btn(v, 'sp-small')).join('')}
       <button type="button" class="sp-small${Number.isInteger(cur) && !big.includes(cur) && !small.includes(cur) ? ' on' : ''}" data-act="myScore" data-v="other">${Number.isInteger(cur) && !big.includes(cur) && !small.includes(cur) ? cur : 'อื่น'}</button></div>
     <p class="note">${Number.isInteger(hole.par) ? '' : 'ยังไม่รู้พาร์ ตั้งพาร์ด้านบนได้ · '}แตะแล้วบันทึกทันที${group ? ' · ทุกคนมีสกอร์ครบแล้วไปหลุมถัดไปเอง' : ' แล้วไปหลุมถัดไป'} · แตะผิดกด "เลิกทำ"</p>
-    ${canShots ? '<button type="button" class="linklike" data-act="quickForm">🎯 จดรายช็อตแทน ›</button>' : ''}
+    <div class="row between wrap">
+      ${roundId ? `<a class="linklike" href="#/round/${encodeURIComponent(roundId)}/type">⌨️ พิมพ์ทั้งรอบทีเดียว</a>` : '<span></span>'}
+      ${canShots ? '<button type="button" class="linklike" data-act="quickForm">🎯 จดรายช็อตแทน ›</button>' : ''}
+    </div>
   </section>`;
 }
 

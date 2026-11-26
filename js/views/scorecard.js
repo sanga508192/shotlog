@@ -81,6 +81,7 @@ export function scorecardView([roundId], ctx) {
         ${round.status === 'playing' ? `<a href="#/round/${roundId}/share"><span>📤 แชร์รูปสกอร์การ์ด</span><span aria-hidden="true">›</span></a>` : ''}
         ${games.length ? `<a href="#/round/${roundId}/games"><span>🎲 ผลเกม</span><small>${games.length} เกม</small><span aria-hidden="true">›</span></a>` : ''}
         ${logShots ? `<a href="#/round/${roundId}/plan"><span>🧭 แผนเกม 18 หลุม</span><span aria-hidden="true">›</span></a>` : ''}
+        <a href="#/round/${roundId}/type"><span>⌨️ พิมพ์สกอร์ทั้งรอบ</span><small>เช่น 5 4 5 6 3 …</small><span aria-hidden="true">›</span></a>
         <a href="#/round/${roundId}/setup"><span>👥 ผู้เล่นและเกม</span><small>${grid.players.length} คน</small><span aria-hidden="true">›</span></a>
         <a href="#/round/${roundId}/pars"><span>⛳ พาร์ / HC</span>${noPar ? `<small>ยังไม่มี ${noPar} หลุม</small>` : ''}<span aria-hidden="true">›</span></a>
         ${logShots ? `<a href="#/round/${roundId}/summary"><span>📊 สถิติรายช็อตของฉัน</span><span aria-hidden="true">›</span></a>` : ''}

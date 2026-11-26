@@ -201,3 +201,24 @@ test('สกอร์ด่วน: ปุ่มใหญ่ 3 4 5 6 7 สำห�
   assert.equal(holeAllScored(solo, { ...h, group_scores: { me: 6 } }), true);
   assert.equal(holeAllScored(solo, { ...h, group_scores: {} }, [{ id: 's1', sequence: 1, counted: true }]), false);
 });
+
+test('พิมพ์สกอร์ทั้งรอบ: อ่านได้หลายแบบ และเติมตั้งแต่หลุมที่เลือก ไม่ทับหลุมที่ฉันจดรายช็อตไว้', async () => {
+  const { parseScoreString, planTypedScores } = await import('../js/group.js');
+  const v = (t) => parseScoreString(t).values;
+  assert.deepEqual(v('5 4 5 6 3'), [5, 4, 5, 6, 3]);
+  assert.deepEqual(v('54563'), [5, 4, 5, 6, 3], 'ติดกัน');
+  assert.deepEqual(v('545 634 654'), [5, 4, 5, 6, 3, 4, 6, 5, 4], 'เป็นชุด');
+  assert.deepEqual(v('๕,๔ 10'), [5, 4, 10], 'เลขไทย สกอร์ 2 หลัก');
+  assert.deepEqual(v('5 - 4 x'), [5, null, 4, null], 'ข้ามหลุม');
+  assert.match(parseScoreString('1010').error, /0 ไม่ใช่สกอร์/);
+  assert.match(parseScoreString('5-4').error, /อ่าน "5-4" ไม่ได้/);
+  assert.deepEqual(parseScoreString('  '), { values: [], error: null });
+
+  const holes = Array.from({ length: 9 }, (_, i) => ({ id: `h${i + 1}`, number: i + 1, par: 4, status: 'playing', group_scores: i === 3 ? { me: 7 } : {} }));
+  const shotsOf = (id) => (id === 'h2' ? [{ id: 's', sequence: 1, counted: true }] : []);
+  const p = planTypedScores({ holes, start: 1, values: [5, 4, null, 6], pid: 'me', shotsOf });
+  assert.deepEqual(p.rows.map((r) => [r.hole.number, r.value, r.old, r.skip]), [[1, 5, null, null], [2, 4, null, 'shots'], [3, null, null, 'typed'], [4, 6, 7, null]]);
+  const friend = planTypedScores({ holes, start: 8, values: [5, 6], pid: 'p1', shotsOf });
+  assert.deepEqual(friend.rows.map((r) => [r.hole.number, r.skip]), [[8, null], [9, null]], 'ช็อตของฉันไม่เกี่ยวกับเพื่อน');
+  assert.match(planTypedScores({ holes, start: 8, values: [5, 6, 7], pid: 'me' }).error, /มีแค่ 2 หลุม/);
+});

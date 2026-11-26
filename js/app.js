@@ -18,6 +18,7 @@ import { drillsView } from './views/drills.js';
 import { launchView } from './views/launch.js';
 import { simGameView } from './views/simgame.js';
 import { gamePlanView } from './views/gameplan.js';
+import { typeScoreView } from './views/typescore.js';
 import { recapView } from './views/recap.js';
 import { progressView } from './views/progress.js';
 import { whatsNewView } from './views/whatsnew.js';
@@ -41,6 +42,7 @@ const routes = [
   [/^#\/round\/([^/]+)\/share$/, shareView],
   [/^#\/round\/([^/]+)\/summary$/, summaryView],
   [/^#\/round\/([^/]+)\/plan$/, gamePlanView],
+  [/^#\/round\/([^/]+)\/type$/, typeScoreView],
   [/^#\/round\/([^/]+)\/recap$/, recapView],
   [/^#\/summary$/, summaryView],
   [/^#\/coach(?:\/(\w+))?$/, coachView],

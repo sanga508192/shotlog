@@ -153,7 +153,7 @@ export function holeView([roundId, numStr], ctx) {
   const myQuick = Number.isInteger(hole.group_scores?.[ME]) && !shots.length && !penalties.length;
   const pad = !logShots || (d.mode === 'new' && !shots.length && !penalties.length && (st.setting('shot_form', 'quick') === 'score' || myQuick));
   const myTot = (() => { const b = gridOf(round).total.byPlayer[ME]; return b?.count ? { strokes: b.strokes, over: fmtOver(b.over) } : null; })();
-  const padHtml = pad ? scorePadHtml(hole, myQuick || !logShots ? hole.group_scores?.[ME] ?? null : null, { total: myTot, canShots: logShots, group: playersOf(round).length > 1 }) : '';
+  const padHtml = pad ? scorePadHtml(hole, myQuick || !logShots ? hole.group_scores?.[ME] ?? null : null, { total: myTot, canShots: logShots, group: playersOf(round).length > 1, roundId }) : '';
   let entryHtml = '';
   if (pad) {
     entryHtml = padHtml;

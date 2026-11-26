@@ -54,6 +54,42 @@ export function scorePadValues(par) {
   return { big, small };
 }
 
+// ---------- พิมพ์สกอร์ทั้งรอบ ----------
+// "5 4 5 6 3" · "5,4,5" · "545634654" (ติดกันได้ถ้าทุกหลุมต่ำกว่า 10) · "545 634 654" (เป็นชุด) · เลขไทย ๕๔๕
+// "-" หรือ "x" = ข้ามหลุมนั้น (คงค่าเดิม) · สกอร์ 10 ขึ้นไปต้องเว้นวรรคแยก
+export function parseScoreString(text) {
+  const s = String(text ?? '').replace(/[๐-๙]/g, (c) => String(c.charCodeAt(0) - 0x0e50)).trim();
+  if (!s) return { values: [], error: null };
+  const values = [];
+  for (const chunk of s.split(/[\s,;/.|]+/).filter(Boolean)) {
+    if (/^[-x_]+$/i.test(chunk)) { for (let i = 0; i < chunk.length; i++) values.push(null); continue; }
+    if (!/^\d+$/.test(chunk)) return { values, error: `อ่าน "${chunk}" ไม่ได้ ใช้ได้แค่ตัวเลข เว้นวรรค และ - (ข้ามหลุม)` };
+    const n = Number(chunk);
+    // ชุดตัวเลขที่ค่าเกิน 20 = พิมพ์ติดกันหลายหลุม → แยกทีละหลัก
+    const parts = chunk.length >= 3 || n > 20 ? [...chunk].map(Number) : [n];
+    for (const v of parts) {
+      if (v < 1) return { values, error: '0 ไม่ใช่สกอร์ · สกอร์ 10 ขึ้นไปให้เว้นวรรคแยกจากหลุมอื่น' };
+      values.push(v);
+    }
+  }
+  return { values, error: null };
+}
+
+// แผนการเติม: เริ่มที่หลุม start ทีละหลุมตามลำดับ · ของฉันในหลุมที่จดรายช็อตไว้ไม่ทับ (สกอร์มาจากช็อต)
+// คืน { rows: [{ hole, value, old, skip }], error } · skip = 'typed' (พิมพ์ -) | 'shots'
+export function planTypedScores({ holes, start = 1, values, pid, shotsOf = () => [], penaltiesOf = () => [] }) {
+  const list = [...holes].sort((a, b) => a.number - b.number).filter((h) => h.number >= start);
+  if (values.length > list.length) return { rows: [], error: `พิมพ์ ${values.length} หลุม แต่ตั้งแต่หลุม ${start} มีแค่ ${list.length} หลุม` };
+  const rows = values.map((value, i) => {
+    const hole = list[i];
+    const shots = shotsOf(hole.id), pens = penaltiesOf(hole.id);
+    const old = playerHoleScore(hole, pid, shots, pens);
+    const skip = value == null ? 'typed' : pid === ME && (shots.length || pens.length) ? 'shots' : null;
+    return { hole, value, old: old?.final ? old.strokes : null, skip };
+  });
+  return { rows, error: null };
+}
+
 // ทุกคนในรอบมีสกอร์สุดท้ายของหลุมนี้แล้วหรือยัง
 export function holeAllScored(round, hole, shots = [], penalties = [], myName) {
   return playersOf(round, myName).every((p) => playerHoleScore(hole, p.id, shots, penalties)?.final);

@@ -19,6 +19,7 @@ import { drillsView } from '../js/views/drills.js';
 import { launchView } from '../js/views/launch.js';
 import { gamePlanView } from '../js/views/gameplan.js';
 import { recapView } from '../js/views/recap.js';
+import { typeScoreView } from '../js/views/typescore.js';
 import { progressView } from '../js/views/progress.js';
 import { whatsNewView, whatsNewCard } from '../js/views/whatsnew.js';
 import { aionView } from '../js/views/aion.js';
@@ -160,6 +161,7 @@ function routesFor(ids) {
       [`${name} share`, () => shareView([rid], ctx)],
       [`${name} plan`, () => gamePlanView([rid], ctx)],
       [`${name} recap`, () => recapView([rid], ctx)],
+      [`${name} type`, () => typeScoreView([rid], ctx)],
       [`${name} map`, () => mapView([r.course_id || 'x', '1', `r=${rid}`], ctx)],
       [`${name} share data`, () => ({ html: JSON.stringify(Object.keys(scorecardData(st.S.rounds.get(rid)))) })],
     );
